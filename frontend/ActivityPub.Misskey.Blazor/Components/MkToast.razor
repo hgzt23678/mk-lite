@@ -1,0 +1,150 @@
+@implements IAsyncDisposable
+@inject IToastInterop Browser
+@inject IPizzaxDeviceState DeviceState
+
+<div class="@RootClass" @attributes="AttributesWithoutClass">
+    @if (animation is not null)
+    {
+        <div @ref="body"
+             class="body _acrylic"
+             role="status"
+             aria-live="polite"
+             aria-atomic="true"
+             data-toast-message>
+            <div class="message">@Message</div>
+        </div>
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference body;
+    private DotNetObjectReference<MkToast>? receiver;
+    private IJSObjectReference? attachment;
+    private bool? animation;
+    private long generation;
+    private bool closed;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public string Message { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[] { "mk-toast", AdditionalClass }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        if (Message.Length > 4_096)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Message));
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (disposed || attachment is not null)
+        {
+            return;
+        }
+
+        if (animation is null)
+        {
+            try
+            {
+                animation = await DeviceState.ReadAsync("animation", true, lifetime.Token);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (JSDisconnectedException)
+            {
+                animation = true;
+            }
+
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        receiver ??= DotNetObjectReference.Create(this);
+        long nextGeneration = checked(++generation);
+        try
+        {
+            IJSObjectReference created = await Browser.AttachAsync(
+                body,
+                receiver,
+                nextGeneration,
+                animation.Value,
+                lifetime.Token);
+            if (disposed)
+            {
+                await created.InvokeVoidAsync("dispose");
+                await created.DisposeAsync();
+                return;
+            }
+
+            attachment = created;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public async Task NotifyClosed(long callbackGeneration)
+    {
+        if (disposed || closed || callbackGeneration != generation)
+        {
+            return;
+        }
+
+        closed = true;
+        await Closed.InvokeAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        generation++;
+        lifetime.Cancel();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+}

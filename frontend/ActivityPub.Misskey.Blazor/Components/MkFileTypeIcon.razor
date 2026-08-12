@@ -1,0 +1,33 @@
+<span @attributes="AttributesWithoutClass" class="@RootClass">
+    @if (Kind == "image")
+    {
+        <i class="fas fa-file-image"></i>
+    }
+</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Type { get; set; } = string.Empty;
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string Kind => Type.Split('/', 2)[0];
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "mk-file-type-icon",
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+}

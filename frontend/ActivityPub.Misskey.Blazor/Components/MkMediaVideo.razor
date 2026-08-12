@@ -1,0 +1,98 @@
+@implements IDisposable
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyLocalizer Localizer
+
+@if (hide)
+{
+    <div @attributes="AttributesWithoutClass" class="@HiddenClass" @onclick="Reveal">
+        <div><b><i class="fas fa-exclamation-triangle"></i> @Localizer.Translate("sensitive")</b><span>@Localizer.Translate("clickToShow")</span></div>
+    </div>
+}
+else
+{
+    <div @attributes="AttributesWithoutClass" class="@VisibleClass">
+        <video poster="@PosterUrl" title="@Video.Description" alt="@Video.Description" preload="none" controls @oncontextmenu:stopPropagation="true">
+            <source src="@VideoUrl" type="@Video.MediaType" />
+        </video>
+        <i class="fas fa-eye-slash" @onclick="Hide"></i>
+    </div>
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private bool hide;
+    private bool settingsLoaded;
+    private string? mediaKey;
+
+    [Parameter, EditorRequired]
+    public NoteMediaViewModel Video { get; set; } = null!;
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string VideoUrl => SameOriginMediaUrl.Normalize(Video.Url) ??
+        throw new InvalidOperationException("Video media must use the same-origin media boundary.");
+    private string PosterUrl => SameOriginMediaUrl.Normalize(Video.PreviewUrl) ??
+        throw new InvalidOperationException("Video poster must use the same-origin media boundary.");
+    private string HiddenClass => MergeClass("icozogqfvdetwohsdglrbswgrejoxbdj");
+    private string VisibleClass => MergeClass("kkjnbbplepmiyuadieoenjgutgcmtsvu");
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        string key = $"{Video.Id}\u001f{Video.Sensitive}";
+        if (!string.Equals(key, mediaKey, StringComparison.Ordinal))
+        {
+            mediaKey = key;
+            hide = Video.Sensitive;
+            settingsLoaded = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _ = firstRender;
+        if (settingsLoaded || lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        settingsLoaded = true;
+        try
+        {
+            string policy = await DeviceState.ReadAsync("nsfw", "respect", lifetime.Token);
+            bool next = policy == "force" || Video.Sensitive && policy != "ignore";
+            if (!lifetime.IsCancellationRequested && next != hide)
+            {
+                hide = next;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private string MergeClass(string root) => string.IsNullOrWhiteSpace(AdditionalClass)
+        ? root
+        : $"{root} {AdditionalClass}";
+    private void Reveal() => hide = false;
+    private void Hide() => hide = true;
+
+    public void Dispose()
+    {
+        lifetime.Cancel();
+        lifetime.Dispose();
+    }
+}

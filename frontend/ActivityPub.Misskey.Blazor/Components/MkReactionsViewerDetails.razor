@@ -1,0 +1,59 @@
+@inject IMisskeyOverlayService Overlays
+
+<MkTooltip Target="Target"
+           Showing="Showing"
+           MaxWidth="340"
+           Id="@TooltipId"
+           Closed="Close">
+    <div class="bqxuuuey">
+        <div class="reaction">
+            <MkReactionIcon Reaction="@Reaction"
+                            CustomEmojis="CustomEmojis"
+                            class="icon"
+                            NoStyle="true" />
+            <div class="name">@DisplayReaction</div>
+        </div>
+        <div class="users">
+            @foreach (NoteAuthorViewModel user in Users)
+            {
+                <div @key="user.Id" class="user">
+                    <MkAvatar class="avatar" User="user" />
+                    <MkUserName CssClass="name" User="user" NoWrap="true" />
+                </div>
+            }
+            @if (Users.Count > 10)
+            {
+                <div class="omitted">+@(Count - 10)</div>
+            }
+        </div>
+    </div>
+</MkTooltip>
+
+@code {
+    [Parameter, EditorRequired]
+    public Guid Id { get; set; }
+
+    [Parameter, EditorRequired]
+    public ElementReference Target { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Reaction { get; set; } = string.Empty;
+
+    [Parameter]
+    public IReadOnlyList<EmojiPickerCustomEmoji> CustomEmojis { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyList<NoteAuthorViewModel> Users { get; set; } = [];
+
+    [Parameter]
+    public long Count { get; set; }
+
+    [Parameter]
+    public bool Showing { get; set; }
+
+    private string TooltipId => $"mk-reaction-details-{Id:N}";
+
+    private string DisplayReaction => Reaction.Replace("@.", string.Empty, StringComparison.Ordinal);
+
+    private void Close() => Overlays.Close(Id);
+}

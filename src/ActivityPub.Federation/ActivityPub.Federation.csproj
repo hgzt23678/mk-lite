@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../ActivityPub.Application/ActivityPub.Application.csproj" />
+    <ProjectReference Include="../ActivityPub.Domain/ActivityPub.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="HtmlSanitizer" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
+    <PackageReference Include="NSign.Abstractions" />
+    <PackageReference Include="NSign.AspNetCore" />
+    <PackageReference Include="NSign.Client" />
+    <PackageReference Include="NSign.SignatureProviders" />
+  </ItemGroup>
+</Project>

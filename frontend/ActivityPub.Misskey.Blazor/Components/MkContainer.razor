@@ -1,0 +1,281 @@
+@implements IAsyncDisposable
+@using System.Collections.ObjectModel
+@inject IContainerInterop ContainerInterop
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyLocalizer Localizer
+
+<div @ref="root"
+     class="@RootClass"
+     style="@AdditionalStyle"
+     @attributes="AttributesWithoutClassAndStyle">
+    @if (ShowHeader)
+    {
+        <header @ref="header">
+            <div class="title">@Header</div>
+            <div class="sub">
+                @Function
+                @if (Foldable)
+                {
+                    <button class="_button"
+                            type="button"
+                            aria-expanded="@showBody.ToString().ToLowerInvariant()"
+                            @onclick="ToggleFromButtonAsync">
+                        @if (showBody)
+                        {
+                            <i class="fas fa-angle-up"></i>
+                        }
+                        else
+                        {
+                            <i class="fas fa-angle-down"></i>
+                        }
+                    </button>
+                }
+            </div>
+        </header>
+    }
+    <div @ref="content" class="@ContentClass" style="@ContentStyle">
+        @ChildContent
+        @if (omitted)
+        {
+            <button class="fade _button" type="button" @onclick="RevealAsync">
+                <span>@Localizer.Translate("showMore")</span>
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private IReadOnlyDictionary<string, object>? attributesWithoutClassAndStyle;
+    private ElementReference root;
+    private ElementReference header;
+    private ElementReference content;
+    private DotNetObjectReference<MkContainer>? receiver;
+    private IJSObjectReference? attachment;
+    private bool showBody;
+    private bool contentHidden;
+    private bool omitted;
+    private bool ignoreOmit;
+    private bool narrow;
+    private bool animation = true;
+    private bool initialized;
+    private bool disposed;
+    private long motionGeneration;
+
+    [CascadingParameter(Name = "MisskeyLocaleRevision")]
+    private long LocaleRevision { get; set; }
+
+    [Parameter]
+    public bool ShowHeader { get; set; } = true;
+
+    [Parameter]
+    public bool Thin { get; set; }
+
+    [Parameter]
+    public bool Naked { get; set; }
+
+    [Parameter]
+    public bool Foldable { get; set; }
+
+    [Parameter]
+    public bool Expanded { get; set; } = true;
+
+    [Parameter]
+    public bool Scrollable { get; set; }
+
+    [Parameter]
+    public double? MaxHeight { get; set; }
+
+    [Parameter]
+    public RenderFragment? Header { get; set; }
+
+    [Parameter]
+    public RenderFragment? Function { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "ukygtjoj _panel",
+        Naked ? "naked" : null,
+        Thin ? "thin" : null,
+        !ShowHeader ? "hideHeader" : null,
+        Scrollable ? "scrollable" : null,
+        !showBody ? "closed" : null,
+        narrow ? "max-width_380px" : null,
+        ReadAdditionalAttribute("class")
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string ContentClass => omitted ? "content omitted" : "content";
+
+    private string? ContentStyle => contentHidden ? "display: none;" : null;
+
+    private string? AdditionalStyle => ReadAdditionalAttribute("style");
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle
+    {
+        get
+        {
+            if (AdditionalAttributes is null ||
+                !AdditionalAttributes.ContainsKey("class") && !AdditionalAttributes.ContainsKey("style"))
+            {
+                return AdditionalAttributes;
+            }
+
+            return attributesWithoutClassAndStyle ??= new ReadOnlyDictionary<string, object>(
+                AdditionalAttributes
+                    .Where(attribute =>
+                        !string.Equals(attribute.Key, "class", StringComparison.Ordinal) &&
+                        !string.Equals(attribute.Key, "style", StringComparison.Ordinal))
+                    .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.Ordinal));
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        attributesWithoutClassAndStyle = null;
+        if (!initialized)
+        {
+            initialized = true;
+            showBody = Expanded;
+            contentHidden = !Expanded;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            animation = await DeviceState.ReadAsync("animation", true, lifetime.Token);
+            receiver = DotNetObjectReference.Create(this);
+            attachment = await ContainerInterop.AttachAsync(
+                root,
+                header,
+                content,
+                MaxHeight,
+                showBody,
+                receiver,
+                lifetime.Token);
+        }
+        catch (Exception exception) when (exception is JSDisconnectedException or OperationCanceledException)
+        {
+        }
+    }
+
+    public Task ToggleContentAsync(bool show) => Foldable ? SetExpandedAsync(show) : Task.CompletedTask;
+
+    [JSInvokable]
+    public Task UpdateContainerMeasurements(double headerHeight, bool isNarrow, bool isOmitted)
+    {
+        _ = headerHeight;
+        if (disposed)
+        {
+            return Task.CompletedTask;
+        }
+
+        bool nextOmitted = !ignoreOmit && isOmitted;
+        if (narrow == isNarrow && omitted == nextOmitted)
+        {
+            return Task.CompletedTask;
+        }
+
+        narrow = isNarrow;
+        omitted = nextOmitted;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task ToggleFromButtonAsync() => SetExpandedAsync(!showBody);
+
+    private async Task SetExpandedAsync(bool next)
+    {
+        if (disposed || showBody == next)
+        {
+            return;
+        }
+
+        long generation = ++motionGeneration;
+        showBody = next;
+        await InvokeAsync(StateHasChanged);
+        if (attachment is null)
+        {
+            contentHidden = !next;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        try
+        {
+            bool cancelled = await attachment.InvokeAsync<bool>(
+                "setExpanded",
+                lifetime.Token,
+                next,
+                animation,
+                generation);
+            if (!disposed && motionGeneration == generation && !cancelled)
+            {
+                contentHidden = !next;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception exception) when (exception is JSDisconnectedException or OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task RevealAsync()
+    {
+        ignoreOmit = true;
+        omitted = false;
+        await InvokeAsync(StateHasChanged);
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("reveal", lifetime.Token);
+            }
+            catch (Exception exception) when (exception is JSDisconnectedException or OperationCanceledException)
+            {
+            }
+        }
+    }
+
+    private string? ReadAdditionalAttribute(string name) =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue(name, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        motionGeneration++;
+        lifetime.Cancel();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+}

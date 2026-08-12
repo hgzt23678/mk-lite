@@ -1,0 +1,71 @@
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IMisskeyLocalizer Localizer
+
+<!DOCTYPE html>
+<html lang="@Localizer.CurrentLocale" dir="@Localizer.Direction">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#86b300" />
+    <base href="/" />
+    <ResourcePreloader />
+    <link rel="manifest" href="@Assets["_content/ActivityPub.Misskey.Blazor/manifest.webmanifest"]" />
+    <link rel="stylesheet" href="@Assets["_content/ActivityPub.Misskey.Blazor/vendor/fontawesome/css/all.min.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/ActivityPub.Misskey.Blazor/vendor/prism/prism-okaidia.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/ActivityPub.Misskey.Blazor/vendor/katex/katex.min.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/ActivityPub.Misskey.Blazor/vendor/photoswipe/photoswipe.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/ActivityPub.Misskey.Blazor/css/misskey-v12-upstream.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/ActivityPub.Misskey.Blazor/css/app.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/ActivityPub.Misskey.Blazor/css/misskey-v12-default-theme.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/ActivityPub.Misskey.Blazor/ActivityPub.Misskey.Blazor.bundle.scp.css"]" />
+    <link rel="modulepreload" href="@Assets["_content/ActivityPub.Misskey.Blazor/js/element-size.js"]" />
+    <link rel="icon" href="/static-assets/favicon.png" />
+    <script src="@Assets["_content/ActivityPub.Misskey.Blazor/js/interop-lifecycle.js"]"></script>
+    <script type="module" src="@Assets["_content/ActivityPub.Misskey.Blazor/js/theme.js"]"></script>
+    <script type="module" src="/_content/ActivityPub.Misskey.Blazor/js/overlay-stack.js"></script>
+    <ImportMap AdditionalAttributes="importMapAttributes" />
+    <HeadOutlet @rendermode="InteractiveServer" />
+</head>
+<body>
+    <Routes @rendermode="InteractiveServer" />
+    <div id="components-reconnect-modal"
+         class="mk-circuit-reconnect"
+         role="alertdialog"
+         aria-modal="true"
+         aria-labelledby="mk-circuit-reconnect-title"
+         aria-describedby="mk-circuit-reconnect-description">
+        <div class="mk-circuit-reconnect__dialog _popup _shadow">
+            <i class="fas fa-satellite-dish" aria-hidden="true"></i>
+            <p id="mk-circuit-reconnect-title" class="mk-circuit-reconnect__title">
+                サーバーとの接続が切れました
+            </p>
+            <p id="mk-circuit-reconnect-description" class="mk-circuit-reconnect__retrying">
+                再接続しています（<span id="components-reconnect-current-attempt"></span>/<span id="components-reconnect-max-retries"></span>）
+            </p>
+            <p class="mk-circuit-reconnect__paused">接続は一時停止されています。</p>
+            <p class="mk-circuit-reconnect__failed">自動再接続に失敗しました。</p>
+            <p class="mk-circuit-reconnect__rejected">サーバー上のセッションを復元できませんでした。</p>
+            <p class="mk-circuit-reconnect__resume-failed">一時停止した接続を復元できませんでした。</p>
+            <a class="mk-circuit-reconnect__reload _buttonGradate" href="/">再読み込み</a>
+        </div>
+    </div>
+    <div id="blazor-error-ui" role="alert">
+        クライアント接続で回復不能なエラーが発生しました。
+        <a href="/">再読み込み</a>
+    </div>
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+    <script src="@Assets["_content/ActivityPub.Misskey.Blazor/js/register-service-worker.js"]"></script>
+</body>
+</html>
+
+@code {
+    private IReadOnlyDictionary<string, object>? importMapAttributes;
+
+    protected override void OnInitialized()
+    {
+        importMapAttributes = new Dictionary<string, object>(StringComparer.Ordinal)
+        {
+            ["nonce"] = FrontendCspNonce.GetRequired(HttpContextAccessor.HttpContext)
+        };
+    }
+}

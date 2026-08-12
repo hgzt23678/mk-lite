@@ -1,0 +1,15 @@
+services:
+  api:
+    environment:
+      Frontend__PublicBaseUri: ${AP_TAILSCALE_ORIGIN:?set AP_TAILSCALE_ORIGIN}
+
+  worker:
+    environment:
+      Frontend__PublicBaseUri: ${AP_TAILSCALE_ORIGIN:?set AP_TAILSCALE_ORIGIN}
+
+  caddy:
+    environment:
+      AP_TAILSCALE_HOST: ${AP_TAILSCALE_HOST:?set AP_TAILSCALE_HOST}
+      AP_TAILSCALE_PORT: ${AP_TAILSCALE_PORT:?set AP_TAILSCALE_PORT}
+    volumes:
+      - ./deploy/pasture/Caddyfile.tailscale:/etc/caddy/Caddyfile:ro

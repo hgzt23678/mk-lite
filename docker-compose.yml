@@ -1,0 +1,304 @@
+name: activitypub-local
+
+x-app-environment: &app-environment
+  ASPNETCORE_ENVIRONMENT: Development
+  ConnectionStrings__ActivityPub: Host=postgres;Port=5432;Database=activitypub;Username=activitypub;Password=${AP_POSTGRES_PASSWORD:?copy .env.example to .env and replace every value}
+  Federation__PublicBaseUri: https://localhost:8443
+  Federation__ClientToServerEnabled: "true"
+  Federation__AllowDevelopmentLoopback: "true"
+  Authentication__Authority: https://identity.example.invalid
+  Authentication__Audience: activitypub-api
+  Frontend__Enabled: "true"
+  Frontend__ClientId: activitypub-web
+  Frontend__SourceUrl: https://github.com/example/activitypub-server
+  KeyManagement__Enabled: "true"
+  VaultTransit__Address: http://vault:8200
+  VaultTransit__Mount: transit
+  VaultTransit__TokenFile: /run/secrets/vault_token
+  Media__Enabled: "true"
+  Media__Bucket: activitypub-media
+  Media__ServiceUrl: http://minio:9000
+  Media__Region: us-east-1
+  Media__UseServerSideEncryption: "false"
+  Media__ClamAvHost: clamav
+  AWS_ACCESS_KEY_ID: ${AP_MINIO_ROOT_USER:?set AP_MINIO_ROOT_USER}
+  AWS_SECRET_ACCESS_KEY: ${AP_MINIO_ROOT_PASSWORD:?set AP_MINIO_ROOT_PASSWORD}
+  Http__TrustedProxies__0: 172.28.0.10
+  AllowedHosts: localhost
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel:4317
+
+x-app-base: &app-base
+  image: ${ACTIVITYPUB_IMAGE:-activitypub-server:local}
+  build:
+    context: .
+  environment: *app-environment
+  secrets:
+    - vault_token
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+    minio-init:
+      condition: service_completed_successfully
+    clamav:
+      condition: service_healthy
+  networks:
+    activitypub:
+  read_only: true
+  tmpfs:
+    - /tmp:size=512m,mode=1777
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  stop_grace_period: 2m
+  restart: unless-stopped
+  deploy:
+    resources:
+      limits:
+        cpus: "2.0"
+        memory: 2G
+      reservations:
+        cpus: "0.25"
+        memory: 256M
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: activitypub
+      POSTGRES_USER: activitypub
+      POSTGRES_PASSWORD: ${AP_POSTGRES_PASSWORD:?set AP_POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U activitypub -d activitypub"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      activitypub:
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${AP_MINIO_ROOT_USER:?set AP_MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${AP_MINIO_ROOT_PASSWORD:?set AP_MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      activitypub:
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${AP_MINIO_ROOT_USER:?set AP_MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${AP_MINIO_ROOT_PASSWORD:?set AP_MINIO_ROOT_PASSWORD}
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
+        mc mb --ignore-existing local/activitypub-media
+        mc version enable local/activitypub-media
+    networks:
+      activitypub:
+
+  clamav:
+    image: clamav/clamav:1.4
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "printf 'PING\\n' | nc 127.0.0.1 3310 | grep PONG"]
+      start_period: 2m
+      interval: 15s
+      timeout: 5s
+      retries: 20
+    networks:
+      activitypub:
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+
+  vault:
+    image: hashicorp/vault:1.20.3
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${AP_VAULT_TOKEN:?set AP_VAULT_TOKEN}
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+      VAULT_ADDR: http://127.0.0.1:8200
+    command: server -dev
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      activitypub:
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  vault-init:
+    image: hashicorp/vault:1.20.3
+    depends_on:
+      vault:
+        condition: service_healthy
+    secrets:
+      - vault_token
+    environment:
+      VAULT_ADDR: http://vault:8200
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        export VAULT_TOKEN="$$(cat /run/secrets/vault_token)"
+        vault secrets list -format=json | grep -q '"transit/"' || vault secrets enable transit
+    networks:
+      activitypub:
+
+  migrate:
+    <<: *app-base
+    command: ["migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      vault-init:
+        condition: service_completed_successfully
+    restart: "no"
+
+  api:
+    <<: *app-base
+    environment:
+      <<: *app-environment
+      Workers__InboxEnabled: "false"
+      Workers__DeliveryEnabled: "false"
+      Workers__RawJsonRetentionEnabled: "false"
+      Media__GarbageCollectionEnabled: "false"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/health/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+
+  api-canary:
+    <<: *app-base
+    profiles: ["rolling"]
+    image: ${ACTIVITYPUB_CANARY_IMAGE:-activitypub-server:local}
+    environment:
+      <<: *app-environment
+      Workers__InboxEnabled: "false"
+      Workers__DeliveryEnabled: "false"
+      Workers__RawJsonRetentionEnabled: "false"
+      Media__GarbageCollectionEnabled: "false"
+    networks:
+      activitypub:
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/health/ready"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  worker:
+    <<: *app-base
+    environment:
+      <<: *app-environment
+      Workers__InboxEnabled: "true"
+      Workers__DeliveryEnabled: "true"
+      Workers__RawJsonRetentionEnabled: "true"
+      Media__GarbageCollectionEnabled: "true"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/health/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+
+  worker-canary:
+    <<: *app-base
+    profiles: ["rolling"]
+    image: ${ACTIVITYPUB_CANARY_IMAGE:-activitypub-server:local}
+    environment:
+      <<: *app-environment
+      Workers__InboxEnabled: "true"
+      Workers__DeliveryEnabled: "true"
+      Workers__RawJsonRetentionEnabled: "true"
+      Media__GarbageCollectionEnabled: "true"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/health/ready"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${AP_HTTPS_BIND_ADDRESS:-127.0.0.1}:${AP_HTTPS_PORT:-8443}:8443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      activitypub:
+        ipv4_address: 172.28.0.10
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+
+  otel:
+    image: otel/opentelemetry-collector-contrib:0.130.1
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./deploy/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "127.0.0.1:9464:9464"
+    networks:
+      activitypub:
+
+volumes:
+  postgres-data:
+  minio-data:
+  clamav-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  activitypub:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+
+secrets:
+  vault_token:
+    file: ${AP_VAULT_TOKEN_FILE:?set AP_VAULT_TOKEN_FILE to a host file containing the local Vault token}

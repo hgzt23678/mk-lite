@@ -1,0 +1,257 @@
+@implements IAsyncDisposable
+@inject IUserPreviewInterop Browser
+@inject IUserPreviewPresentationService Users
+@inject IMisskeyOverlayService Overlays
+@inject IMisskeyLocalizer Localizer
+@inject ILogger<MkUserPreview> Logger
+
+<div @ref="previewElement"
+     class="fxxzrfni _popup _shadow popup-enter-active popup-enter-from"
+     role="dialog"
+     aria-label="@AccessibleLabel"
+     aria-busy="@(loading ? "true" : "false")"
+     data-user-preview-popup
+     data-preview-query="@Query"
+     data-preview-generation="@Generation"
+     data-preview-load-state="@LoadState">
+    @if (user is not null)
+    {
+        <div class="info">
+            <div class="banner" style="@BannerStyle">
+                @if (user.CanFollow && user.IsFollowed)
+                {
+                    <span class="followed">@Localizer.Translate("followsYou")</span>
+                }
+            </div>
+            <MkAvatar CssClass="avatar" User="@SafeAuthor" DisablePreview="true" ShowIndicator="true" />
+            <div class="title">
+                <a class="name" href="@UserPage"><MkUserName User="@user.User" NoWrap="false" /></a>
+                <p class="username"><MkAcct User="@user.User" /></p>
+            </div>
+            <div class="description">
+                @if (!string.IsNullOrWhiteSpace(user.Description))
+                {
+                    <MfmView Text="@user.Description" CustomEmojis="@CustomEmojis" />
+                }
+            </div>
+            <div class="status">
+                <div><p>@Localizer.Translate("notes")</p><span>@FormatCount(user.NotesCount)</span></div>
+                <div><p>@Localizer.Translate("following")</p><span>@FormatCount(user.FollowingCount)</span></div>
+                <div><p>@Localizer.Translate("followers")</p><span>@FormatCount(user.FollowersCount)</span></div>
+            </div>
+            @if (user.CanFollow)
+            {
+                <MkFollowButton CssClass="koudoku-button"
+                                User="@user"
+                                Mini="true"
+                                UserChanged="OnUserChangedAsync" />
+            }
+        </div>
+    }
+    else if (errorCode is not null)
+    {
+        <div class="preview-error" role="alert" data-error-code="@errorCode">
+            @Localizer.Translate("somethingHappened")
+        </div>
+    }
+    else
+    {
+        <MkLoading AccessibleLabel="@Localizer.Translate("loading")" />
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference previewElement;
+    private DotNetObjectReference<MkUserPreview>? receiver;
+    private IJSObjectReference? attachment;
+    private UserPreviewViewModel? user;
+    private string? errorCode;
+    private bool loading = true;
+    private bool? appliedShowing;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public Guid Id { get; set; }
+
+    [Parameter, EditorRequired]
+    public string HostId { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string SourceId { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Query { get; set; } = string.Empty;
+
+    [Parameter]
+    public long Generation { get; set; }
+
+    [Parameter]
+    public bool Showing { get; set; }
+
+    [CascadingParameter(Name = "MisskeyLocaleRevision")]
+    private long LocaleRevision { get; set; }
+
+    private string AccessibleLabel => user is null
+        ? Localizer.Translate("loading")
+        : $"{user.User.DisplayName} (@{user.User.Acct})";
+    private string LoadState => loading ? "loading" : errorCode is null ? "loaded" : "error";
+    private string? BannerStyle => SameOriginMediaUrl.CssBackgroundImage(user?.BannerUrl);
+    private string UserPage => user is null ? "/" : $"/@{user.User.Acct}";
+    private NoteAuthorViewModel SafeAuthor => user!.User with
+    {
+        AvatarUrl = SameOriginMediaUrl.Normalize(user.User.AvatarUrl) ?? "/static-assets/user-unknown.png"
+    };
+    private IReadOnlyDictionary<string, string> CustomEmojis =>
+        user?.User.Emojis ?? new Dictionary<string, string>(StringComparer.Ordinal);
+
+    protected override void OnInitialized()
+    {
+        Overlays.RegisterCloseHandler(Id, RequestCloseAsync);
+        _ = LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        if (firstRender)
+        {
+            receiver = DotNetObjectReference.Create(this);
+            try
+            {
+                IJSObjectReference created = await Browser.AttachPreviewAsync(
+                    HostId,
+                    SourceId,
+                    Generation,
+                    previewElement,
+                    receiver,
+                    lifetime.Token);
+                if (disposed)
+                {
+                    await created.InvokeVoidAsync("dispose");
+                    await created.DisposeAsync();
+                    return;
+                }
+
+                attachment = created;
+                appliedShowing = true;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (JSDisconnectedException)
+            {
+                return;
+            }
+        }
+
+        if (attachment is not null && appliedShowing != Showing)
+        {
+            appliedShowing = Showing;
+            try
+            {
+                await attachment.InvokeVoidAsync(Showing ? "show" : "hide", lifetime.Token);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            UserPreviewViewModel result = await Users.ReadAsync(Query, lifetime.Token);
+            if (!lifetime.IsCancellationRequested)
+            {
+                user = result;
+                errorCode = null;
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (UserPreviewPresentationException exception)
+        {
+            errorCode = exception.ErrorCode;
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+        {
+            errorCode = "USER_PREVIEW_QUERY_FAILED";
+            Logger.LogWarning(exception, "User preview query failed with {ErrorCode}.", errorCode);
+        }
+        finally
+        {
+            loading = false;
+            if (!disposed)
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    private Task OnUserChangedAsync(UserPreviewViewModel updated)
+    {
+        user = updated;
+        return Task.CompletedTask;
+    }
+
+    private Task RequestCloseAsync()
+    {
+        if (!Overlays.HideUserPreview(HostId, SourceId, Generation))
+        {
+            Overlays.Close(Id);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task NotifyUserPreviewClosedAsync()
+    {
+        if (!disposed)
+        {
+            Overlays.Close(Id);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static string FormatCount(long count) => count.ToString(CultureInfo.InvariantCulture);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        Overlays.UnregisterCloseHandler(Id);
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+}

@@ -1,0 +1,190 @@
+@implements IAsyncDisposable
+@inject IDialogWindowInterop DialogInterop
+@inject IMisskeyOverlayService Overlays
+
+<div @ref="modalElement"
+     class="qzhlnise dialog modal-enter-active modal-enter-from"
+     role="alertdialog"
+     aria-modal="true"
+     aria-label="@AccessibleLabel">
+    <div class="bg _modalBg" @onclick="AcknowledgeAsync"></div>
+    <div @ref="contentElement" class="content">
+        <div @ref="dialogElement" class="mk-dialog">
+            <div class="icon @Type">
+                <i class="@IconClass"></i>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(Title))
+            {
+                <header>@Title</header>
+            }
+            @if (!string.IsNullOrWhiteSpace(Text))
+            {
+                <div class="body">@Text</div>
+            }
+            <div class="buttons">
+                <MkButton Inline="true" Primary="true" Autofocus="true" OnClick="AcknowledgeAsync">@AcknowledgementLabel</MkButton>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference modalElement;
+    private ElementReference contentElement;
+    private ElementReference dialogElement;
+    private DotNetObjectReference<MkAlertDialog>? receiver;
+    private IJSObjectReference? attachment;
+    private bool closing;
+    private bool disposed;
+
+    [Parameter]
+    public string Type { get; set; } = "info";
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public string? Text { get; set; }
+
+    [Parameter]
+    public string AccessibleLabel { get; set; } = "お知らせ";
+
+    [Parameter]
+    public string AcknowledgementLabel { get; set; } = "わかった";
+
+    [Parameter]
+    public EventCallback Acknowledged { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    [Parameter]
+    public Guid? OverlayId { get; set; }
+
+    private string IconClass => Type switch
+    {
+        "success" => "fas fa-check",
+        "error" => "fas fa-times-circle",
+        "warning" => "fas fa-exclamation-triangle",
+        "waiting" => "fas fa-spinner fa-pulse",
+        _ => "fas fa-info-circle"
+    };
+
+    protected override void OnInitialized()
+    {
+        if (OverlayId is Guid id)
+        {
+            Overlays.RegisterCloseHandler(id, BeginCloseAsync);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            attachment = await DialogInterop.AttachHighPriorityAsync(
+                modalElement,
+                contentElement,
+                dialogElement,
+                receiver,
+                lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private async Task AcknowledgeAsync(MouseEventArgs args)
+    {
+        if (closing)
+        {
+            return;
+        }
+
+        closing = true;
+        await Acknowledged.InvokeAsync();
+        await BeginCloseAsync();
+    }
+
+    private async Task BeginCloseAsync()
+    {
+        if (!closing)
+        {
+            closing = true;
+        }
+
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("close", lifetime.Token);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+
+            return;
+        }
+
+        await NotifyClosed();
+    }
+
+    [JSInvokable]
+    public Task NotifyOpened() => Task.CompletedTask;
+
+    [JSInvokable]
+    public async Task NotifyClosed()
+    {
+        if (OverlayId is Guid id)
+        {
+            Overlays.Close(id);
+        }
+
+        await Closed.InvokeAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        if (OverlayId is Guid id)
+        {
+            Overlays.UnregisterCloseHandler(id);
+        }
+
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+}

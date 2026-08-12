@@ -1,0 +1,87 @@
+@implements IDisposable
+@inject IPizzaxDeviceState DeviceState
+@inject MisskeyFrontendRuntimeConfiguration Runtime
+
+<span class="@RootClass">
+    <span class="name">@@@User.Username</span>
+    @if (ShowHost)
+    {
+        <span class="host">@@@DisplayHost</span>
+    }
+</span>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private bool showFullAcct;
+    private bool stateLoaded;
+
+    [Parameter, EditorRequired]
+    public NoteAuthorViewModel User { get; set; } = null!;
+
+    [Parameter]
+    public bool Detail { get; set; }
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    private string RootClass => string.IsNullOrWhiteSpace(CssClass) ? "mk-acct" : $"mk-acct {CssClass}";
+    private string? RemoteHost
+    {
+        get
+        {
+            int separator = User.Acct.LastIndexOf('@');
+            return separator > 0 && separator < User.Acct.Length - 1 ? User.Acct[(separator + 1)..] : null;
+        }
+    }
+
+    private bool ShowHost => RemoteHost is not null || Detail || showFullAcct;
+    private string DisplayHost => ToUnicode(RemoteHost ?? Runtime.PublicBaseUri?.IdnHost ?? string.Empty);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || stateLoaded)
+        {
+            return;
+        }
+
+        stateLoaded = true;
+        try
+        {
+            bool next = await DeviceState.ReadAsync("showFullAcct", false, lifetime.Token);
+            if (!lifetime.IsCancellationRequested && next != showFullAcct)
+            {
+                showFullAcct = next;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private static string ToUnicode(string host)
+    {
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return new System.Globalization.IdnMapping().GetUnicode(host);
+        }
+        catch (ArgumentException)
+        {
+            return host;
+        }
+    }
+
+    public void Dispose()
+    {
+        lifetime.Cancel();
+        lifetime.Dispose();
+    }
+}

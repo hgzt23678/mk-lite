@@ -1,0 +1,83 @@
+@inject MisskeyFrontendRuntimeConfiguration RuntimeConfiguration
+
+<a class="@RootClass"
+   href="@Href"
+   rel="@Rel"
+   target="@Target"
+   title="@Url"
+   @attributes="AttributesWithoutClass">
+    @ChildContent
+    @if (Target == "_blank")
+    {
+        <i class="fas fa-external-link-square-alt icon"></i>
+    }
+</a>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Url { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Relationship { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private bool IsLocal => IsConfiguredLocal(Url);
+    private string? Target => IsLocal ? null : "_blank";
+    private string Rel => IsLocal ? Relationship ?? string.Empty : Relationship ?? "noopener noreferrer";
+    private string Href => ResolveUrl(Url, IsLocal);
+    private string RootClass => string.Join(' ', new[] { "xlcxczvw", "_link", AdditionalClass }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private bool IsConfiguredLocal(string value)
+    {
+        if (value.StartsWith("/", StringComparison.Ordinal) && !value.StartsWith("//", StringComparison.Ordinal))
+        {
+            return true;
+        }
+        if (RuntimeConfiguration.PublicBaseUri is null ||
+            !Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) ||
+            !string.IsNullOrEmpty(uri.UserInfo))
+        {
+            return false;
+        }
+        Uri origin = RuntimeConfiguration.PublicBaseUri;
+        return uri.Scheme == origin.Scheme &&
+            uri.IdnHost.Equals(origin.IdnHost, StringComparison.OrdinalIgnoreCase) &&
+            uri.Port == origin.Port;
+    }
+
+    private static string ResolveUrl(string value, bool isLocal)
+    {
+        if (value.StartsWith("/", StringComparison.Ordinal) &&
+            !value.StartsWith("//", StringComparison.Ordinal) &&
+            !value.Contains('\\'))
+        {
+            return value.StartsWith("/", StringComparison.Ordinal) ? value : "/" + value;
+        }
+        if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) ||
+            uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp ||
+            !string.IsNullOrEmpty(uri.UserInfo))
+        {
+            throw new InvalidOperationException("Misskey links must use a safe HTTP(S) URL or rooted application path.");
+        }
+        if (isLocal)
+        {
+            return uri.PathAndQuery + uri.Fragment;
+        }
+        return uri.AbsoluteUri;
+    }
+}

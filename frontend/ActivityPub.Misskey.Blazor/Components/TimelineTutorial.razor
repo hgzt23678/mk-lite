@@ -1,0 +1,186 @@
+@inject IMisskeyLocalizer Localizer
+
+<div class="@RootClass" @attributes="AttributesWithoutClass">
+    <div class="_title"><i class="fas fa-info-circle" aria-hidden="true"></i> @Localizer.Translate("_tutorial.title")</div>
+    @switch (Step)
+    {
+        case 0:
+            <div class="_content">
+                <div>@Localizer.Translate("_tutorial.step1_1")</div>
+                <div>@Localizer.Translate("_tutorial.step1_2")</div>
+                <div>@Localizer.Translate("_tutorial.step1_3")</div>
+            </div>
+            break;
+        case 1:
+            <div class="_content">
+                <div>@Localizer.Translate("_tutorial.step2_1")</div>
+                <div>@Localizer.Translate("_tutorial.step2_2")</div>
+                <a class="_link" href="/settings/profile">@Localizer.Translate("editProfile")</a>
+            </div>
+            break;
+        case 2:
+            <div class="_content">
+                <div>@Localizer.Translate("_tutorial.step3_1")</div>
+                <div>@Localizer.Translate("_tutorial.step3_2")</div>
+                <div>@Localizer.Translate("_tutorial.step3_3")</div>
+                <small>@Localizer.Translate("_tutorial.step3_4")</small>
+            </div>
+            break;
+        case 3:
+            <div class="_content">
+                <div>@Localizer.Translate("_tutorial.step4_1")</div>
+                <div>@Localizer.Translate("_tutorial.step4_2")</div>
+            </div>
+            break;
+        case 4:
+            <div class="_content">
+                <div>@Localizer.Translate("_tutorial.step5_1")</div>
+                <div>@RichTranslation(
+                    "_tutorial.step5_2",
+                    new RichLink("featured", "/featured", Localizer.Translate("featured")),
+                    new RichLink("explore", "/explore", Localizer.Translate("explore")))</div>
+                <div>@Localizer.Translate("_tutorial.step5_3")</div>
+                <small>@Localizer.Translate("_tutorial.step5_4")</small>
+            </div>
+            break;
+        case 5:
+            <div class="_content">
+                <div>@Localizer.Translate("_tutorial.step6_1")</div>
+                <div>@Localizer.Translate("_tutorial.step6_2")</div>
+                <div>@Localizer.Translate("_tutorial.step6_3")</div>
+            </div>
+            break;
+        case 6:
+            <div class="_content">
+                <div>@Localizer.Translate("_tutorial.step7_1")</div>
+                <div>@RichTranslation(
+                    "_tutorial.step7_2",
+                    new RichLink(
+                        "help",
+                        "https://misskey-hub.net/help.html",
+                        Localizer.Translate("help"),
+                        External: true))</div>
+                <div>@Localizer.Translate("_tutorial.step7_3")</div>
+            </div>
+            break;
+    }
+
+    <div class="_footer navigation">
+        <div class="step">
+            <button class="arrow _button"
+                    type="button"
+                    disabled="@(Step == 0)"
+                    aria-label="@Localizer.Translate("goBack")"
+                    @onclick="PreviousAsync">
+                <i class="fas fa-chevron-left" aria-hidden="true"></i>
+            </button>
+            <span>@(Step + 1) / 7</span>
+            <button class="arrow _button"
+                    type="button"
+                    disabled="@(Step == 6)"
+                    aria-label="@Localizer.Translate("next")"
+                    @onclick="NextAsync">
+                <i class="fas fa-chevron-right" aria-hidden="true"></i>
+            </button>
+        </div>
+        <MkButton CssClassAdditional="ok" Primary="true" OnClick="CompleteOrNextAsync">
+            <i class="fas fa-check" aria-hidden="true"></i>
+            @(Step == 6 ? Localizer.Translate("gotIt") : Localizer.Translate("next"))
+        </MkButton>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int Step { get; set; }
+
+    [Parameter]
+    public EventCallback<int> StepChanged { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "_card",
+        "tbkwesmv",
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        if (Step is < 0 or > 6)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Step));
+        }
+    }
+
+    private Task PreviousAsync() => StepChanged.InvokeAsync(Math.Max(0, Step - 1));
+
+    private Task NextAsync() => StepChanged.InvokeAsync(Math.Min(6, Step + 1));
+
+    private Task CompleteOrNextAsync() => StepChanged.InvokeAsync(Step == 6 ? -1 : Step + 1);
+
+    private RenderFragment RichTranslation(string key, params RichLink[] links) => builder =>
+    {
+        string value = Localizer.Translate(key);
+        var linksByName = links.ToDictionary(link => link.Name, StringComparer.OrdinalIgnoreCase);
+        int position = 0;
+        int sequence = 0;
+        while (position < value.Length)
+        {
+            int opening = value.IndexOf('{', position);
+            if (opening < 0)
+            {
+                builder.AddContent(sequence++, value[position..]);
+                break;
+            }
+
+            int closing = value.IndexOf('}', opening + 1);
+            if (closing < 0)
+            {
+                builder.AddContent(sequence++, value[position..]);
+                break;
+            }
+
+            if (opening > position)
+            {
+                builder.AddContent(sequence++, value[position..opening]);
+            }
+
+            string placeholder = value[(opening + 1)..closing];
+            if (linksByName.TryGetValue(placeholder, out RichLink? link))
+            {
+                builder.OpenElement(sequence++, "a");
+                builder.AddAttribute(sequence++, "class", "_link");
+                builder.AddAttribute(sequence++, "href", link.Href);
+                if (link.External)
+                {
+                    builder.AddAttribute(sequence++, "target", "_blank");
+                    builder.AddAttribute(sequence++, "rel", "noopener noreferrer");
+                }
+                builder.AddContent(sequence++, link.Label);
+                builder.CloseElement();
+            }
+            else
+            {
+                builder.AddContent(sequence++, value[opening..(closing + 1)]);
+            }
+
+            position = closing + 1;
+        }
+    };
+
+    private sealed record RichLink(string Name, string Href, string Label, bool External = false);
+}

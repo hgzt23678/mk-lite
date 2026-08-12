@@ -1,0 +1,33 @@
+@implements IDisposable
+@inject IAvatarsPresentationService Avatars
+
+<div @attributes="AdditionalAttributes">
+    @foreach (NoteAuthorViewModel user in users)
+    {
+        <div @key="user.Id" style="display:inline-block;width:32px;height:32px;margin-right:8px;">
+            <MkAvatar User="user" style="width:32px;height:32px;" ShowIndicator="true" />
+        </div>
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private IReadOnlyList<NoteAuthorViewModel> users = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<string> UserIds { get; set; } = [];
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        users = await Avatars.ReadAsync(UserIds, lifetime.Token).ConfigureAwait(false);
+    }
+
+    public void Dispose()
+    {
+        lifetime.Cancel();
+        lifetime.Dispose();
+    }
+}

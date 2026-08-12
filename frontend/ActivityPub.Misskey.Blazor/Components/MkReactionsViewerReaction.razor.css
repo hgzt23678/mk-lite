@@ -1,0 +1,38 @@
+.hkzvhatu {
+    display: inline-block;
+    height: 32px;
+    margin: 2px;
+    padding: 0 6px;
+    border-radius: 4px;
+}
+
+.hkzvhatu.canToggle {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.hkzvhatu.canToggle:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.hkzvhatu:not(.canToggle) {
+    cursor: default;
+}
+
+.hkzvhatu.reacted,
+.hkzvhatu.reacted:hover {
+    background: var(--accent);
+}
+
+.hkzvhatu.reacted > .count {
+    color: var(--fgOnAccent);
+}
+
+.hkzvhatu.reacted > .icon {
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.5));
+}
+
+.hkzvhatu > .count {
+    font-size: 0.9em;
+    line-height: 32px;
+    margin: 0 0 0 4px;
+}

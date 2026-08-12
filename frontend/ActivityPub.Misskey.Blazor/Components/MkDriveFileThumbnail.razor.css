@@ -1,0 +1,23 @@
+.zdjebgpv {
+    position: relative;
+    display: flex;
+    background: var(--panel);
+    border-radius: 8px;
+    overflow: clip;
+}
+
+.zdjebgpv > .icon-sub {
+    position: absolute;
+    width: 30%;
+    height: auto;
+    margin: 0;
+    right: 4%;
+    bottom: 4%;
+}
+
+.zdjebgpv > .icon {
+    pointer-events: none;
+    margin: auto;
+    font-size: 32px;
+    color: #777;
+}

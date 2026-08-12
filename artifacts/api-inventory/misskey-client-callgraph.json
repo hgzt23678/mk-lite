@@ -1,0 +1,4892 @@
+{
+  "schemaVersion": 1,
+  "targetVersion": "12.119.2",
+  "source": "frontend/misskey-v12/src",
+  "staticEndpointCount": 262,
+  "streamingEndpointCount": 14,
+  "endpointUsages": [
+    {
+      "endpoint": "@stream/antenna",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkTimeline.vue",
+          "line": 60,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "streaming-protocol"
+    },
+    {
+      "endpoint": "@stream/channel",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkTimeline.vue",
+          "line": 116,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "streaming-protocol"
+    },
+    {
+      "endpoint": "@stream/drive",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.vue",
+          "line": 44,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "streaming-protocol"
+    },
+    {
+      "endpoint": "@stream/globalTimeline",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkTimeline.vue",
+          "line": 82,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "streaming-protocol"
+    },
+    {
+      "endpoint": "@stream/homeTimeline",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkTimeline.vue",
+          "line": 66,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "streaming-protocol"
+    },
+    {
+      "endpoint": "@stream/hybridTimeline",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkTimeline.vue",
+          "line": 78,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "streaming-protocol"
+    },
+    {
+      "endpoint": "@stream/localTimeline",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkTimeline.vue",
+          "line": 74,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "streaming-protocol"
+    },
+    {
+      "endpoint": "@stream/main",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkFollowButton.vue",
+          "line": 20,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkNotification.vue",
+          "line": 42,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkNotifications.vue",
+          "line": 49,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkTimeline.vue",
+          "line": 69,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkTimeline.vue",
+          "line": 86,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkTimeline.vue",
+          "line": 98,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/init.ts",
+          "line": 370,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/preferences-backups.vue",
+          "line": 90,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pizzax.ts",
+          "line": 15,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/select-file.ts",
+          "line": 53,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/ui/_common_/common.vue",
+          "line": 32,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/widgets/photos.vue",
+          "line": 39,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "streaming-protocol"
+    },
+    {
+      "endpoint": "@stream/messaging",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/messaging/messaging-room.vue",
+          "line": 61,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/messaging/messaging-room.vue",
+          "line": 77,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "streaming-protocol"
+    },
+    {
+      "endpoint": "@stream/messagingIndex",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/messaging/index.vue",
+          "line": 92,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "streaming-protocol"
+    },
+    {
+      "endpoint": "@stream/note-capture",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/use-note-capture.ts",
+          "line": 96,
+          "mechanism": "note-capture",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/use-note-capture.ts",
+          "line": 99,
+          "mechanism": "note-capture",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "streaming-protocol"
+    },
+    {
+      "endpoint": "@stream/queueStats",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/metrics.vue",
+          "line": 70,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/overview.vue",
+          "line": 73,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/queue.chart.vue",
+          "line": 9,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/widgets/job-queue.vue",
+          "line": 37,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "streaming-protocol"
+    },
+    {
+      "endpoint": "@stream/serverStats",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/metrics.vue",
+          "line": 101,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/widgets/server-metric/index.vue",
+          "line": 62,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "streaming-protocol"
+    },
+    {
+      "endpoint": "@stream/userList",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkTimeline.vue",
+          "line": 105,
+          "mechanism": "websocket-channel",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "streaming-protocol"
+    },
+    {
+      "endpoint": "admin/abuse-user-reports",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/abuses.vue",
+          "line": 22,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/index.vue",
+          "line": 37,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/accounts/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/users.vue",
+          "line": 51,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/welcome.setup.vue",
+          "line": 18,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/ad/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/ads.vue",
+          "line": 47,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/ad/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/ads.vue",
+          "line": 39,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/ad/list",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/ads.vue",
+          "line": 15,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/ad/update",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/ads.vue",
+          "line": 52,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/announcements/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/announcements.vue",
+          "line": 39,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/announcements/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/announcements.vue",
+          "line": 33,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/announcements/list",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/announcements.vue",
+          "line": 13,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/announcements/update",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/announcements.vue",
+          "line": 51,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/delete-account",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 184,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/delete-all-files-of-a-user",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 143,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/drive-capacity-override",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 161,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/drive/clean-remote-files",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/files.vue",
+          "line": 37,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/drive/files",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/files.vue",
+          "line": 20,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/overview.vue",
+          "line": 78,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 46,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/drive/show-file",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin-file.vue",
+          "line": 29,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/files.vue",
+          "line": 52,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/emoji/add",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/emojis.vue",
+          "line": 60,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/emoji/add-aliases-bulk",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/emojis.vue",
+          "line": 162,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/emoji/copy",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/emojis.vue",
+          "line": 87,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/emoji/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/emoji-edit-dialog.vue",
+          "line": 57,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/emoji/delete-bulk",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/emojis.vue",
+          "line": 199,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/emoji/import-zip",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/emojis.vue",
+          "line": 127,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/emoji/list",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/emojis.vue",
+          "line": 25,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/emoji/list-remote",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/emojis.vue",
+          "line": 33,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/emoji/remove-aliases-bulk",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/emojis.vue",
+          "line": 174,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/emoji/set-aliases-bulk",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/emojis.vue",
+          "line": 186,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/emoji/set-category-bulk",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/emojis.vue",
+          "line": 150,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/emoji/update",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/emoji-edit-dialog.vue",
+          "line": 31,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/federation/refresh-remote-instance-metadata",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/instance-info.vue",
+          "line": 67,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/federation/update-instance",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/instance-info.vue",
+          "line": 60,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/get-table-stats",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/database.vue",
+          "line": 11,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/get-user-ips",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 59,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/invite",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/index.vue",
+          "line": 197,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/meta",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/bot-protection.vue",
+          "line": 21,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/email-settings.vue",
+          "line": 24,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/instance-block.vue",
+          "line": 15,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/integrations.discord.vue",
+          "line": 18,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/integrations.github.vue",
+          "line": 18,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/integrations.twitter.vue",
+          "line": 18,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/integrations.vue",
+          "line": 17,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/object-storage.vue",
+          "line": 29,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/other-settings.vue",
+          "line": 11,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/proxy-account.vue",
+          "line": 16,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/security.vue",
+          "line": 29,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/settings.vue",
+          "line": 42,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/moderators/add",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 132,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/moderators/remove",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 132,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/promo/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 168,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/queue/clear",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/queue.vue",
+          "line": 21,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/queue/deliver-delayed",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/metrics.vue",
+          "line": 352,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/queue.chart.vue",
+          "line": 57,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/queue/inbox-delayed",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/queue.chart.vue",
+          "line": 57,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/relays/add",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/relays.vue",
+          "line": 18,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/relays/list",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/relays.vue",
+          "line": 44,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/relays/remove",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/relays.vue",
+          "line": 31,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/reset-password",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 95,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/resolve-abuse-user-report",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkAbuseReport.vue",
+          "line": 20,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/send-email",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/email-settings.vue",
+          "line": 41,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/server-info",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/metrics.vue",
+          "line": 98,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/overview.vue",
+          "line": 294,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/show-user",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 57,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/show-users",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/overview.vue",
+          "line": 298,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/users.vue",
+          "line": 21,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/instance-info.vue",
+          "line": 34,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/silence-user",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 113,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-user-menu.ts",
+          "line": 114,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/suspend-user",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 126,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-user-menu.ts",
+          "line": 124,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/unsilence-user",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 113,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-user-menu.ts",
+          "line": 114,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/unsuspend-user",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 126,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-user-menu.ts",
+          "line": 124,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/update-meta",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/bot-protection.vue",
+          "line": 31,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/email-settings.vue",
+          "line": 49,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/instance-block.vue",
+          "line": 20,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/integrations.discord.vue",
+          "line": 26,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/integrations.github.vue",
+          "line": 26,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/integrations.twitter.vue",
+          "line": 26,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/object-storage.vue",
+          "line": 46,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/other-settings.vue",
+          "line": 15,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/proxy-account.vue",
+          "line": 32,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/security.vue",
+          "line": 47,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/settings.vue",
+          "line": 70,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/instance-info.vue",
+          "line": 54,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "admin/update-user-note",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 72,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "announcements",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/announcements.vue",
+          "line": 10,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/ui/visitor/a.vue",
+          "line": 29,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/ui/visitor/b.vue",
+          "line": 29,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/ui/visitor/kanban.vue",
+          "line": 42,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "antennas/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/my-antennas/editor.vue",
+          "line": 65,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "antennas/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/my-antennas/editor.vue",
+          "line": 81,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "antennas/list",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/my-antennas/index.vue",
+          "line": 9,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/timeline.vue",
+          "line": 48,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/ui/deck/antenna-column.vue",
+          "line": 28,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/widgets/timeline.vue",
+          "line": 63,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "antennas/show",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/antenna-timeline.vue",
+          "line": 50,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/my-antennas/edit.vue",
+          "line": 21,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "antennas/update",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/my-antennas/editor.vue",
+          "line": 69,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "ap/get",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 202,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "ap/show",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/follow.vue",
+          "line": 32,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/share.vue",
+          "line": 69,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/share.vue",
+          "line": 86,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/search.ts",
+          "line": 45,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "auth/accept",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/auth.form.vue",
+          "line": 31,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/auth.vue",
+          "line": 33,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "auth/deny",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/auth.form.vue",
+          "line": 23,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "upstream-client-call-without-12.119.2-backend-route"
+    },
+    {
+      "endpoint": "auth/session/show",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/auth.vue",
+          "line": 25,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "blocking/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-user-menu.ts",
+          "line": 104,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "blocking/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-user-menu.ts",
+          "line": 104,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "blocking/list",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/mute-block.vue",
+          "line": 20,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "channels/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/channel-editor.vue",
+          "line": 62,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "channels/featured",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/channels.vue",
+          "line": 15,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "channels/follow",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkChannelFollowButton.vue",
+          "line": 26,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "channels/followed",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/channels.vue",
+          "line": 19,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/timeline.vue",
+          "line": 59,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "channels/owned",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/channels.vue",
+          "line": 23,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "channels/show",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/channel-editor.vue",
+          "line": 37,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/channel.vue",
+          "line": 30,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "channels/timeline",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/channel.vue",
+          "line": 22,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "channels/unfollow",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkChannelFollowButton.vue",
+          "line": 21,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "channels/update",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/channel-editor.vue",
+          "line": 58,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "charts/active-users",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 502,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/overview.vue",
+          "line": 105,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "charts/ap-request",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 386,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "charts/drive",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 554,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 590,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "charts/federation",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 336,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/overview.vue",
+          "line": 268,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "charts/instance",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 625,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 647,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 662,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 677,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 700,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 716,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkInstanceCardMini.vue",
+          "line": 12,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/overview.federation.vue",
+          "line": 16,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/widgets/federation.vue",
+          "line": 43,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "charts/notes",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 408,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 455,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/overview.vue",
+          "line": 263,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "charts/user/drive",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 793,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "charts/user/following",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 763,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 778,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "charts/user/notes",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 731,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkUserCardMini.vue",
+          "line": 13,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/overview.user.vue",
+          "line": 13,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/widgets/activity.vue",
+          "line": 56,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "charts/users",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkChart.vue",
+          "line": 474,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/overview.vue",
+          "line": 259,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "clips/add-note",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 125,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 131,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "clips/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/my-clips/index.vue",
+          "line": 36,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 123,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "clips/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/clip.vue",
+          "line": 76,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "clips/list",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/my-clips/index.vue",
+          "line": 10,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 99,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "clips/notes",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/clip.vue",
+          "line": 16,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "clips/remove-note",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 140,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 157,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "clips/show",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/clip.vue",
+          "line": 26,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "clips/update",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/clip.vue",
+          "line": 60,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "drive",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/drive.vue",
+          "line": 37,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "drive/files",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.vue",
+          "line": 434,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.vue",
+          "line": 460,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/widgets/slideshow.vue",
+          "line": 64,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "drive/files/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/upload.ts",
+          "line": 81,
+          "mechanism": "xhr",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "drive/files/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.file.vue",
+          "line": 146,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin-file.vue",
+          "line": 42,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "drive/files/show",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin-file.vue",
+          "line": 28,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/channel-editor.vue",
+          "line": 28,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/page-editor/els/page-editor.el.image.vue",
+          "line": 29,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/page-editor/page-editor.vue",
+          "line": 62,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/share.vue",
+          "line": 100,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "drive/files/update",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.file.vue",
+          "line": 96,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.file.vue",
+          "line": 115,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.file.vue",
+          "line": 124,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.folder.vue",
+          "line": 96,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.navFolder.vue",
+          "line": 81,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.vue",
+          "line": 145,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkPostFormAttaches.vue",
+          "line": 51,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkPostFormAttaches.vue",
+          "line": 65,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkPostFormAttaches.vue",
+          "line": 86,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin-file.vue",
+          "line": 48,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "drive/files/upload-from-url",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.vue",
+          "line": 196,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/select-file.ts",
+          "line": 61,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "drive/folders",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.vue",
+          "line": 423,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "drive/folders/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.vue",
+          "line": 214,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "drive/folders/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.folder.vue",
+          "line": 172,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.vue",
+          "line": 241,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "drive/folders/show",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.vue",
+          "line": 325,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/drive.vue",
+          "line": 44,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/drive.vue",
+          "line": 56,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "drive/folders/update",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.folder.vue",
+          "line": 112,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.folder.vue",
+          "line": 164,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.navFolder.vue",
+          "line": 95,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.vue",
+          "line": 161,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkDrive.vue",
+          "line": 230,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "drive/stream",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/widgets/photos.vue",
+          "line": 56,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "endpoint",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/api-console.vue",
+          "line": 36,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "endpoints",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/api-console.vue",
+          "line": 19,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "export-custom-emojis",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/emojis.vue",
+          "line": 108,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "federation/instances",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/about.federation.vue",
+          "line": 16,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/overview.federation.vue",
+          "line": 12,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/overview.vue",
+          "line": 305,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/welcome.entrance.a.vue",
+          "line": 41,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/ui/_common_/statusbar-federation.vue",
+          "line": 24,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/widgets/federation.vue",
+          "line": 39,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/widgets/instance-cloud.vue",
+          "line": 41,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "federation/show-instance",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/instance-info.vue",
+          "line": 45,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "federation/stats",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkInstanceStats.vue",
+          "line": 109,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/overview.vue",
+          "line": 275,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "federation/update-remote-user",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 90,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "fetch-rss",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/ui/_common_/statusbar-rss.vue",
+          "line": 23,
+          "mechanism": "fetch",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/widgets/rss-ticker.vue",
+          "line": 66,
+          "mechanism": "fetch",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/widgets/rss.vue",
+          "line": 40,
+          "mechanism": "fetch",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "following/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkFollowButton.vue",
+          "line": 58,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/follow.vue",
+          "line": 19,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "following/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkFollowButton.vue",
+          "line": 48,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "following/invalidate",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-user-menu.ts",
+          "line": 148,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "following/requests/accept",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkNotification.vue",
+          "line": 61,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/follow-requests.vue",
+          "line": 17,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "following/requests/cancel",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkFollowButton.vue",
+          "line": 53,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "following/requests/list",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/follow-requests.vue",
+          "line": 12,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "following/requests/reject",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkNotification.vue",
+          "line": 66,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/follow-requests.vue",
+          "line": 23,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "gallery/featured",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/gallery/index.vue",
+          "line": 31,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "gallery/posts",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/gallery/index.vue",
+          "line": 27,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "gallery/posts/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/gallery/edit.vue",
+          "line": 47,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "gallery/posts/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/gallery/edit.vue",
+          "line": 63,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "gallery/posts/like",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/gallery/post.vue",
+          "line": 57,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "gallery/posts/show",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/gallery/edit.vue",
+          "line": 70,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/gallery/post.vue",
+          "line": 33,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "gallery/posts/unlike",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/gallery/post.vue",
+          "line": 71,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "gallery/posts/update",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/gallery/edit.vue",
+          "line": 38,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "get-online-users-count",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/welcome.entrance.a.vue",
+          "line": 30,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/welcome.entrance.b.vue",
+          "line": 42,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/welcome.entrance.c.vue",
+          "line": 42,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/widgets/online-users.vue",
+          "line": 35,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "hashtags/list",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/explore.users.vue",
+          "line": 63,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/explore.users.vue",
+          "line": 70,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/welcome.entrance.a.vue",
+          "line": 34,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/welcome.entrance.b.vue",
+          "line": 46,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/welcome.entrance.c.vue",
+          "line": 46,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "hashtags/search",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkAutocomplete.vue",
+          "line": 99,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "hashtags/trend",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/widgets/trends.vue",
+          "line": 38,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "hashtags/users",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/explore.users.vue",
+          "line": 25,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/gallery/index.vue",
+          "line": 44,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/bootstrap.ts",
+          "line": 22,
+          "mechanism": "fetch",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/2fa/done",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/2fa.vue",
+          "line": 53,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/2fa/key-done",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/2fa.vue",
+          "line": 68,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/2fa/password-less",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/2fa.vue",
+          "line": 146,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/2fa/register",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/2fa.vue",
+          "line": 26,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/2fa/register-key",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/2fa.vue",
+          "line": 106,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/2fa/remove-key",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/2fa.vue",
+          "line": 88,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/2fa/unregister",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/2fa.vue",
+          "line": 40,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/apps",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/apps.vue",
+          "line": 11,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/change-password",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/security.vue",
+          "line": 43,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/delete-account",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/delete-account.vue",
+          "line": 24,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/export-blocking",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/import-export.vue",
+          "line": 49,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/export-following",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/import-export.vue",
+          "line": 41,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/export-mute",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/import-export.vue",
+          "line": 57,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/export-notes",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/import-export.vue",
+          "line": 37,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/export-user-lists",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/import-export.vue",
+          "line": 53,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/favorites",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/favorites.vue",
+          "line": 10,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/gallery/likes",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/gallery/index.vue",
+          "line": 39,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/gallery/posts",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/gallery/index.vue",
+          "line": 35,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/get-word-muted-notes-count",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/word-mute.vue",
+          "line": 29,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/import-blocking",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/import-export.vue",
+          "line": 77,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/import-following",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/import-export.vue",
+          "line": 62,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/import-muting",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/import-export.vue",
+          "line": 72,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/import-user-lists",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/import-export.vue",
+          "line": 67,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/notifications",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkNotifications.vue",
+          "line": 21,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/page-likes",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/pages.vue",
+          "line": 23,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/pages",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/pages.vue",
+          "line": 19,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/pin",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 86,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/read-all-messaging-messages",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/notifications.vue",
+          "line": 17,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/read-all-unread-notes",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/notifications.vue",
+          "line": 13,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/read-announcement",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/announcements.vue",
+          "line": 20,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/regenerate_token",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/security.vue",
+          "line": 55,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/registry/get",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/theme-store.ts",
+          "line": 15,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/ui/deck/deck-store.ts",
+          "line": 63,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/registry/get-all",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/preferences-backups.vue",
+          "line": 94,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pizzax.ts",
+          "line": 60,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/registry/get-detail",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/registry.value.vue",
+          "line": 26,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/registry/keys",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/ui/deck/deck-store.ts",
+          "line": 99,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/registry/keys-with-type",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/registry.keys.vue",
+          "line": 22,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/registry/remove",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/registry.value.vue",
+          "line": 64,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/preferences-backups.vue",
+          "line": 288,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/ui/deck/deck-store.ts",
+          "line": 105,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/registry/scopes",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/registry.vue",
+          "line": 14,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/registry/set",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/registry.keys.vue",
+          "line": 47,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/registry.value.vue",
+          "line": 50,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/registry.vue",
+          "line": 36,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/preferences-backups.vue",
+          "line": 171,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/preferences-backups.vue",
+          "line": 205,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/preferences-backups.vue",
+          "line": 312,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/preferences-backups.vue",
+          "line": 340,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pizzax.ts",
+          "line": 118,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/theme-store.ts",
+          "line": 26,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/theme-store.ts",
+          "line": 32,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/ui/deck/deck-store.ts",
+          "line": 88,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/revoke-token",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/apps.vue",
+          "line": 19,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/signin-history",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/security.vue",
+          "line": 12,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/unpin",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 86,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/update",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/page.vue",
+          "line": 80,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/drive.vue",
+          "line": 66,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/email.vue",
+          "line": 14,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/email.vue",
+          "line": 40,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/instance-mute.vue",
+          "line": 20,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/notifications.vue",
+          "line": 32,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/other.vue",
+          "line": 14,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/privacy.vue",
+          "line": 27,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/profile.vue",
+          "line": 50,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/profile.vue",
+          "line": 56,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/profile.vue",
+          "line": 83,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/profile.vue",
+          "line": 106,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/word-mute.vue",
+          "line": 83,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/update-email",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/email.vue",
+          "line": 25,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/webhooks/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/webhook.new.vue",
+          "line": 33,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/webhooks/list",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/webhook.vue",
+          "line": 12,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/webhooks/show",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/webhook.edit.vue",
+          "line": 15,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "i/webhooks/update",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/webhook.edit.vue",
+          "line": 42,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "messaging/history",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/messaging/index.vue",
+          "line": 97,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/messaging/index.vue",
+          "line": 98,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "messaging/messages",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/messaging/messaging-room.vue",
+          "line": 53,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/messaging/messaging-room.vue",
+          "line": 69,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "messaging/messages/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/messaging/messaging-room.form.vue",
+          "line": 127,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "messaging/messages/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/messaging/messaging-room.message.vue",
+          "line": 19,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "meta",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkFeaturedPhotos.vue",
+          "line": 8,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/instance.ts",
+          "line": 16,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/_error_.vue",
+          "line": 20,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/welcome.entrance.a.vue",
+          "line": 22,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/welcome.entrance.b.vue",
+          "line": 34,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/welcome.entrance.c.vue",
+          "line": 34,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/welcome.vue",
+          "line": 11,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/ui/visitor/a.vue",
+          "line": 53,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/ui/visitor/b.vue",
+          "line": 49,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/ui/visitor/kanban.vue",
+          "line": 49,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "miauth/gen-token",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/miauth.vue",
+          "line": 24,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/api.vue",
+          "line": 15,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/plugin.install.vue",
+          "line": 76,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "mute/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-user-menu.ts",
+          "line": 92,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "mute/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-user-menu.ts",
+          "line": 62,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "mute/list",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/mute-block.vue",
+          "line": 15,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/children",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkNoteDetailed.vue",
+          "line": 167,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkNoteSub.vue",
+          "line": 25,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/clips",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/note.vue",
+          "line": 55,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/conversation",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkNoteDetailed.vue",
+          "line": 175,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkPostForm.vue",
+          "line": 526,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkRenoteButton.vue",
+          "line": 44,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/page/page.post.vue",
+          "line": 68,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkNote.vue",
+          "line": 157,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkNoteDetailed.vue",
+          "line": 149,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 36,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 49,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/favorites/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 58,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/favorites/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 58,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/featured",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/explore.featured.vue",
+          "line": 7,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/welcome.timeline.vue",
+          "line": 23,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/mentions",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/notifications.vue",
+          "line": 15,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/notifications.vue",
+          "line": 20,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/ui/deck/direct-column.vue",
+          "line": 17,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/ui/deck/mentions-column.vue",
+          "line": 17,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/polls/recommendation",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/explore.featured.vue",
+          "line": 13,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/polls/vote",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkPoll.vue",
+          "line": 58,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/reactions",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkReactionsViewer.reaction.vue",
+          "line": 59,
+          "mechanism": "apiGet",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/reactions/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkNote.vue",
+          "line": 107,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkNoteDetailed.vue",
+          "line": 101,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkReactionsViewer.reaction.vue",
+          "line": 30,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkReactionsViewer.reaction.vue",
+          "line": 37,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/reactions/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkNote.vue",
+          "line": 119,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkNoteDetailed.vue",
+          "line": 113,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkReactionsViewer.reaction.vue",
+          "line": 26,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/renotes",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkRenoteButton.vue",
+          "line": 21,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/search",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/search.vue",
+          "line": 13,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/search-by-tag",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/tag.vue",
+          "line": 11,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/show",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/page/page.note.vue",
+          "line": 23,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/note.vue",
+          "line": 50,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/page-editor/els/page-editor.el.note.vue",
+          "line": 30,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/share.vue",
+          "line": 65,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/share.vue",
+          "line": 82,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/state",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 195,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/thread-muting/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 70,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/thread-muting/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 70,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/translate",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 185,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/user-list-timeline",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/ui/_common_/statusbar-user-list.vue",
+          "line": 25,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/watching/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 64,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notes/watching/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-note-menu.ts",
+          "line": 64,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "notifications/mark-all-as-read",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/notifications.vue",
+          "line": 54,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/notifications.vue",
+          "line": 21,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "page-push",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/page/page.button.vue",
+          "line": 33,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "pages/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/page-editor/page-editor.vue",
+          "line": 114,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/page-editor/page-editor.vue",
+          "line": 148,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "pages/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/page-editor/page-editor.vue",
+          "line": 133,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "pages/featured",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/pages.vue",
+          "line": 15,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "pages/like",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/page.vue",
+          "line": 57,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "pages/show",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/page-editor/page-editor.vue",
+          "line": 290,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/page-editor/page-editor.vue",
+          "line": 294,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/page.vue",
+          "line": 32,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "pages/unlike",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/page.vue",
+          "line": 71,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "pages/update",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/page-editor/page-editor.vue",
+          "line": 105,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "pinned-users",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/explore.users.vue",
+          "line": 34,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "promo/read",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkNote.vue",
+          "line": 184,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "request-reset-password",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkForgotPassword.vue",
+          "line": 23,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "reset-password",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/reset-password.vue",
+          "line": 17,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "server-info",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/widgets/server-metric/index.vue",
+          "line": 49,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "signup-pending",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/signup-complete.vue",
+          "line": 17,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "stats",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/about.vue",
+          "line": 26,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/overview.vue",
+          "line": 256,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/welcome.entrance.a.vue",
+          "line": 26,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/welcome.entrance.b.vue",
+          "line": 38,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/welcome.entrance.c.vue",
+          "line": 38,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/explore.users.vue",
+          "line": 35,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/explore.users.vue",
+          "line": 40,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/explore.users.vue",
+          "line": 44,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/explore.users.vue",
+          "line": 49,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/explore.users.vue",
+          "line": 54,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/explore.users.vue",
+          "line": 58,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/instance-info.vue",
+          "line": 34,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/clips",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user/clips.vue",
+          "line": 11,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/followers",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user/follow-list.vue",
+          "line": 21,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/following",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user/follow-list.vue",
+          "line": 13,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/gallery/posts",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/gallery/post.vue",
+          "line": 24,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/user/gallery.vue",
+          "line": 13,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/groups/invitations/accept",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkNotification.vue",
+          "line": 71,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/groups/invitations/reject",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkNotification.vue",
+          "line": 76,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/groups/invite",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-user-menu.ts",
+          "line": 54,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/groups/joined",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/messaging/index.vue",
+          "line": 72,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/my-antennas/editor.vue",
+          "line": 43,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/groups/owned",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/messaging/index.vue",
+          "line": 71,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/my-antennas/editor.vue",
+          "line": 42,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-user-menu.ts",
+          "line": 39,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/groups/show",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/messaging/messaging-room.vue",
+          "line": 66,
+          "mechanism": "api",
+          "runtimeConditional": true
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/lists/create",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/my-lists/index.vue",
+          "line": 22,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/lists/delete",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/my-lists/list.vue",
+          "line": 71,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/lists/list",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/my-antennas/editor.vue",
+          "line": 38,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/my-lists/index.vue",
+          "line": 13,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/statusbar.vue",
+          "line": 19,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/timeline.vue",
+          "line": 38,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-user-menu.ts",
+          "line": 17,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/ui/deck/list-column.vue",
+          "line": 26,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/widgets/timeline.vue",
+          "line": 64,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/lists/pull",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/my-lists/list.vue",
+          "line": 41,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/lists/push",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/my-lists/list.vue",
+          "line": 31,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/get-user-menu.ts",
+          "line": 32,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/lists/show",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/my-lists/list.vue",
+          "line": 17,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/user-list-timeline.vue",
+          "line": 22,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/lists/update",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/my-lists/list.vue",
+          "line": 56,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/notes",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/note.vue",
+          "line": 26,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/note.vue",
+          "line": 36,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/note.vue",
+          "line": 58,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/note.vue",
+          "line": 63,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/user/index.photos.vue",
+          "line": 35,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/user/index.timeline.vue",
+          "line": 16,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/pages",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/page.vue",
+          "line": 22,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/user/pages.vue",
+          "line": 12,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/reactions",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/user/reactions.vue",
+          "line": 13,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/report-abuse",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkAbuseReportWindow.vue",
+          "line": 23,
+          "mechanism": "apiWithDialog",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/search",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/explore.vue",
+          "line": 29,
+          "mechanism": "endpoint-property",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/search-by-username-and-host",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/components/MkAutocomplete.vue",
+          "line": 76,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkUserSelectDialog.vue",
+          "line": 29,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/show",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/account.ts",
+          "line": 137,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkAvatars.vue",
+          "line": 12,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkFollowButton.vue",
+          "line": 23,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkPostForm.vue",
+          "line": 202,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkPostForm.vue",
+          "line": 209,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkPostForm.vue",
+          "line": 256,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkUserPreview.vue",
+          "line": 34,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkUserSelectDialog.vue",
+          "line": 57,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/components/MkVisibility.vue",
+          "line": 19,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/admin/proxy-account.vue",
+          "line": 19,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/follow.vue",
+          "line": 50,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/messaging/messaging-room.vue",
+          "line": 49,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/my-lists/list.vue",
+          "line": 21,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/accounts.vue",
+          "line": 19,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/share.vue",
+          "line": 50,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 55,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/user-info.vue",
+          "line": 77,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/user/followers.vue",
+          "line": 21,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/user/following.vue",
+          "line": 21,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/pages/user/index.vue",
+          "line": 37,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/gen-search-query.ts",
+          "line": 16,
+          "mechanism": "api",
+          "runtimeConditional": true
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/lookup-user.ts",
+          "line": 15,
+          "mechanism": "api",
+          "runtimeConditional": false
+        },
+        {
+          "file": "frontend/misskey-v12/src/scripts/lookup-user.ts",
+          "line": 16,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    },
+    {
+      "endpoint": "users/stats",
+      "usages": [
+        {
+          "file": "frontend/misskey-v12/src/pages/settings/account-info.vue",
+          "line": 15,
+          "mechanism": "api",
+          "runtimeConditional": false
+        }
+      ],
+      "backendClassification": "backend-route"
+    }
+  ],
+  "dynamicCalls": [
+    {
+      "file": "frontend/misskey-v12/src/account.ts",
+      "line": 53,
+      "mechanism": "fetch",
+      "runtimeConditional": false,
+      "expression": "`${apiUrl}/i`"
+    },
+    {
+      "file": "frontend/misskey-v12/src/components/MkCropperDialog.vue",
+      "line": 44,
+      "mechanism": "fetch",
+      "runtimeConditional": false,
+      "expression": "apiUrl + '/drive/files/create'"
+    },
+    {
+      "file": "frontend/misskey-v12/src/components/MkPagination.vue",
+      "line": 60,
+      "mechanism": "api",
+      "runtimeConditional": false,
+      "expression": "props.pagination.endpoint"
+    },
+    {
+      "file": "frontend/misskey-v12/src/components/MkPagination.vue",
+      "line": 99,
+      "mechanism": "api",
+      "runtimeConditional": false,
+      "expression": "props.pagination.endpoint"
+    },
+    {
+      "file": "frontend/misskey-v12/src/components/MkPagination.vue",
+      "line": 137,
+      "mechanism": "api",
+      "runtimeConditional": false,
+      "expression": "props.pagination.endpoint"
+    },
+    {
+      "file": "frontend/misskey-v12/src/components/MkTimeline.vue",
+      "line": 123,
+      "mechanism": "endpoint-property",
+      "runtimeConditional": false,
+      "expression": "endpoint"
+    },
+    {
+      "file": "frontend/misskey-v12/src/components/page/page.post.vue",
+      "line": 52,
+      "mechanism": "fetch",
+      "runtimeConditional": false,
+      "expression": "apiUrl + '/drive/files/create'"
+    },
+    {
+      "file": "frontend/misskey-v12/src/os.ts",
+      "line": 26,
+      "mechanism": "fetch",
+      "runtimeConditional": false,
+      "expression": "endpoint.indexOf('://') > -1 ? endpoint : `${apiUrl}/${endpoint}`"
+    },
+    {
+      "file": "frontend/misskey-v12/src/os.ts",
+      "line": 68,
+      "mechanism": "fetch",
+      "runtimeConditional": false,
+      "expression": "`${apiUrl}/${endpoint}?${query}`"
+    },
+    {
+      "file": "frontend/misskey-v12/src/os.ts",
+      "line": 100,
+      "mechanism": "api",
+      "runtimeConditional": false,
+      "expression": "endpoint"
+    },
+    {
+      "file": "frontend/misskey-v12/src/pages/api-console.vue",
+      "line": 26,
+      "mechanism": "api",
+      "runtimeConditional": false,
+      "expression": "endpoint.value as keyof Endpoints"
+    },
+    {
+      "file": "frontend/misskey-v12/src/pages/api-console.vue",
+      "line": 36,
+      "mechanism": "endpoint-property",
+      "runtimeConditional": false,
+      "expression": "endpoint.value"
+    },
+    {
+      "file": "frontend/misskey-v12/src/scripts/aiscript/api.ts",
+      "line": 30,
+      "mechanism": "api",
+      "runtimeConditional": false,
+      "expression": "ep.value"
+    },
+    {
+      "file": "frontend/misskey-v12/src/scripts/upload.ts",
+      "line": 81,
+      "mechanism": "xhr",
+      "runtimeConditional": false,
+      "expression": "apiUrl + '/drive/files/create'"
+    }
+  ],
+  "unclassifiedStaticEndpoints": []
+}

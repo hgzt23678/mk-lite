@@ -1,0 +1,16 @@
+.vswabwbm {
+    pointer-events: none;
+    position: fixed;
+    width: 128px;
+    height: 128px;
+}
+
+.vswabwbm > svg > circle {
+    stroke: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vswabwbm > svg {
+        visibility: hidden;
+    }
+}

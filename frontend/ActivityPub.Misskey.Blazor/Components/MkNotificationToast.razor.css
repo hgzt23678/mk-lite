@@ -1,0 +1,41 @@
+.mk-notification-toast ::deep > .notification.notification-toast-enter-active,
+.mk-notification-toast ::deep > .notification.notification-toast-leave-active {
+    transition: opacity 0.3s, transform 0.3s !important;
+}
+
+.mk-notification-toast ::deep > .notification.notification-toast-enter-from,
+.mk-notification-toast ::deep > .notification.notification-toast-leave-to {
+    opacity: 0;
+    transform: translateX(-250px);
+}
+
+.mk-notification-toast {
+    position: fixed;
+    left: 0;
+    width: 250px;
+    top: 32px;
+    padding: 0 32px;
+    pointer-events: none;
+}
+
+.mk-notification-toast ::deep > .notification {
+    height: 100%;
+    box-shadow: 0 4px 16px rgb(0 0 0 / 30%);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+@media (max-width: 700px) {
+    .mk-notification-toast {
+        top: initial;
+        bottom: 112px;
+        padding: 0 16px;
+    }
+}
+
+@media (max-width: 500px) {
+    .mk-notification-toast {
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 92px);
+        padding: 0 8px;
+    }
+}

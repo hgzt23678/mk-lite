@@ -1,0 +1,93 @@
+@implements IAsyncDisposable
+@inject IClientUpdateInterop Browser
+@inject MisskeyFrontendRuntimeConfiguration RuntimeConfiguration
+@inject ILogger<MisskeyClientUpdateHost> Logger
+
+@if (showUpdate)
+{
+    <MkUpdated Closed="OnClosed" />
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private bool initialized;
+    private bool showUpdate;
+    private bool disposed;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !initialized)
+        {
+            initialized = true;
+            await SynchronizeAsync();
+        }
+    }
+
+    private async Task SynchronizeAsync()
+    {
+        try
+        {
+            ClientVersionStorageSnapshot snapshot = await Browser.SynchronizeVersionAsync(
+                RuntimeConfiguration.Version,
+                lifetime.Token);
+            if (!snapshot.Available)
+            {
+                Logger.LogWarning(
+                    new EventId(4701, "ClientVersionStorageUnavailable"),
+                    "Misskey client update storage is unavailable. ErrorCode={ErrorCode}",
+                    "CLIENT_VERSION_STORAGE_UNAVAILABLE");
+                return;
+            }
+
+            if (!snapshot.Changed || snapshot.PreviousVersion is null ||
+                !MisskeyClientVersionComparer.TryCompare(
+                    RuntimeConfiguration.Version,
+                    snapshot.PreviousVersion,
+                    out int comparison) ||
+                comparison != 1)
+            {
+                return;
+            }
+
+            AuthenticationState state = AuthenticationStateTask is null
+                ? new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()))
+                : await AuthenticationStateTask.WaitAsync(lifetime.Token);
+            if (disposed || state.User.Identity?.IsAuthenticated != true)
+            {
+                return;
+            }
+
+            await InvokeAsync(() =>
+            {
+                if (!disposed)
+                {
+                    showUpdate = true;
+                    StateHasChanged();
+                }
+            });
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private void OnClosed() => showUpdate = false;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

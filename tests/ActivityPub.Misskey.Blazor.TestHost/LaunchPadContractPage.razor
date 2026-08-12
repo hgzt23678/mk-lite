@@ -1,0 +1,35 @@
+@page "/__test/components/launch-pad"
+@rendermode InteractiveServer
+@inject IMisskeyOverlayService Overlays
+
+<main data-contract="launch-pad">
+    <button @ref="source"
+            type="button"
+            data-contract="open"
+            style="position: fixed; left: 96px; top: 96px; width: 72px; height: 32px;"
+            @onclick="Open">open</button>
+    <output data-contract="state" data-action-count="@actionCount"></output>
+</main>
+
+@code {
+    private ElementReference source;
+    private int actionCount;
+
+    private void Open()
+    {
+        Overlays.ShowLaunchPad(source,
+        [
+            new(
+                MisskeyMenuItemKind.Action,
+                "Reload",
+                "fas fa-redo-alt",
+                Action: () =>
+                {
+                    actionCount++;
+                    return InvokeAsync(StateHasChanged);
+                },
+                Indicate: true),
+            MisskeyMenuItem.Link("Timeline", "fas fa-home", "/")
+        ]);
+    }
+}

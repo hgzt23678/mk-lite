@@ -1,0 +1,45 @@
+<MkEmoji Emoji="@Reaction"
+         @ref="emoji"
+         CustomUrl="@CustomEmojiUrl"
+         CssClass="@AdditionalClass"
+         IsReaction="true"
+         Normal="true"
+         NoStyle="@NoStyle" />
+
+@code {
+    private MkEmoji? emoji;
+
+    public ElementReference Element => emoji?.Element ?? default;
+
+    [Parameter, EditorRequired]
+    public string Reaction { get; set; } = string.Empty;
+
+    [Parameter]
+    public IReadOnlyList<EmojiPickerCustomEmoji>? CustomEmojis { get; set; }
+
+    [Parameter]
+    public bool NoStyle { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private string? CustomEmojiUrl
+    {
+        get
+        {
+            if (Reaction.Length <= 2 || Reaction[0] != ':' || Reaction[^1] != ':')
+            {
+                return null;
+            }
+
+            string name = Reaction[1..^1];
+            return CustomEmojis?.FirstOrDefault(
+                emoji => string.Equals(emoji.Name, name, StringComparison.Ordinal))?.Url;
+        }
+    }
+}

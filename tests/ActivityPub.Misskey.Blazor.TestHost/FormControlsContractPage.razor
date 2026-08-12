@@ -1,0 +1,91 @@
+@page "/__test/components/form-controls"
+@rendermode InteractiveServer
+@using System.Globalization
+
+<main data-contract="form-controls">
+    <FormLink To="/settings/profile"
+              Active="true"
+              Inline="true"
+              Behavior="browser"
+              class="fixture-link"
+              data-fixture="link">
+        <Icon><i class="fas fa-user"></i></Icon>
+        <ChildContent>プロフィール</ChildContent>
+        <Suffix>Account</Suffix>
+    </FormLink>
+
+    <MkFormSlot data-fixture="slot">
+        <Label>スロット</Label>
+        <ChildContent><button id="slot-content" type="button">内容</button></ChildContent>
+        <Caption>スロット説明</Caption>
+    </MkFormSlot>
+
+    <MkFormSplit MinWidth="180" data-fixture="split">
+        <div id="split-first">First</div>
+        <div id="split-second">Second</div>
+    </MkFormSplit>
+
+    <MkFormCheckbox @bind-Value="checkedValue" data-fixture="checkbox">
+        <Label>確認</Label>
+        <ChildContent>互換ラベル</ChildContent>
+        <Caption>チェック説明</Caption>
+    </MkFormCheckbox>
+    <output id="checkbox-value">@checkedValue.ToString().ToLowerInvariant()</output>
+
+    <MkFormSwitch @bind-Value="switchValue" data-fixture="switch">
+        <Label>利用規約</Label>
+        <ChildContent>に同意する</ChildContent>
+        <Caption>切替説明</Caption>
+    </MkFormSwitch>
+    <output id="switch-value">@switchValue.ToString().ToLowerInvariant()</output>
+
+    <MkFormRadios TValue="string" @bind-Value="radioValue" data-fixture="radios">
+        <Label>公開範囲</Label>
+        <ChildContent>
+            <MkFormRadio TValue="string" Value="@("public")">パブリック</MkFormRadio>
+            <MkFormRadio TValue="string" Value="@("followers")">フォロワー</MkFormRadio>
+            <MkFormRadio TValue="string" Value="@("specified")" Disabled="true">ダイレクト</MkFormRadio>
+        </ChildContent>
+        <Caption>投稿の受信者</Caption>
+    </MkFormRadios>
+    <output id="radio-value">@radioValue</output>
+
+    <MkFormInput Type="number"
+                 NumberValue="numericValue"
+                 NumberValueChanged="SetNumericValue"
+                 Step="0.25"
+                 DataList="numericOptions"
+                 ManualSave="true"
+                 Large="true"
+                 class="fixture-input"
+                 data-fixture="input">
+        <Label>数値</Label>
+        <Prefix>#</Prefix>
+        <Suffix>pts</Suffix>
+        <Caption>数値説明</Caption>
+    </MkFormInput>
+    <output id="input-value">@numericValue.ToString("R", CultureInfo.InvariantCulture)</output>
+
+    <MkFormTextarea @bind-Value="textareaValue"
+                    ManualSave="true"
+                    Tall="true"
+                    Pre="true"
+                    Code="true"
+                    Placeholder="本文"
+                    data-fixture="textarea">
+        <Label>内容</Label>
+        <Caption>テキスト説明</Caption>
+    </MkFormTextarea>
+    <output id="textarea-value">@textareaValue</output>
+</main>
+
+@code {
+    private bool checkedValue;
+    private bool switchValue;
+    private string radioValue = "public";
+    private string textareaValue = "before";
+    private double numericValue = 1.5;
+    private readonly string[] numericOptions = ["1.5", "2.75"];
+
+    private void SetNumericValue(double value) => numericValue = value;
+}

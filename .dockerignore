@@ -1,0 +1,14 @@
+.git
+.github
+**/bin
+**/obj
+**/TestResults
+.env
+secrets
+artifacts
+docs
+tests
+**/node_modules
+**/dist
+*.user
+*.suo

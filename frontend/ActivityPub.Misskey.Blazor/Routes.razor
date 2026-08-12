@@ -1,0 +1,20 @@
+@inject ActivityPub.Misskey.Blazor.Routing.MisskeyFrontendRouteAssemblies RouteAssemblies
+@using ActivityPub.Misskey.Blazor.Pages
+
+<MisskeyLocalizationHost>
+    <Router AppAssembly="typeof(App).Assembly" AdditionalAssemblies="RouteAssemblies.Assemblies">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)">
+                <NotAuthorized>
+                    <SignInRequired />
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <LayoutView Layout="typeof(MainLayout)">
+                <NotFoundPage />
+            </LayoutView>
+        </NotFound>
+    </Router>
+</MisskeyLocalizationHost>

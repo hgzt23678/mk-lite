@@ -1,0 +1,112 @@
+@implements IAsyncDisposable
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyLocaleInterop LocaleInterop
+
+<CascadingValue Name="MisskeyLocaleRevision" Value="revision" IsFixed="false">
+    @ChildContent
+</CascadingValue>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private DotNetObjectReference<MisskeyLocalizationHost>? receiver;
+    private IJSObjectReference? attachment;
+    private long revision;
+    private bool disposed;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Localizer.LocaleChanged += OnLocaleChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            receiver = DotNetObjectReference.Create(this);
+            attachment = await LocaleInterop.AttachAsync(
+                Localizer.SupportedLocales,
+                Localizer.CurrentLocale,
+                Localizer.Direction,
+                receiver,
+                lifetime.Token);
+        }
+        catch (Exception exception) when (exception is JSDisconnectedException or OperationCanceledException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task SelectStoredLocaleAsync(string? locale)
+    {
+        if (!disposed)
+        {
+            Localizer.TrySelectLocale(locale);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void OnLocaleChanged(object? sender, EventArgs eventArgs)
+    {
+        _ = sender;
+        _ = eventArgs;
+        if (disposed)
+        {
+            return;
+        }
+
+        _ = InvokeAsync(async () =>
+        {
+            revision++;
+            StateHasChanged();
+            if (attachment is not null)
+            {
+                try
+                {
+                    await attachment.InvokeVoidAsync(
+                        "applyLocale",
+                        lifetime.Token,
+                        Localizer.CurrentLocale,
+                        Localizer.Direction);
+                }
+                catch (Exception exception) when (exception is JSDisconnectedException or OperationCanceledException)
+                {
+                }
+            }
+        });
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        Localizer.LocaleChanged -= OnLocaleChanged;
+        lifetime.Cancel();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+}

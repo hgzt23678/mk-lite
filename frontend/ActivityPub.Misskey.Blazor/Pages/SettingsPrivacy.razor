@@ -1,0 +1,109 @@
+@implements IAsyncDisposable
+@inject ISettingsPresentationService Settings
+@inject IMisskeyLocalizer Localizer
+
+<PageTitle>@Localizer.Translate("privacy")</PageTitle>
+
+<div class="_formRoot settings-local-page privacy-settings" data-testid="settings-privacy">
+    @if (!loaded)
+    {
+        <MkLoading />
+    }
+    else
+    {
+        <MkFormSwitch Value="@isLocked"
+                      ValueChanged="SaveLockedAsync"
+                      CssClassAdditional="_formBlock"
+                      data-setting="isLocked">
+            <ChildContent>@Localizer.Translate("makeFollowManuallyApprove")</ChildContent>
+            <Caption>@Localizer.Translate("lockedAccountInfo")</Caption>
+        </MkFormSwitch>
+
+        <MkFormSwitch Value="@discoverable"
+                      ValueChanged="SaveDiscoverableAsync"
+                      CssClassAdditional="_formBlock"
+                      data-setting="isExplorable">
+            <ChildContent>@Localizer.Translate("makeExplorable")</ChildContent>
+            <Caption>@Localizer.Translate("makeExplorableDescription")</Caption>
+        </MkFormSwitch>
+
+        <MkInfo Warn="true" CssClassAdditional="_formBlock privacy-capability" data-capability-state="false">
+            The current Dolphin profile contract persists lock and discoverable state. Follow-feed visibility, reaction visibility, online status, crawl policy, default note visibility, notification privacy, and automatic follow acceptance require additional backend fields and are not represented with fabricated values.
+        </MkInfo>
+
+        @if (!string.IsNullOrWhiteSpace(status))
+        {
+            <MkInfo CssClassAdditional="_formBlock" data-testid="settings-privacy-status">@status</MkInfo>
+        }
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private bool loaded;
+    private bool disposed;
+    private bool isLocked;
+    private bool discoverable = true;
+    private string? status;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            SettingsProfileViewModel profile = await Settings.ReadProfileAsync(lifetime.Token);
+            isLocked = profile.IsLocked;
+            discoverable = profile.Discoverable;
+            loaded = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+            loaded = true;
+            status = "The authenticated actor is unavailable.";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SaveLockedAsync(bool value)
+    {
+        isLocked = value;
+        await SaveAsync();
+    }
+
+    private async Task SaveDiscoverableAsync(bool value)
+    {
+        discoverable = value;
+        await SaveAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        await Settings.UpdateProfileAsync(
+            name: null,
+            description: null,
+            isLocked,
+            discoverable,
+            lifetime.Token);
+        status = Localizer.Translate("saved");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

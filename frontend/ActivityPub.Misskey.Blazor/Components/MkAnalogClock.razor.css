@@ -1,0 +1,22 @@
+.mbcofsoe {
+    display: block;
+}
+
+.mbcofsoe > .s {
+    will-change: transform;
+    transform-origin: 50% 50%;
+}
+
+.mbcofsoe > .s.animate.elastic {
+    transition: transform 0.2s cubic-bezier(0.4, 2.08, 0.55, 0.44);
+}
+
+.mbcofsoe > .s.animate.easeOut {
+    transition: transform 0.7s cubic-bezier(0, 0.7, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mbcofsoe > .s.animate {
+        transition-duration: 0.001ms;
+    }
+}

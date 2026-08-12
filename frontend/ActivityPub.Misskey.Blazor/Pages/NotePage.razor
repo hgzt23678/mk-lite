@@ -1,0 +1,425 @@
+@page "/notes/{NoteId}"
+@implements IAsyncDisposable
+@inject INotePagePresentationService Notes
+@inject INotePageInterop Browser
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyLocalizer Localizer
+@inject ILogger<NotePage> Logger
+
+<PageTitle>@Localizer.Translate("note")</PageTitle>
+
+<MkStickyContainer>
+    <Header>
+        <MkPageHeader Metadata="HeaderMetadata" Actions="HeaderActions" Tabs="HeaderTabs" />
+    </Header>
+    <ChildContent>
+        <MkSpacer ContentMax="800">
+            <div @ref="transitionContainer"
+                 class="fcuexfpr"
+                 data-note-page-state="@DisplayedStateName"
+                 data-error-code="@(displayedState == NotePageState.Error ? errorCode : null)">
+                @if (displayedState == NotePageState.Loaded && displayedNote is not null)
+                {
+                    <div @key="displayedNote.Id" class="note">
+                        <div class="main _gap">
+                            <div class="note _gap">
+                                @if (displayedNote.RemoteUrl is not null)
+                                {
+                                    <MkRemoteCaution Href="@displayedNote.RemoteUrl" />
+                                }
+                                <MkNoteDetailed @key="displayedNote.Id" Note="displayedNote" class="note" />
+                            </div>
+                        </div>
+                    </div>
+                }
+                else if (displayedState == NotePageState.Error)
+                {
+                    <MkError Retry="RetryAsync" />
+                }
+                else
+                {
+                    <MkLoading />
+                }
+            </div>
+        </MkSpacer>
+    </ChildContent>
+</MkStickyContainer>
+
+@code {
+    private static readonly IReadOnlyList<MkPageHeaderAction> HeaderActions = [];
+    private static readonly IReadOnlyList<MkPageHeaderTab> HeaderTabs = [];
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference transitionContainer;
+    private CancellationTokenSource? loadCancellation;
+    private FormSuspenseTransitionReceiver? transitionReceiver;
+    private DotNetObjectReference<FormSuspenseTransitionReceiver>? receiverReference;
+    private IJSObjectReference? transitionAttachment;
+    private NoteViewModel? pendingNote;
+    private NoteViewModel? displayedNote;
+    private string? observedNoteId;
+    private string? errorCode;
+    private NotePageState displayedState = NotePageState.Loading;
+    private NotePageState desiredState = NotePageState.Loading;
+    private NotePageTransitionPhase transitionPhase;
+    private bool enterPending;
+    private bool? animation;
+    private long loadGeneration;
+    private long transitionGeneration;
+    private bool disposed;
+
+    [Parameter]
+    public string NoteId { get; set; } = string.Empty;
+
+    private MkPageHeaderMetadata? HeaderMetadata => displayedState == NotePageState.Loaded && displayedNote is not null
+        ? new(
+            Localizer.Translate("note"),
+            displayedNote.CreatedAt.ToString("g", Localizer.Culture),
+            Avatar: displayedNote.Author)
+        : null;
+
+    private string DisplayedStateName => displayedState switch
+    {
+        NotePageState.Loaded => "loaded",
+        NotePageState.Error => "error",
+        _ => "loading"
+    };
+
+    protected override void OnParametersSet()
+    {
+        if (string.Equals(observedNoteId, NoteId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        observedNoteId = NoteId;
+        StartLoad();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _ = firstRender;
+        if (disposed || transitionPhase != NotePageTransitionPhase.None)
+        {
+            return;
+        }
+
+        if (animation is null)
+        {
+            try
+            {
+                animation = await DeviceState.ReadAsync("animation", true, lifetime.Token);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (JSDisconnectedException)
+            {
+                animation = true;
+            }
+
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (enterPending)
+        {
+            enterPending = false;
+            if (animation.Value)
+            {
+                await StartTransitionAsync(NotePageTransitionPhase.Entering);
+            }
+            return;
+        }
+
+        if (desiredState == displayedState)
+        {
+            return;
+        }
+
+        if (!animation.Value)
+        {
+            ApplyDesiredState();
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        await StartTransitionAsync(NotePageTransitionPhase.Leaving);
+    }
+
+    private Task RetryAsync()
+    {
+        StartLoad();
+        return Task.CompletedTask;
+    }
+
+    private void StartLoad()
+    {
+        long generation = checked(++loadGeneration);
+        CancellationTokenSource? previous = loadCancellation;
+        loadCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        if (previous is not null)
+        {
+            previous.Cancel();
+            previous.Dispose();
+        }
+
+        pendingNote = null;
+        errorCode = null;
+        RequestState(NotePageState.Loading);
+        _ = CompleteLoadAsync(NoteId, generation, loadCancellation.Token);
+    }
+
+    private async Task CompleteLoadAsync(
+        string noteId,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            NoteViewModel loaded = await Notes.FindAsync(noteId, cancellationToken).ConfigureAwait(false)
+                ?? throw new NotePageLoadException("NOTE_NOT_FOUND");
+            if (disposed || generation != loadGeneration)
+            {
+                return;
+            }
+
+            await InvokeAsync(() =>
+            {
+                if (disposed || generation != loadGeneration)
+                {
+                    return;
+                }
+
+                pendingNote = loaded;
+                RequestState(NotePageState.Loaded);
+                StateHasChanged();
+            });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (disposed || generation != loadGeneration)
+            {
+                return;
+            }
+
+            string nextErrorCode = exception is NotePageLoadException known
+                ? known.ErrorCode
+                : "NOTE_LOAD_FAILED";
+            Logger.LogWarning(
+                "The note page projection failed. NoteId={NoteId} FailureType={FailureType} ErrorCode={ErrorCode}",
+                noteId,
+                exception.GetType().Name,
+                nextErrorCode);
+            await InvokeAsync(() =>
+            {
+                if (disposed || generation != loadGeneration)
+                {
+                    return;
+                }
+
+                errorCode = nextErrorCode;
+                RequestState(NotePageState.Error);
+                StateHasChanged();
+            });
+        }
+    }
+
+    private void RequestState(NotePageState state)
+    {
+        desiredState = state;
+        if (transitionPhase == NotePageTransitionPhase.None)
+        {
+            return;
+        }
+
+        transitionGeneration++;
+        transitionPhase = NotePageTransitionPhase.None;
+        enterPending = false;
+        IJSObjectReference? current = transitionAttachment;
+        transitionAttachment = null;
+        if (current is not null)
+        {
+            _ = DisposeTransitionAttachmentAsync(current);
+        }
+    }
+
+    private async Task StartTransitionAsync(NotePageTransitionPhase phase)
+    {
+        transitionPhase = phase;
+        long generation = checked(++transitionGeneration);
+        transitionReceiver ??= new FormSuspenseTransitionReceiver(NotifyTransitionCompleted);
+        receiverReference ??= DotNetObjectReference.Create(transitionReceiver);
+        try
+        {
+            IJSObjectReference created = await Browser.AttachAsync(
+                transitionContainer,
+                receiverReference,
+                generation,
+                PhaseName(phase),
+                lifetime.Token);
+            if (disposed || generation != transitionGeneration || transitionPhase != phase)
+            {
+                await DisposeTransitionAttachmentAsync(created);
+            }
+            else
+            {
+                transitionAttachment = created;
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            CompleteTransitionWithoutBrowser(generation, phase);
+        }
+        catch (JSException exception) when (IsMissingTransitionTarget(exception))
+        {
+            // A suspense child such as MkError can materialize its root one render
+            // after the page state changes. Treat that narrow DOM race as a
+            // transition fallback instead of terminating the Interactive Server
+            // circuit; the next render still presents the requested state.
+            CompleteTransitionWithoutBrowser(generation, phase);
+        }
+    }
+
+    private Task NotifyTransitionCompleted(long generation, string phaseName) => InvokeAsync(() =>
+    {
+        NotePageTransitionPhase completedPhase = ParsePhase(phaseName);
+        if (disposed || generation != transitionGeneration || completedPhase != transitionPhase)
+        {
+            return;
+        }
+
+        IJSObjectReference? completed = transitionAttachment;
+        transitionAttachment = null;
+        transitionPhase = NotePageTransitionPhase.None;
+        if (completed is not null)
+        {
+            _ = DisposeTransitionAttachmentAsync(completed);
+        }
+
+        if (completedPhase == NotePageTransitionPhase.Leaving)
+        {
+            ApplyDesiredState();
+            enterPending = true;
+        }
+        else
+        {
+            enterPending = false;
+        }
+
+        StateHasChanged();
+    });
+
+    private void CompleteTransitionWithoutBrowser(
+        long generation,
+        NotePageTransitionPhase phase)
+    {
+        if (disposed || generation != transitionGeneration || phase != transitionPhase)
+        {
+            return;
+        }
+
+        transitionAttachment = null;
+        transitionPhase = NotePageTransitionPhase.None;
+        enterPending = false;
+        if (phase == NotePageTransitionPhase.Leaving)
+        {
+            ApplyDesiredState();
+        }
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void ApplyDesiredState()
+    {
+        displayedState = desiredState;
+        if (displayedState == NotePageState.Loaded)
+        {
+            displayedNote = pendingNote ?? throw new InvalidOperationException("The loaded note is unavailable.");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        loadGeneration++;
+        transitionGeneration++;
+        lifetime.Cancel();
+        if (loadCancellation is not null)
+        {
+            loadCancellation.Cancel();
+            loadCancellation.Dispose();
+        }
+        if (transitionAttachment is not null)
+        {
+            await DisposeTransitionAttachmentAsync(transitionAttachment);
+        }
+
+        receiverReference?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static async Task DisposeTransitionAttachmentAsync(IJSObjectReference current)
+    {
+        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try
+        {
+            await current.InvokeVoidAsync("dispose", cleanup.Token);
+            await current.DisposeAsync().AsTask().WaitAsync(cleanup.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private static string PhaseName(NotePageTransitionPhase phase) => phase switch
+    {
+        NotePageTransitionPhase.Entering => "enter",
+        NotePageTransitionPhase.Leaving => "leave",
+        _ => throw new ArgumentOutOfRangeException(nameof(phase))
+    };
+
+    private static bool IsMissingTransitionTarget(JSException exception) =>
+        exception.Message.Contains(
+            "MISSKEY_NOTE_PAGE_TRANSITION_TARGET_MISSING",
+            StringComparison.Ordinal);
+
+    private static NotePageTransitionPhase ParsePhase(string phase) => phase switch
+    {
+        "enter" => NotePageTransitionPhase.Entering,
+        "leave" => NotePageTransitionPhase.Leaving,
+        _ => throw new ArgumentOutOfRangeException(nameof(phase))
+    };
+
+    private enum NotePageState
+    {
+        Loading,
+        Loaded,
+        Error
+    }
+
+    private enum NotePageTransitionPhase
+    {
+        None,
+        Entering,
+        Leaving
+    }
+
+    private sealed class NotePageLoadException(string errorCode) : Exception(errorCode)
+    {
+        public string ErrorCode { get; } = errorCode;
+    }
+}

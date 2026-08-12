@@ -1,0 +1,139 @@
+@page "/settings"
+@page "/settings/{Section}"
+@inject IMisskeyLocalizer Localizer
+
+<div class="vvcocwet wide">
+    <div class="body">
+        <div class="nav">
+            <div class="baaadecd">
+                <MkSuperMenu Definition="MenuDefinition" />
+            </div>
+        </div>
+        <div class="main">
+            <div class="bkzroven">
+                @switch (NormalizedSection)
+                {
+                    case "profile":
+                        <SettingsProfile />
+                        break;
+                    case "api":
+                        <SettingsApi />
+                        break;
+                    case "apps":
+                        <SettingsApps />
+                        break;
+                    case "navbar":
+                        <SettingsNavbar />
+                        break;
+                    case "deck":
+                        <SettingsDeck />
+                        break;
+                    case "custom-css":
+                        <SettingsCustomCss />
+                        break;
+                    case "reaction":
+                        <SettingsReaction />
+                        break;
+                    case "general":
+                        <SettingsGeneral />
+                        break;
+                    case "theme":
+                        <SettingsTheme />
+                        break;
+                    case "privacy":
+                        <SettingsPrivacy />
+                        break;
+                    case "notifications":
+                        <SettingsNotifications />
+                        break;
+                    case "sounds":
+                        <SettingsSounds />
+                        break;
+                    default:
+                        <MkCapabilityUnavailable Capability="@SettingsCapability"
+                                                   Reason="This settings section is not enabled by the current Dolphin backend contract." />
+                        break;
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string? Section { get; set; }
+
+    private string? NormalizedSection => string.IsNullOrWhiteSpace(Section)
+        ? "profile"
+        : Section.Trim().ToLowerInvariant();
+
+    private string SettingsCapability => $"settings/{NormalizedSection ?? "unknown"}";
+
+    private IReadOnlyList<MkSuperMenuGroup> MenuDefinition =>
+    [
+        new(
+            null,
+        [
+            MkSuperMenuEntry.Route(
+                Localizer.Translate("profile"),
+                "/settings/profile",
+                "fas fa-user",
+                active: string.Equals(Section, "profile", StringComparison.OrdinalIgnoreCase)),
+            MkSuperMenuEntry.Route(
+                "API",
+                "/settings/api",
+                "fas fa-key",
+                active: string.Equals(Section, "api", StringComparison.OrdinalIgnoreCase)),
+            MkSuperMenuEntry.Route(
+                Localizer.Translate("installedApps"),
+                "/settings/apps",
+                "fas fa-plug",
+                active: string.Equals(Section, "apps", StringComparison.OrdinalIgnoreCase)),
+            MkSuperMenuEntry.Route(
+                Localizer.Translate("navbar"),
+                "/settings/navbar",
+                "fas fa-list-ul",
+                active: string.Equals(Section, "navbar", StringComparison.OrdinalIgnoreCase)),
+            MkSuperMenuEntry.Route(
+                Localizer.Translate("deck"),
+                "/settings/deck",
+                "fas fa-columns",
+                active: string.Equals(Section, "deck", StringComparison.OrdinalIgnoreCase)),
+            MkSuperMenuEntry.Route(
+                Localizer.Translate("customCss"),
+                "/settings/custom-css",
+                "fas fa-code",
+                active: string.Equals(Section, "custom-css", StringComparison.OrdinalIgnoreCase)),
+            MkSuperMenuEntry.Route(
+                Localizer.Translate("reaction"),
+                "/settings/reaction",
+                "fas fa-laugh",
+                active: string.Equals(Section, "reaction", StringComparison.OrdinalIgnoreCase)),
+            MkSuperMenuEntry.Route(
+                Localizer.Translate("privacy"),
+                "/settings/privacy",
+                "fas fa-lock",
+                active: string.Equals(Section, "privacy", StringComparison.OrdinalIgnoreCase)),
+            MkSuperMenuEntry.Route(
+                Localizer.Translate("general"),
+                "/settings/general",
+                "fas fa-cogs",
+                active: string.Equals(Section, "general", StringComparison.OrdinalIgnoreCase)),
+            MkSuperMenuEntry.Route(
+                Localizer.Translate("theme"),
+                "/settings/theme",
+                "fas fa-palette",
+                active: string.Equals(Section, "theme", StringComparison.OrdinalIgnoreCase)),
+            MkSuperMenuEntry.Route(
+                Localizer.Translate("notifications"),
+                "/settings/notifications",
+                "fas fa-bell",
+                active: string.Equals(Section, "notifications", StringComparison.OrdinalIgnoreCase)),
+            MkSuperMenuEntry.Route(
+                Localizer.Translate("sounds"),
+                "/settings/sounds",
+                "fas fa-volume-up",
+                active: string.Equals(Section, "sounds", StringComparison.OrdinalIgnoreCase))
+        ])
+    ];
+}

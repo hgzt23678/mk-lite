@@ -1,0 +1,26 @@
+@page "/__test/components/code-formula-error"
+@rendermode InteractiveServer
+
+<main data-contract="code-formula-error">
+    <section data-contract="code">
+        <MkCode Code="const answer = 42;" Lang="javascript" class="fixture-code" />
+        <MkCode Code="&lt;unsafe&gt;" Lang="not-loaded" Inline="true" class="fixture-inline-code" />
+    </section>
+    <section data-contract="formula">
+        <MkFormula Formula="x^2 + y^2" Block="true" class="fixture-block-formula" />
+        <MkFormula Formula="\frac{1}{2}" Block="false" class="fixture-inline-formula" />
+    </section>
+    <section data-contract="error">
+        <MkError Retry="Retry" />
+        <output data-contract="retry-count">@retryCount</output>
+    </section>
+    <section data-contract="not-found">
+        <NotFoundPage />
+    </section>
+</main>
+
+@code {
+    private int retryCount;
+
+    private void Retry() => retryCount++;
+}

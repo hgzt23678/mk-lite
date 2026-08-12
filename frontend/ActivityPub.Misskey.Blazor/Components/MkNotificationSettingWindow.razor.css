@@ -1,0 +1,13 @@
+.tbhwbxda {
+	padding: 0 var(--root-margin);
+}
+
+.tbhwbxda .actions {
+	display: flex;
+	gap: 8px;
+	margin: 12px 0;
+}
+
+.tbhwbxda .actions :global(.bghgjjyj) {
+	font-size: 12px;
+}

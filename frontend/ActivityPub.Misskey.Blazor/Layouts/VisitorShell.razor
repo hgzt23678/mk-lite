@@ -1,0 +1,396 @@
+@implements IAsyncDisposable
+@inject NavigationManager Navigation
+@inject IInstancePresentationService InstanceService
+@inject IAnnouncementPresentationService AnnouncementService
+@inject IMisskeyOverlayService Overlays
+@inject IVisitorShellInterop VisitorInterop
+@inject MisskeyFrontendRuntimeConfiguration Runtime
+@inject ILogger<VisitorShell> Logger
+@inject IMisskeyLocalizer Localizer
+
+<div @ref="rootElement"
+     class="mk-app"
+     inert="@(!isInteractive)"
+     aria-busy="@(!isInteractive ? "true" : null)"
+     @onkeydown="OnShellKeyDown">
+    @if (IsRoot)
+    {
+        <a href="https://github.com/misskey-dev/misskey" target="_blank" rel="noopener noreferrer" class="github-corner" aria-label="View source on GitHub">
+            <svg width="80" height="80" viewBox="0 0 250 250" style="fill:var(--panel); color:var(--fg); position: fixed; z-index: 10; top: 0; border: 0; right: 0;" aria-hidden="true">
+                <path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path>
+                <path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path>
+                <path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path>
+            </svg>
+        </a>
+    }
+
+    @if (!IsRoot && instance is not null && !viewportNarrow)
+    {
+        <div class="side">
+            <VisitorKanban Instance="instance" CssClass="kanban" Full="true" Announcements="announcements" />
+        </div>
+    }
+
+    <div class="main">
+        @if (!IsRoot && instance is not null && viewportNarrow)
+        {
+            <VisitorKanban Instance="instance" CssClass="banner" Announcements="announcements" />
+        }
+        <div class="contents">
+            @if (!IsRoot)
+            {
+                <VisitorHeader CssClass="header"
+                               Narrow="headerNarrow"
+                               PageTitle="@pageTitle"
+                               MenuExpanded="@IsTrayRendered"
+                               OpenMenu="OpenTrayAsync" />
+            }
+            <main>@ChildContent</main>
+            @if (!IsRoot)
+            {
+                <div class="powered-by"><b><a href="/">@Host</a></b><small>Powered by <a href="https://github.com/misskey-dev/misskey" target="_blank" rel="noopener noreferrer">Misskey</a></small></div>
+            }
+        </div>
+    </div>
+
+    @if (IsTrayRendered)
+    {
+        <div @ref="trayBackground"
+             class="@TrayBackgroundClass"
+             @onclick="CloseTrayAsync"></div>
+        <div @ref="trayElement" id="visitor-navigation-tray" class="@TrayClass" role="navigation" aria-label="@Localizer.Translate("menu")">
+            <NavLink href="/" Match="NavLinkMatch.All" class="link" ActiveClass="active" @onclick="CloseTrayAsync"><i class="fas fa-home icon"></i>@Localizer.Translate("home")</NavLink>
+            <NavLink href="/explore" class="link" ActiveClass="active" @onclick="CloseTrayAsync"><i class="fas fa-hashtag icon"></i>@Localizer.Translate("explore")</NavLink>
+            <NavLink href="/featured" class="link" ActiveClass="active" @onclick="CloseTrayAsync"><i class="fas fa-fire-alt icon"></i>@Localizer.Translate("featured")</NavLink>
+            <NavLink href="/channels" class="link" ActiveClass="active" @onclick="CloseTrayAsync"><i class="fas fa-satellite-dish icon"></i>@Localizer.Translate("channel")</NavLink>
+            <div class="action">
+                <button class="_buttonPrimary" type="button" @onclick="SignUp">@Localizer.Translate("signup")</button>
+                <button class="_button" type="button" @onclick="SignIn">@Localizer.Translate("login")</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference rootElement;
+    private ElementReference trayBackground;
+    private ElementReference trayElement;
+    private ElementReference traySource;
+    private DotNetObjectReference<VisitorShell>? receiver;
+    private IJSObjectReference? attachment;
+    private InstanceSummaryViewModel? instance;
+    private IReadOnlyList<VisitorAnnouncementViewModel>? announcements;
+    private bool isInteractive;
+    private bool viewportNarrow;
+    private bool? headerNarrow;
+    private string? pageTitle;
+    private TrayPhase trayPhase;
+    private int motionGeneration;
+    private int startedMotionGeneration = -1;
+    private bool disposed;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private bool IsRoot => string.IsNullOrEmpty(Navigation.ToBaseRelativePath(Navigation.Uri).Trim('/'));
+
+    private bool IsTrayRendered => trayPhase is not TrayPhase.Closed;
+
+    private string Host => RuntimeHost();
+
+    private string TrayBackgroundClass => trayPhase == TrayPhase.Entering
+        ? "menu-back _modalBg tray-back-enter-active tray-back-enter-from"
+        : "menu-back _modalBg";
+
+    private string TrayClass => trayPhase == TrayPhase.Entering
+        ? "menu tray-enter-active tray-enter-from"
+        : "menu";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Task<InstanceSummaryViewModel> instanceTask = InstanceService.GetAsync(lifetime.Token);
+        Task<IReadOnlyList<VisitorAnnouncementViewModel>> announcementTask =
+            AnnouncementService.ReadPublicAsync(10, lifetime.Token);
+        await Task.WhenAll(instanceTask, announcementTask);
+        instance = await instanceTask;
+        announcements = await announcementTask;
+        pageTitle = RouteTitle();
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Interactive Server prerendering deliberately emits the complete Misskey visitor
+            // shell. Keep that SSR DOM inert until the circuit has attached its event handlers;
+            // otherwise a fast click is accepted by the browser and lost during attachment.
+            isInteractive = true;
+            receiver = DotNetObjectReference.Create(this);
+            try
+            {
+                attachment = await VisitorInterop.AttachAsync(rootElement, receiver, lifetime.Token);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+
+        if (attachment is null || startedMotionGeneration == motionGeneration)
+        {
+            return;
+        }
+
+        startedMotionGeneration = motionGeneration;
+        if (trayPhase == TrayPhase.Entering)
+        {
+            _ = RunTrayMotionAsync("beginEnter", motionGeneration, trayBackground, trayElement);
+        }
+        else if (trayPhase == TrayPhase.Leaving)
+        {
+            _ = RunTrayMotionAsync("beginLeave", motionGeneration, trayBackground, trayElement, traySource);
+        }
+    }
+
+    [JSInvokable]
+    public Task UpdateVisitorMetrics(int viewportWidth, int headerWidth, string? browserTitle)
+    {
+        bool nextViewportNarrow = viewportWidth < 1280;
+        bool? nextHeaderNarrow = headerWidth < 0 ? null : headerWidth < 1300;
+        string? nextTitle = NormalizePageTitle(browserTitle) ?? RouteTitle();
+        if (viewportNarrow == nextViewportNarrow && headerNarrow == nextHeaderNarrow &&
+            string.Equals(pageTitle, nextTitle, StringComparison.Ordinal))
+        {
+            return Task.CompletedTask;
+        }
+
+        viewportNarrow = nextViewportNarrow;
+        headerNarrow = nextHeaderNarrow;
+        pageTitle = nextTitle;
+        if (!viewportNarrow && IsTrayRendered)
+        {
+            trayPhase = TrayPhase.Closed;
+            motionGeneration++;
+        }
+
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task NotifyTrayEntered()
+    {
+        if (trayPhase == TrayPhase.Entering)
+        {
+            trayPhase = TrayPhase.Open;
+            return InvokeAsync(StateHasChanged);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task NotifyTrayLeft()
+    {
+        if (trayPhase == TrayPhase.Leaving)
+        {
+            trayPhase = TrayPhase.Closed;
+            return InvokeAsync(StateHasChanged);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task RequestCloseTrayFromBrowser() => CloseTrayAsync();
+
+    private Task OpenTrayAsync(ElementReference source)
+    {
+        if (trayPhase is TrayPhase.Entering or TrayPhase.Open)
+        {
+            return Task.CompletedTask;
+        }
+
+        traySource = source;
+        trayPhase = TrayPhase.Entering;
+        motionGeneration++;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task CloseTrayAsync()
+    {
+        if (!IsTrayRendered || trayPhase == TrayPhase.Leaving)
+        {
+            return Task.CompletedTask;
+        }
+
+        trayPhase = TrayPhase.Leaving;
+        motionGeneration++;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private void SignIn()
+    {
+        _ = CloseTrayAsync();
+        Overlays.ShowSignIn(CurrentReturnUrl);
+    }
+
+    private void SignUp()
+    {
+        _ = CloseTrayAsync();
+        Overlays.ShowSignUp(CurrentReturnUrl);
+    }
+
+    private string CurrentReturnUrl
+    {
+        get
+        {
+            string relative = Navigation.ToBaseRelativePath(Navigation.Uri);
+            return "/" + relative.TrimStart('/');
+        }
+    }
+
+    private async Task RunTrayMotionAsync(string method, int generation, params ElementReference[] elements)
+    {
+        try
+        {
+            await attachment!.InvokeAsync<int>(method, lifetime.Token, elements.Cast<object>().ToArray());
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException) when (generation != motionGeneration)
+        {
+            // A cancelled transition may lose its DOM between the render and the JS call.
+        }
+        catch (JSException exception)
+        {
+            Logger.LogError(
+                "Visitor tray motion failed. Motion={Motion} FailureType={FailureType}",
+                method,
+                exception.GetType().Name);
+            if (generation == motionGeneration)
+            {
+                trayPhase = method == "beginLeave" ? TrayPhase.Closed : TrayPhase.Open;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        if (IsRoot && IsTrayRendered)
+        {
+            trayPhase = TrayPhase.Closed;
+            motionGeneration++;
+        }
+
+        pageTitle = RouteTitle();
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnShellKeyDown(KeyboardEventArgs args)
+    {
+        if (!string.Equals(args.Key, "Escape", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (IsTrayRendered)
+        {
+            await CloseTrayAsync();
+            return;
+        }
+
+        await Overlays.RequestCloseTopAsync();
+    }
+
+    private string RuntimeHost() => Runtime.PublicBaseUri?.IdnHost ?? instance?.Name ?? string.Empty;
+
+    private string? NormalizePageTitle(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length > 256 || IsRoot)
+        {
+            return null;
+        }
+
+        string title = value.Trim();
+        if (instance is not null)
+        {
+            string suffix = " | " + instance.Name;
+            if (title.EndsWith(suffix, StringComparison.Ordinal))
+            {
+                title = title[..^suffix.Length];
+            }
+        }
+
+        return title;
+    }
+
+    private string? RouteTitle()
+    {
+        if (IsRoot)
+        {
+            return null;
+        }
+
+        string route = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
+        return route switch
+        {
+            "about-misskey" => "Misskeyについて",
+            "reset-password" => "パスワードをリセット",
+            "timeline" => "タイムライン",
+            _ => null
+        };
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        Navigation.LocationChanged -= OnLocationChanged;
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+        try
+        {
+            await VisitorInterop.DisposeAsync();
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            // The JS module import can be cancelled as part of circuit shutdown.
+        }
+    }
+
+    private enum TrayPhase
+    {
+        Closed,
+        Entering,
+        Open,
+        Leaving
+    }
+}

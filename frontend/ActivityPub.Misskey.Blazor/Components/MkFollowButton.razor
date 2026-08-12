@@ -1,0 +1,363 @@
+@implements IAsyncDisposable
+@inject IUserPreviewPresentationService Users
+@inject IRelationshipSubscriptionService Relationships
+@inject IMisskeyLocalizer Localizer
+@inject ILogger<MkFollowButton> Logger
+
+<button class="@RootClass"
+        type="button"
+        disabled="@wait"
+        aria-label="@ActionLabel"
+        aria-busy="@(wait ? "true" : "false")"
+        mini="@(Mini ? string.Empty : null)"
+        @onclick="OnClickAsync">
+    @if (!wait)
+    {
+        @if (hasPendingFollowRequestFromYou && User.IsLocked)
+        {
+            @if (Full)
+            {
+                <span>@Localizer.Translate("followRequestPending")</span>
+            }
+            <i class="fas fa-hourglass-half" aria-hidden="true"></i>
+        }
+        else if (hasPendingFollowRequestFromYou)
+        {
+            @if (Full)
+            {
+                <span>@Localizer.Translate("processing")</span>
+            }
+            <i class="fas fa-spinner fa-pulse" aria-hidden="true"></i>
+        }
+        else if (isFollowing)
+        {
+            @if (Full)
+            {
+                <span>@Localizer.Translate("unfollow")</span>
+            }
+            <i class="fas fa-minus" aria-hidden="true"></i>
+        }
+        else if (User.IsLocked)
+        {
+            @if (Full)
+            {
+                <span>@Localizer.Translate("followRequest")</span>
+            }
+            <i class="fas fa-plus" aria-hidden="true"></i>
+        }
+        else
+        {
+            @if (Full)
+            {
+                <span>@Localizer.Translate("follow")</span>
+            }
+            <i class="fas fa-plus" aria-hidden="true"></i>
+        }
+    }
+    else
+    {
+        @if (Full)
+        {
+            <span>@Localizer.Translate("processing")</span>
+        }
+        <i class="fas fa-spinner fa-pulse fa-fw" aria-hidden="true"></i>
+    }
+</button>
+
+@if (dialog is not null)
+{
+    <MkConfirmDialog Type="@dialog.Type"
+                     Text="@dialog.Text"
+                     ShowCancelButton="@dialog.ShowCancel"
+                     Decision="OnDialogDecisionAsync" />
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private readonly object subscriptionSync = new();
+    private readonly List<Task> subscriptionTasks = [];
+    private CancellationTokenSource? subscription;
+    private long subscriptionGeneration;
+    private int disposed;
+    private UserPreviewViewModel? observedUser;
+    private bool isFollowing;
+    private bool hasPendingFollowRequestFromYou;
+    private bool wait;
+    private FollowDialogState? dialog;
+
+    [Parameter, EditorRequired]
+    public UserPreviewViewModel User { get; set; } = null!;
+
+    [Parameter]
+    public bool Full { get; set; }
+
+    [Parameter]
+    public bool Large { get; set; }
+
+    [Parameter]
+    public bool Mini { get; set; }
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter]
+    public EventCallback<UserPreviewViewModel> UserChanged { get; set; }
+
+    [CascadingParameter(Name = "MisskeyLocaleRevision")]
+    private long LocaleRevision { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "kpoogebi _button",
+        wait ? "wait" : null,
+        isFollowing || hasPendingFollowRequestFromYou ? "active" : null,
+        Full ? "full" : null,
+        Large ? "large" : null,
+        CssClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string ActionLabel => wait
+        ? Localizer.Translate("processing")
+        : hasPendingFollowRequestFromYou && User.IsLocked
+            ? Localizer.Translate("followRequestPending")
+            : hasPendingFollowRequestFromYou
+                ? Localizer.Translate("processing")
+                : isFollowing
+                    ? Localizer.Translate("unfollow")
+                    : User.IsLocked
+                        ? Localizer.Translate("followRequest")
+                        : Localizer.Translate("follow");
+
+    protected override void OnParametersSet()
+    {
+        bool targetChanged = observedUser?.InternalId != User.InternalId;
+        if (ReferenceEquals(observedUser, User))
+        {
+            return;
+        }
+
+        observedUser = User;
+        isFollowing = User.IsFollowing;
+        hasPendingFollowRequestFromYou = User.HasPendingFollowRequestFromYou;
+        if (targetChanged)
+        {
+            StartRelationshipSubscription();
+        }
+    }
+
+    private void StartRelationshipSubscription()
+    {
+        subscription?.Cancel();
+        subscription?.Dispose();
+        subscription = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        long generation = ++subscriptionGeneration;
+        Task task = ObserveRelationshipAsync(User.InternalId, User.Id, generation, subscription.Token);
+        lock (subscriptionSync)
+        {
+            subscriptionTasks.Add(task);
+        }
+
+        _ = RemoveCompletedSubscriptionAsync(task);
+    }
+
+    private async Task ObserveRelationshipAsync(
+        Guid targetActorId,
+        string externalId,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        long cursor = 0;
+        int retry = 0;
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                if (cursor == 0)
+                {
+                    cursor = await Relationships.GetLatestCursorAsync(cancellationToken).ConfigureAwait(false);
+                    await RefreshRelationshipAsync(externalId, generation, cancellationToken).ConfigureAwait(false);
+                }
+
+                await foreach (RelationshipMutation mutation in Relationships.SubscribeAsync(
+                                   targetActorId,
+                                   cursor,
+                                   cancellationToken).ConfigureAwait(false))
+                {
+                    cursor = mutation.Cursor;
+                    retry = 0;
+                    if (mutation.Changed)
+                    {
+                        await RefreshRelationshipAsync(externalId, generation, cancellationToken).ConfigureAwait(false);
+                    }
+                }
+
+                return;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (RelationshipCursorException exception) when (exception.ErrorCode == "STREAM_CURSOR_EXPIRED")
+            {
+                cursor = 0;
+                retry = 0;
+            }
+            catch (Exception exception)
+            {
+                retry = Math.Min(retry + 1, 6);
+                Logger.LogWarning(
+                    exception,
+                    "Relationship stream reconnect scheduled for target {TargetActorId}",
+                    targetActorId);
+                TimeSpan delay = TimeSpan.FromMilliseconds(
+                    Math.Min(5_000, 100 * (1 << retry)) + Random.Shared.Next(0, 100));
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task RefreshRelationshipAsync(
+        string externalId,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        UserPreviewViewModel updated = await Users.ReadAsync(externalId, cancellationToken).ConfigureAwait(false);
+        await InvokeAsync(async () =>
+        {
+            if (generation != subscriptionGeneration || updated.InternalId != User.InternalId)
+            {
+                return;
+            }
+
+            bool changed = !Equals(updated, observedUser);
+            observedUser = updated;
+            isFollowing = updated.IsFollowing;
+            hasPendingFollowRequestFromYou = updated.HasPendingFollowRequestFromYou;
+            if (changed)
+            {
+                await UserChanged.InvokeAsync(updated);
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    private async Task RemoveCompletedSubscriptionAsync(Task task)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            lock (subscriptionSync)
+            {
+                subscriptionTasks.Remove(task);
+            }
+        }
+    }
+
+    private async Task OnClickAsync()
+    {
+        if (wait)
+        {
+            return;
+        }
+
+        if (isFollowing)
+        {
+            wait = true;
+            dialog = new(
+                "warning",
+                Localizer.Translate(
+                    "unfollowConfirm",
+                    new Dictionary<string, object?>
+                    {
+                        ["name"] = string.IsNullOrWhiteSpace(User.User.DisplayName)
+                            ? User.User.Username
+                            : User.User.DisplayName
+                    }),
+                ShowCancel: true);
+            return;
+        }
+
+        await ChangeFollowAsync(follow: !hasPendingFollowRequestFromYou);
+    }
+
+    private async Task OnDialogDecisionAsync(bool confirmed)
+    {
+        FollowDialogState? completed = dialog;
+        dialog = null;
+        if (confirmed && completed?.ShowCancel == true)
+        {
+            await ChangeFollowAsync(follow: false);
+            return;
+        }
+
+        wait = false;
+    }
+
+    private async Task ChangeFollowAsync(bool follow)
+    {
+        wait = true;
+        try
+        {
+            UserPreviewViewModel updated = follow
+                ? await Users.FollowAsync(
+                    User,
+                    $"blazor-user-preview-follow-{Guid.NewGuid():N}",
+                    lifetime.Token).ConfigureAwait(false)
+                : await Users.UnfollowAsync(
+                    User,
+                    $"blazor-user-preview-unfollow-{Guid.NewGuid():N}",
+                    lifetime.Token).ConfigureAwait(false);
+            observedUser = updated;
+            isFollowing = updated.IsFollowing;
+            hasPendingFollowRequestFromYou = updated.HasPendingFollowRequestFromYou;
+            await UserChanged.InvokeAsync(updated);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception) when (exception is UserPreviewPresentationException or KeyNotFoundException or InvalidOperationException)
+        {
+            dialog = new("error", Localizer.Translate("somethingHappened"), ShowCancel: false);
+        }
+        finally
+        {
+            wait = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref disposed, 1) != 0)
+        {
+            return;
+        }
+
+        lifetime.Cancel();
+        subscription?.Cancel();
+        Task[] pending;
+        lock (subscriptionSync)
+        {
+            pending = subscriptionTasks.ToArray();
+        }
+
+        try
+        {
+            await Task.WhenAll(pending).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        subscription?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private sealed record FollowDialogState(string Type, string Text, bool ShowCancel);
+}

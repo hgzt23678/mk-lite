@@ -1,0 +1,165 @@
+@inject IMisskeyLocalizer Localizer
+
+<MkModalWindow @ref="dialog"
+               Width="400"
+               Height="450"
+               WithOkButton="true"
+               OkButtonDisabled="false"
+               Header="HeaderFragment"
+               AccessibleLabel="@Localizer.Translate("notificationSetting")"
+               OkLabel="@Localizer.Translate("ok")"
+               CloseLabel="@Localizer.Translate("close")"
+               Ok="OkAsync"
+               Clicked="CloseAsync"
+               CloseRequested="CloseRequestedAsync"
+               Closed="ClosedAsync">
+    <div class="tbhwbxda">
+        <div class="_monolithic_">
+            @if (ShowGlobalToggle)
+            {
+                <div class="_section">
+                    <MkFormSwitch Value="useGlobalSetting"
+                                  ValueChanged="SetUseGlobalSettingAsync"
+                                  Caption="CaptionFragment">
+                        <ChildContent>@Localizer.Translate("useGlobalSetting")</ChildContent>
+                    </MkFormSwitch>
+                </div>
+            }
+            @if (!useGlobalSetting)
+            {
+                <div class="_section">
+                    <MkInfo><ChildContent>@Localizer.Translate("notificationSettingDesc")</ChildContent></MkInfo>
+                    <div class="actions">
+                        <MkButton Inline="true" OnClick="DisableAllAsync" aria-label="@Localizer.Translate("disableAll")"><ChildContent>@Localizer.Translate("disableAll")</ChildContent></MkButton>
+                        <MkButton Inline="true" OnClick="EnableAllAsync" aria-label="@Localizer.Translate("enableAll")"><ChildContent>@Localizer.Translate("enableAll")</ChildContent></MkButton>
+                    </div>
+                    @foreach (MisskeyNotificationType type in NotificationTypes)
+                    {
+                        <MkFormSwitch @key="type"
+                                      Value="@typesMap[type]"
+                                      ValueChanged="@(value => SetTypeAsync(type, value))">
+                            <ChildContent>@Localizer.Translate($"_notification._types.{ToTypeName(type)}")</ChildContent>
+                        </MkFormSwitch>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</MkModalWindow>
+
+@code {
+    private static readonly MisskeyNotificationType[] NotificationTypes =
+    [
+        MisskeyNotificationType.Follow,
+        MisskeyNotificationType.Mention,
+        MisskeyNotificationType.Reply,
+        MisskeyNotificationType.Renote,
+        MisskeyNotificationType.Quote,
+        MisskeyNotificationType.Reaction,
+        MisskeyNotificationType.PollVote,
+        MisskeyNotificationType.PollEnded,
+        MisskeyNotificationType.ReceiveFollowRequest,
+        MisskeyNotificationType.FollowRequestAccepted,
+        MisskeyNotificationType.GroupInvited,
+        MisskeyNotificationType.App
+    ];
+
+    private readonly Dictionary<MisskeyNotificationType, bool> typesMap =
+        NotificationTypes.ToDictionary(type => type, static _ => false);
+    private MkModalWindow? dialog;
+    private bool useGlobalSetting;
+    private bool initialized;
+
+    [Parameter]
+    public IReadOnlySet<MisskeyNotificationType>? IncludingTypes { get; set; }
+
+    [Parameter]
+    public bool ShowGlobalToggle { get; set; } = true;
+
+    [Parameter]
+    public EventCallback<NotificationSettingResult> Done { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (initialized)
+        {
+            return;
+        }
+
+        initialized = true;
+        useGlobalSetting = ShowGlobalToggle && (IncludingTypes is null || IncludingTypes.Count == 0);
+        foreach (MisskeyNotificationType type in NotificationTypes)
+        {
+            typesMap[type] = IncludingTypes?.Contains(type) == true;
+        }
+    }
+
+    private Task SetUseGlobalSettingAsync(bool value)
+    {
+        useGlobalSetting = value;
+        return Task.CompletedTask;
+    }
+
+    private RenderFragment CaptionFragment => builder =>
+        builder.AddContent(0, Localizer.Translate("useGlobalSettingDesc"));
+
+    private RenderFragment HeaderFragment => builder =>
+        builder.AddContent(0, Localizer.Translate("notificationSetting"));
+
+    private Task SetTypeAsync(MisskeyNotificationType type, bool value)
+    {
+        typesMap[type] = value;
+        return Task.CompletedTask;
+    }
+
+    private Task DisableAllAsync(MouseEventArgs _)
+    {
+        foreach (MisskeyNotificationType type in NotificationTypes) typesMap[type] = false;
+        return Task.CompletedTask;
+    }
+
+    private Task EnableAllAsync(MouseEventArgs _)
+    {
+        foreach (MisskeyNotificationType type in NotificationTypes) typesMap[type] = true;
+        return Task.CompletedTask;
+    }
+
+    private async Task OkAsync()
+    {
+        IReadOnlySet<MisskeyNotificationType>? result = useGlobalSetting
+            ? null
+            : typesMap.Where(pair => pair.Value).Select(pair => pair.Key).ToHashSet();
+        await Done.InvokeAsync(new NotificationSettingResult(result));
+        if (dialog is not null)
+        {
+            await dialog.BeginCloseAsync();
+        }
+    }
+
+    private Task CloseAsync() => dialog?.BeginCloseAsync() ?? Task.CompletedTask;
+
+    private Task CloseRequestedAsync() => Task.CompletedTask;
+
+    private Task ClosedAsync() => Closed.InvokeAsync();
+
+    private static string ToTypeName(MisskeyNotificationType type) => type switch
+    {
+        MisskeyNotificationType.Follow => "follow",
+        MisskeyNotificationType.Mention => "mention",
+        MisskeyNotificationType.Reply => "reply",
+        MisskeyNotificationType.Renote => "renote",
+        MisskeyNotificationType.Quote => "quote",
+        MisskeyNotificationType.Reaction => "reaction",
+        MisskeyNotificationType.PollVote => "pollVote",
+        MisskeyNotificationType.PollEnded => "pollEnded",
+        MisskeyNotificationType.ReceiveFollowRequest => "receiveFollowRequest",
+        MisskeyNotificationType.FollowRequestAccepted => "followRequestAccepted",
+        MisskeyNotificationType.GroupInvited => "groupInvited",
+        MisskeyNotificationType.App => "app",
+        _ => throw new ArgumentOutOfRangeException(nameof(type))
+    };
+
+}

@@ -1,0 +1,57 @@
+<div class="thumbnail zdjebgpv" data-id="@File.Id">
+    @if (HasThumbnail)
+    {
+        <MkImgWithBlurhash Src="@SafePreviewUrl"
+                           Alt="@File.Name"
+                           Title="@File.Name"
+                           Cover="true" />
+    }
+    else
+    {
+        <i class="@FileIconClass"></i>
+    }
+    @if (HasThumbnail && IsVideo)
+    {
+        <i class="fas fa-film icon-sub"></i>
+    }
+</div>
+
+@code {
+    private static readonly HashSet<string> ArchiveMediaTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "application/zip",
+        "application/x-cpio",
+        "application/x-bzip",
+        "application/x-bzip2",
+        "application/java-archive",
+        "application/x-rar-compressed",
+        "application/x-tar",
+        "application/gzip",
+        "application/x-7z-compressed"
+    };
+
+    [Parameter, EditorRequired]
+    public ComposerMediaViewModel File { get; set; } = null!;
+
+    private string? SafePreviewUrl => SameOriginMediaUrl.Normalize(File.PreviewUrl);
+    private bool IsImage => File.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+    private bool IsVideo => File.MediaType.StartsWith("video/", StringComparison.OrdinalIgnoreCase);
+    private bool HasThumbnail => SafePreviewUrl is not null &&
+        (IsImage || IsVideo && !string.Equals(File.PreviewUrl, File.Url, StringComparison.Ordinal));
+    private string FileIconClass => $"{FileIcon} icon";
+    private string FileIcon => IsImage
+        ? "fas fa-file-image"
+        : IsVideo
+            ? "fas fa-file-video"
+            : File.MediaType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase)
+                ? "fas fa-music"
+                : File.MediaType.EndsWith("/csv", StringComparison.OrdinalIgnoreCase)
+                    ? "fas fa-file-csv"
+                    : File.MediaType.EndsWith("/pdf", StringComparison.OrdinalIgnoreCase)
+                        ? "fas fa-file-pdf"
+                        : File.MediaType.StartsWith("text/", StringComparison.OrdinalIgnoreCase)
+                            ? "fas fa-file-alt"
+                            : ArchiveMediaTypes.Contains(File.MediaType)
+                                ? "fas fa-file-archive"
+                                : "fas fa-file";
+}

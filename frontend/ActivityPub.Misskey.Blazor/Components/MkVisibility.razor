@@ -1,0 +1,305 @@
+@implements IAsyncDisposable
+@inject IMisskeyOverlayService Overlays
+@inject IVisibilityTooltipInterop Browser
+
+@if (Note.Visibility != Visibility.Public)
+{
+    <span @ref="specifiedTarget"
+          @attributes="VisibilityAttributes"
+          class="@VisibilityClass"
+          title="@VisibilityLabel"
+          role="@(IsSpecified ? "button" : null)"
+          tabindex="@(IsSpecified ? "0" : null)"
+          aria-label="@VisibilityLabel"
+          aria-haspopup="@(IsSpecified ? "true" : null)"
+          aria-expanded="@(IsSpecified ? tooltipShowing.ToString().ToLowerInvariant() : null)"
+          aria-describedby="@(IsSpecified && tooltipShowing && tooltipId is not null ? tooltipId : null)">
+        <i class="@VisibilityIcon" aria-hidden="true"></i>
+    </span>
+}
+@if (Note.LocalOnly)
+{
+    <span @attributes="LocalOnlyAttributes"
+          class="@LocalOnlyClass"
+          title="このインスタンスのみ"
+          aria-label="このインスタンスのみ">
+        <i class="fas fa-biohazard" aria-hidden="true"></i>
+    </span>
+}
+
+@code {
+    private const string VisibilityModuleClass = "_visibility_1rbrq_1";
+    private const string LocalOnlyModuleClass = "_localOnly_1rbrq_1";
+    private readonly CancellationTokenSource lifetime = new();
+    private readonly SemaphoreSlim attachmentGate = new(1, 1);
+    private ElementReference specifiedTarget;
+    private DotNetObjectReference<MkVisibility>? receiver;
+    private IJSObjectReference? triggerHandle;
+    private Guid? tooltipEntryId;
+    private string? tooltipId;
+    private string? attachedNoteKey;
+    private Task? attachmentTask;
+    private bool tooltipShowing;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public NoteViewModel Note { get; set; } = null!;
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private bool IsSpecified => Note.Visibility == Visibility.MentionedOnly;
+
+    private IReadOnlyList<string> VisibleUserIds => Note.VisibleUserIds ?? [];
+
+    private string VisibilityIcon => Note.Visibility switch
+    {
+        Visibility.Unlisted => "fas fa-home",
+        Visibility.FollowersOnly => "fas fa-unlock",
+        Visibility.MentionedOnly => "fas fa-envelope",
+        _ => "fas fa-globe"
+    };
+
+    private string VisibilityLabel => Note.Visibility switch
+    {
+        Visibility.Unlisted => "ホームのみ",
+        Visibility.FollowersOnly => "フォロワーのみ",
+        Visibility.MentionedOnly => "指定したユーザーのみ",
+        _ => "公開"
+    };
+
+    private bool VisibilityIsPrimaryRoot => Note.Visibility != Visibility.Public;
+
+    private string VisibilityClass => MergeClass(
+        VisibilityModuleClass,
+        VisibilityIsPrimaryRoot ? AdditionalClass : null);
+
+    private string LocalOnlyClass => MergeClass(
+        LocalOnlyModuleClass,
+        !VisibilityIsPrimaryRoot ? AdditionalClass : null);
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? VisibilityAttributes =>
+        VisibilityIsPrimaryRoot ? AttributesWithoutClass : null;
+
+    private IReadOnlyDictionary<string, object>? LocalOnlyAttributes =>
+        !VisibilityIsPrimaryRoot ? AttributesWithoutClass : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        string noteKey = $"{Note.Id}:{Note.Visibility}:{string.Join('\u001f', VisibleUserIds)}";
+        if (!IsSpecified)
+        {
+            await DetachTriggerAsync().ConfigureAwait(false);
+            return;
+        }
+
+        if (triggerHandle is not null && string.Equals(attachedNoteKey, noteKey, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (attachmentTask is { IsCompleted: false })
+        {
+            return;
+        }
+
+        attachmentTask = AttachTriggerAsync(noteKey);
+        await attachmentTask.ConfigureAwait(false);
+    }
+
+    private async Task AttachTriggerAsync(string noteKey)
+    {
+        bool entered = false;
+        try
+        {
+            await attachmentGate.WaitAsync(lifetime.Token).ConfigureAwait(false);
+            entered = true;
+            await DetachTriggerCoreAsync().ConfigureAwait(false);
+            if (disposed || lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (tooltipEntryId is Guid previousTooltip)
+            {
+                Overlays.Close(previousTooltip);
+                tooltipEntryId = null;
+                tooltipId = null;
+                tooltipShowing = false;
+            }
+
+            DotNetObjectReference<MkVisibility> createdReceiver = DotNetObjectReference.Create(this);
+            receiver = createdReceiver;
+            bool installed = false;
+            try
+            {
+                IJSObjectReference attached = await Browser.AttachTriggerAsync(
+                    specifiedTarget,
+                    createdReceiver,
+                    lifetime.Token).ConfigureAwait(false);
+                if (disposed || lifetime.IsCancellationRequested)
+                {
+                    await DisposeHandleAsync(attached).ConfigureAwait(false);
+                    return;
+                }
+
+                triggerHandle = attached;
+                attachedNoteKey = noteKey;
+                installed = true;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            finally
+            {
+                if (!installed && ReferenceEquals(receiver, createdReceiver))
+                {
+                    createdReceiver.Dispose();
+                    receiver = null;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            if (entered)
+            {
+                attachmentGate.Release();
+            }
+        }
+    }
+
+    [JSInvokable]
+    public Task ShowVisibilityTooltipAsync()
+    {
+        if (disposed || !IsSpecified)
+        {
+            return Task.CompletedTask;
+        }
+
+        return InvokeAsync(() =>
+        {
+            if (tooltipEntryId is Guid existing && Overlays.SetUsersTooltipShowing(existing, showing: true))
+            {
+                tooltipShowing = true;
+                tooltipId = $"mk-users-tooltip-{existing:N}";
+                StateHasChanged();
+                return;
+            }
+
+            Guid id = Overlays.ShowUsersTooltip(specifiedTarget, VisibleUserIds);
+            tooltipEntryId = id;
+            tooltipId = $"mk-users-tooltip-{id:N}";
+            tooltipShowing = true;
+            StateHasChanged();
+        });
+    }
+
+    [JSInvokable]
+    public Task HideVisibilityTooltipAsync()
+    {
+        if (disposed)
+        {
+            return Task.CompletedTask;
+        }
+
+        return InvokeAsync(() =>
+        {
+            if (tooltipEntryId is Guid id)
+            {
+                _ = Overlays.SetUsersTooltipShowing(id, showing: false);
+            }
+
+            tooltipShowing = false;
+            StateHasChanged();
+        });
+    }
+
+    private async ValueTask DetachTriggerAsync()
+    {
+        await attachmentGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            await DetachTriggerCoreAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            attachmentGate.Release();
+        }
+    }
+
+    private async ValueTask DetachTriggerCoreAsync()
+    {
+        if (triggerHandle is not null)
+        {
+            await DisposeHandleAsync(triggerHandle).ConfigureAwait(false);
+            triggerHandle = null;
+        }
+
+        receiver?.Dispose();
+        receiver = null;
+        attachedNoteKey = null;
+    }
+
+    private static async ValueTask DisposeHandleAsync(IJSObjectReference handle)
+    {
+        try
+        {
+            await handle.InvokeVoidAsync("dispose").ConfigureAwait(false);
+            await handle.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        disposed = true;
+        await lifetime.CancelAsync().ConfigureAwait(false);
+        await attachmentGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            if (tooltipEntryId is Guid id)
+            {
+                Overlays.Close(id);
+            }
+            await DetachTriggerCoreAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            attachmentGate.Release();
+            lifetime.Dispose();
+        }
+    }
+
+    private static string MergeClass(string required, string? additional) =>
+        string.IsNullOrWhiteSpace(additional) ? required : required + " " + additional;
+}

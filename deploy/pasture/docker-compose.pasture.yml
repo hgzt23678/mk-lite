@@ -1,0 +1,75 @@
+services:
+  redis:
+    image: ${PASTURE_REDIS_IMAGE:-redis:7-alpine}
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "no", "--maxmemory", "64mb"]
+    networks:
+      activitypub:
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    environment:
+      Federation__PublicBaseUri: http://activitypub
+      Federation__RequireHttps: "false"
+      Federation__AllowDevelopmentLoopback: "false"
+      Federation__DevelopmentRestrictToAllowedHosts: "true"
+      Federation__DevelopmentAllowedHosts__0: mastodon
+      Federation__DevelopmentAllowedHosts__1: misskey
+      Federation__DevelopmentAllowedHosts__2: pleroma
+      OAuth__Enabled: "true"
+      Streaming__Redis__ConnectionString: ${ACTIVITYPUB_PASTURE_REDIS:+redis://redis:6379}
+      LocalAccounts__Enabled: "true"
+      LocalAccounts__RegistrationEnabled: "true"
+      AllowedHosts: activitypub
+    networks:
+      activitypub:
+      fediverse-pasture:
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--header", "Host: activitypub", "http://localhost:8080/health/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+
+  worker:
+    environment:
+      Federation__PublicBaseUri: http://activitypub
+      Federation__RequireHttps: "false"
+      Federation__AllowDevelopmentLoopback: "false"
+      Federation__DevelopmentRestrictToAllowedHosts: "true"
+      Federation__DevelopmentAllowedHosts__0: mastodon
+      Federation__DevelopmentAllowedHosts__1: misskey
+      Federation__DevelopmentAllowedHosts__2: pleroma
+      OAuth__Enabled: "true"
+      Streaming__Redis__ConnectionString: ${ACTIVITYPUB_PASTURE_REDIS:+redis://redis:6379}
+      LocalAccounts__Enabled: "true"
+      LocalAccounts__RegistrationEnabled: "true"
+      AllowedHosts: activitypub
+    networks:
+      activitypub:
+      fediverse-pasture:
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--header", "Host: activitypub", "http://localhost:8080/health/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+
+  caddy:
+    ports: !override
+      - "0.0.0.0:${ACTIVITYPUB_PASTURE_PORT:-2971}:80"
+    volumes:
+      - ./deploy/pasture/Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      activitypub:
+        ipv4_address: 172.28.0.10
+      fediverse-pasture:
+        aliases:
+          - activitypub
+
+networks:
+  fediverse-pasture:
+    name: fediverse-pasture
+    external: true

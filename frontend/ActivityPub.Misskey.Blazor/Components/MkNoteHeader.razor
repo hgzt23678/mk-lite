@@ -1,0 +1,46 @@
+<header @attributes="RootAttributes" class="@RootClass">
+    <a class="name" href="/@@@Note.Author.Acct" data-user-preview="@Note.Author.Id">
+        <MkUserName User="@Note.Author" />
+    </a>
+    @if (Note.Author.IsBot)
+    {
+        <div class="is-bot">bot</div>
+    }
+    <div class="username"><MkAcct User="@Note.Author" /></div>
+    <div class="info">
+        <a class="created-at" href="/notes/@Note.Id">
+            <MkTime Time="@Note.CreatedAt" />
+        </a>
+        <MkVisibility Note="Note" />
+    </div>
+</header>
+
+@code {
+    [Parameter, EditorRequired]
+    public NoteViewModel Note { get; set; } = null!;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter]
+    public bool Pinned { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(
+        ' ',
+        new[] { "kkwtjztg", CssClass, AdditionalClass }
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? RootAttributes => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+}

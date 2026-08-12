@@ -1,0 +1,78 @@
+@using System.Globalization
+
+<svg viewBox="0 0 50 50" style="overflow: visible;" @attributes="AdditionalAttributes">
+    <defs>
+        <linearGradient id="@gradientId" x1="0" x2="0" y1="1" y2="0">
+            <stop offset="0%" stop-color="@color" stop-opacity="0"></stop>
+            <stop offset="100%" stop-color="@color" stop-opacity="0.65"></stop>
+        </linearGradient>
+    </defs>
+    <polygon points="@polygonPoints" style="stroke: none; fill: url(#@gradientId);" />
+    <polyline points="@polylinePoints" fill="none" stroke="@color" stroke-width="2" />
+    @if (headX is not null && headY is not null)
+    {
+        <circle cx="@headX.Value.ToString(CultureInfo.InvariantCulture)" cy="@headY.Value.ToString(CultureInfo.InvariantCulture)" r="3" fill="@color" />
+    }
+</svg>
+
+@code {
+    private const double ViewBoxX = 50;
+    private const double ViewBoxY = 50;
+    private readonly string gradientId = "mk-mini-chart-" + Guid.NewGuid().ToString("N");
+    private string polylinePoints = string.Empty;
+    private string polygonPoints = string.Empty;
+    private double? headX;
+    private double? headY;
+    private string color = "var(--accent)";
+    private IReadOnlyList<long> rendered = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<long> Src { get; set; } = [];
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(Src, rendered) || Src.Count == 0)
+        {
+            return;
+        }
+
+        rendered = Src;
+        Draw();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            Draw();
+        }
+    }
+
+    private void Draw()
+    {
+        if (Src.Count < 2)
+        {
+            return;
+        }
+
+        long[] stats = Src.Reverse().ToArray();
+        long peak = Math.Max(stats.Max(), 1);
+        var points = new List<(double X, double Y)>(stats.Length);
+        for (int index = 0; index < stats.Length; index++)
+        {
+            points.Add((
+                index * (ViewBoxX / (stats.Length - 1)),
+                (1 - (stats[index] / (double)peak)) * ViewBoxY));
+        }
+
+        polylinePoints = string.Join(' ', points.Select(point =>
+            $"{point.X.ToString(CultureInfo.InvariantCulture)},{point.Y.ToString(CultureInfo.InvariantCulture)}"));
+        polygonPoints = $"0,{ViewBoxY.ToString(CultureInfo.InvariantCulture)} {polylinePoints} " +
+                        $"{ViewBoxX.ToString(CultureInfo.InvariantCulture)},{ViewBoxY.ToString(CultureInfo.InvariantCulture)}";
+        headX = points[^1].X;
+        headY = points[^1].Y;
+    }
+}

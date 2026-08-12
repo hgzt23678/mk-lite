@@ -1,0 +1,249 @@
+@implements IAsyncDisposable
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+@inject IClipboardInterop Clipboard
+@inject IModalPageWindowInterop WindowInterop
+@inject MisskeyFrontendRuntimeConfiguration Runtime
+@inject NavigationManager Navigation
+
+<MkWindow @ref="window"
+          InitialWidth="500"
+          InitialHeight="500"
+          CanResize="true"
+          CloseButton="true"
+          ButtonsLeft="@ButtonsLeft"
+          ButtonsRight="@ButtonsRight"
+          ContextMenu="@ContextMenuItems"
+          Closed="OnClosedAsync">
+    <HeaderContent>
+        @if (currentMetadata is { } metadata)
+        {
+            @if (!string.IsNullOrWhiteSpace(metadata.Header.Icon))
+            {
+                <i class="icon @metadata.Header.Icon" style="margin-right: 0.5em;"></i>
+            }
+            <span>@metadata.Header.Title</span>
+        }
+    </HeaderContent>
+    <ChildContent>
+        <div @ref="rootElement" class="yrolvcoq">
+            @ChildContent(routeContext)
+        </div>
+    </ChildContent>
+</MkWindow>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private readonly List<string> history = [];
+    private MkWindow? window;
+    private ElementReference rootElement;
+    private MkModalPageWindowContext routeContext = null!;
+    private MkModalPageWindowMetadata? currentMetadata;
+    private string currentPath = string.Empty;
+    private string? observedInitialPath;
+    private bool closed;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public string InitialPath { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public RenderFragment<MkModalPageWindowContext> ChildContent { get; set; } = _ => _ => { };
+
+    [Parameter]
+    public Func<string, MkModalPageWindowMetadata?>? MetadataResolver { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    public string CurrentPath => currentPath;
+
+    private IReadOnlyList<MkWindowButton> ButtonsLeft => history.Count > 0
+        ? [new("fas fa-arrow-left", BackAsync, Localizer.Translate("goBack"))]
+        : [];
+
+    private IReadOnlyList<MkWindowButton> ButtonsRight =>
+    [
+        new("fas fa-expand-alt", ExpandAsync, Localizer.Translate("showInPage"))
+    ];
+
+    private IReadOnlyList<MisskeyMenuItem>? ContextMenuItems
+    {
+        get
+        {
+            Uri? pageUri = TryGetPageUri();
+            return
+            [
+                new(MisskeyMenuItemKind.Label, currentPath),
+                new(
+                    MisskeyMenuItemKind.Action,
+                    Localizer.Translate("showInPage"),
+                    "fas fa-expand-alt",
+                    Action: ExpandAsync),
+                new(
+                    MisskeyMenuItemKind.Action,
+                    Localizer.Translate("popout"),
+                    "fas fa-external-link-alt",
+                    Action: PopoutAsync,
+                    Disabled: pageUri is null),
+                MisskeyMenuItem.Divider,
+                new(
+                    MisskeyMenuItemKind.Action,
+                    Localizer.Translate("openInNewTab"),
+                    "fas fa-external-link-alt",
+                    Action: OpenNewTabAsync,
+                    Disabled: pageUri is null),
+                new(
+                    MisskeyMenuItemKind.Action,
+                    Localizer.Translate("copyLink"),
+                    "fas fa-link",
+                    Action: CopyLinkAsync,
+                    Disabled: pageUri is null)
+            ];
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        string normalized = NormalizePath(InitialPath);
+        if (!string.Equals(observedInitialPath, InitialPath, StringComparison.Ordinal))
+        {
+            observedInitialPath = InitialPath;
+            history.Clear();
+            SetCurrentPath(normalized);
+            return;
+        }
+
+        currentMetadata = MetadataResolver?.Invoke(currentPath);
+    }
+
+    public Task NavigateAsync(string path) => NavigateCoreAsync(path, record: true);
+
+    public async Task BackAsync()
+    {
+        if (history.Count == 0)
+        {
+            return;
+        }
+
+        string previous = history[^1];
+        history.RemoveAt(history.Count - 1);
+        await NavigateCoreAsync(previous, record: false);
+    }
+
+    public Task CloseAsync() => window?.CloseAsync() ?? Task.CompletedTask;
+
+    private async Task NavigateCoreAsync(string path, bool record)
+    {
+        string normalized = NormalizePath(path);
+        if (string.Equals(currentPath, normalized, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (record)
+        {
+            history.Add(currentPath);
+        }
+
+        SetCurrentPath(normalized);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void SetCurrentPath(string path)
+    {
+        currentPath = path;
+        currentMetadata = MetadataResolver?.Invoke(path);
+        routeContext = new MkModalPageWindowContext(path, NavigateAsync, BackAsync);
+    }
+
+    private async Task ExpandAsync()
+    {
+        Navigation.NavigateTo(ApplicationPath(currentPath));
+        await CloseAsync();
+    }
+
+    private async Task PopoutAsync()
+    {
+        Uri? pageUri = TryGetPageUri();
+        if (pageUri is null)
+        {
+            return;
+        }
+
+        await WindowInterop.PopoutAsync(pageUri, rootElement, lifetime.Token);
+        await CloseAsync();
+    }
+
+    private async Task OpenNewTabAsync()
+    {
+        Uri? pageUri = TryGetPageUri();
+        if (pageUri is null)
+        {
+            return;
+        }
+
+        await WindowInterop.OpenNewTabAsync(pageUri, lifetime.Token);
+        await CloseAsync();
+    }
+
+    private async Task CopyLinkAsync()
+    {
+        Uri? pageUri = TryGetPageUri();
+        if (pageUri is null)
+        {
+            return;
+        }
+
+        await Clipboard.WriteTextAsync(pageUri.AbsoluteUri, lifetime.Token);
+    }
+
+    private Uri? TryGetPageUri() => Runtime.PublicBaseUri is null
+        ? null
+        : new Uri(Runtime.PublicBaseUri, ApplicationPath(currentPath));
+
+    private async Task OnClosedAsync()
+    {
+        if (closed)
+        {
+            return;
+        }
+
+        closed = true;
+        await lifetime.CancelAsync();
+        await Closed.InvokeAsync();
+    }
+
+    private static string ApplicationPath(string path) =>
+        path.StartsWith("/", StringComparison.Ordinal)
+            ? path
+            : "/" + path.TrimStart('/');
+
+    private static string NormalizePath(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        if (path.Length > 4_096 || path.Any(char.IsControl) || path.Contains('\\', StringComparison.Ordinal))
+        {
+            throw new ArgumentException("The page window path is invalid.", nameof(path));
+        }
+
+        if (!path.StartsWith("/", StringComparison.Ordinal) || path.StartsWith("//", StringComparison.Ordinal))
+        {
+            throw new ArgumentException("The page window path must be an application-root path.", nameof(path));
+        }
+
+        return path;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

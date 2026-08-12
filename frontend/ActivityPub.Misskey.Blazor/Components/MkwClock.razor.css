@@ -1,0 +1,56 @@
+.vubelbmv {
+    position: relative;
+}
+
+.vubelbmv > .label {
+    position: absolute;
+    opacity: 0.7;
+}
+
+.vubelbmv > .label.a {
+    top: 14px;
+    left: 14px;
+}
+
+.vubelbmv > .label.b {
+    top: 14px;
+    right: 14px;
+}
+
+.vubelbmv > .label.c {
+    bottom: 14px;
+    left: 14px;
+}
+
+.vubelbmv > .label.d {
+    right: 14px;
+    bottom: 14px;
+}
+
+.vubelbmv > ::deep .clock {
+    margin: auto;
+}
+
+.vubelbmv.small {
+    padding: 12px;
+}
+
+.vubelbmv.small > ::deep .clock {
+    height: 100px;
+}
+
+.vubelbmv.medium {
+    padding: 14px;
+}
+
+.vubelbmv.medium > ::deep .clock {
+    height: 150px;
+}
+
+.vubelbmv.large {
+    padding: 16px;
+}
+
+.vubelbmv.large > ::deep .clock {
+    height: 200px;
+}

@@ -1,0 +1,193 @@
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+@implements IAsyncDisposable
+
+<PageTitle>@Localizer.Translate("sounds")</PageTitle>
+
+<div class="_formRoot settings-local-page settings-sounds" data-testid="settings-sounds">
+    @if (!loaded)
+    {
+        <MkLoading />
+    }
+    else
+    {
+        <MkFormRange Value="@masterVolume"
+                     ValueChanged="SaveMasterVolumeAsync"
+                     Min="0"
+                     Max="1"
+                     Step="0.05"
+                     TextConverter="FormatVolume"
+                     CssClassAdditional="_formBlock"
+                     data-setting="sound_masterVolume">
+            <Label>@Localizer.Translate("masterVolume")</Label>
+        </MkFormRange>
+
+        <FormSection>
+            <Label>@Localizer.Translate("sounds")</Label>
+            <ChildContent>
+                @foreach (SoundSetting sound in sounds)
+                {
+                    <FormLink @key="sound.Key"
+                              class="sound-link"
+                              data-sound="@sound.Key"
+                              @onclick="() => EditAsync(sound)">
+                        <ChildContent>@Localizer.Translate($"_sfx.{sound.Key}")</ChildContent>
+                        <Suffix>@(sound.Type ?? Localizer.Translate("none"))</Suffix>
+                    </FormLink>
+                }
+            </ChildContent>
+        </FormSection>
+
+        <MkButton Danger="true" CssClassAdditional="_formBlock" OnClick="ResetAsync">
+            <i class="fas fa-redo" aria-hidden="true"></i> @Localizer.Translate("default")
+        </MkButton>
+        @if (!string.IsNullOrWhiteSpace(status))
+        {
+            <MkInfo CssClassAdditional="_formBlock" data-testid="settings-sounds-status">@status</MkInfo>
+        }
+    }
+</div>
+
+@code {
+    private static readonly string?[] SoundTypes =
+    [
+        null, "syuilo/up", "syuilo/down", "syuilo/pope1", "syuilo/pope2", "syuilo/waon",
+        "syuilo/popo", "syuilo/triple", "syuilo/poi1", "syuilo/poi2", "syuilo/pirori",
+        "syuilo/pirori-wet", "syuilo/pirori-square-wet", "syuilo/square-pico", "syuilo/reverved",
+        "syuilo/ryukyu", "syuilo/kick", "syuilo/snare", "syuilo/queue-jammed", "aisha/1",
+        "aisha/2", "aisha/3", "noizenecio/kick_gaba", "noizenecio/kick_gaba2"
+    ];
+
+    private readonly CancellationTokenSource lifetime = new();
+    private readonly List<SoundSetting> sounds =
+    [
+        new("note"), new("noteMy"), new("notification"), new("chat"), new("chatBg"),
+        new("antenna"), new("channel")
+    ];
+    private double masterVolume;
+    private bool loaded;
+    private bool disposed;
+    private string? status;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            masterVolume = Normalize(await DeviceState.ReadAsync("sound_masterVolume", 1d, lifetime.Token));
+            foreach (SoundSetting sound in sounds)
+            {
+                SoundValue value = await DeviceState.ReadAsync($"sound_{sound.Key}", SoundValue.Default, lifetime.Token);
+                sound.Type = value.Type;
+                sound.Volume = Normalize(value.Volume);
+            }
+            loaded = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private async Task SaveMasterVolumeAsync(double value)
+    {
+        masterVolume = Normalize(value);
+        await DeviceState.WriteAsync("sound_masterVolume", masterVolume, lifetime.Token);
+        status = Localizer.Translate("saved");
+    }
+
+    private async Task EditAsync(SoundSetting sound)
+    {
+        Guid id = Overlays.ShowFormDialog(new MisskeyFormDialogOptions(
+            Localizer.Translate($"_sfx.{sound.Key}"),
+            [
+                new MisskeyFormDialogItem("type", "enum")
+                {
+                    Label = Localizer.Translate("sound"),
+                    DefaultValue = sound.Type,
+                    Options = SoundTypes.Select(type => new MisskeyFormDialogOption(type ?? Localizer.Translate("none"), type)).ToArray()
+                },
+                new MisskeyFormDialogItem("volume", "range")
+                {
+                    Label = Localizer.Translate("volume"),
+                    DefaultValue = sound.Volume,
+                    Min = 0,
+                    Max = 1,
+                    Step = 0.05,
+                    TextConverter = FormatVolume
+                }
+            ],
+            result => ApplySoundAsync(sound, result)));
+        _ = id;
+    }
+
+    private async Task ApplySoundAsync(SoundSetting sound, MisskeyFormDialogResult result)
+    {
+        if (result.Canceled || result.Result is null)
+        {
+            return;
+        }
+
+        string? type = result.Result.TryGetValue("type", out object? typeValue)
+            ? typeValue?.ToString()
+            : sound.Type;
+        double volume = result.Result.TryGetValue("volume", out object? volumeValue) &&
+                        double.TryParse(volumeValue?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed)
+            ? Normalize(parsed)
+            : sound.Volume;
+        sound.Type = SoundTypes.Contains(type, StringComparer.Ordinal) ? type : null;
+        sound.Volume = volume;
+        await DeviceState.WriteAsync($"sound_{sound.Key}", new SoundValue(sound.Type, sound.Volume), lifetime.Token);
+        status = Localizer.Translate("saved");
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ResetAsync()
+    {
+        masterVolume = 1;
+        await DeviceState.WriteAsync("sound_masterVolume", masterVolume, lifetime.Token);
+        foreach (SoundSetting sound in sounds)
+        {
+            sound.Type = null;
+            sound.Volume = 1;
+            await DeviceState.WriteAsync($"sound_{sound.Key}", SoundValue.Default, lifetime.Token);
+        }
+        status = Localizer.Translate("saved");
+    }
+
+    private static double Normalize(double value) => double.IsFinite(value) ? Math.Clamp(value, 0, 1) : 1;
+
+    private static string FormatVolume(double value) => $"{Math.Floor(Normalize(value) * 100).ToString(CultureInfo.InvariantCulture)}%";
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+
+    private sealed class SoundSetting(string key)
+    {
+        public string Key { get; } = key;
+        public string? Type { get; set; }
+        public double Volume { get; set; } = 1;
+    }
+
+    private sealed record SoundValue(string? Type, double Volume)
+    {
+        public static SoundValue Default { get; } = new(null, 1);
+    }
+}

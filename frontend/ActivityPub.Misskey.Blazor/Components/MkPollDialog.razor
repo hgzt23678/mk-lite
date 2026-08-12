@@ -1,0 +1,149 @@
+@implements IAsyncDisposable
+@inject IDialogWindowInterop DialogInterop
+@inject IMisskeyLocalizer Localizer
+
+<div @ref="modalElement"
+     class="qzhlnise dialog modal-enter-active modal-enter-from"
+     role="alertdialog"
+     aria-modal="true"
+     aria-label="@AccessibleLabel">
+    <div class="bg _modalBg" @onclick="CancelAsync"></div>
+    <div @ref="contentElement" class="content" @onclick:stopPropagation>
+        <div @ref="dialogElement" class="mk-dialog">
+            <div class="icon @Type"><i class="@IconClass" aria-hidden="true"></i></div>
+            <div class="body"><MfmView Text="@Text" /></div>
+            <div class="buttons">
+                <MkButton Inline="true" Primary="true" Autofocus="true" OnClick="ConfirmAsync">@Localizer.Translate("ok")</MkButton>
+                @if (ShowCancelButton)
+                {
+                    <MkButton Inline="true" OnClick="CancelAsync">@Localizer.Translate("cancel")</MkButton>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference modalElement;
+    private ElementReference contentElement;
+    private ElementReference dialogElement;
+    private DotNetObjectReference<MkPollDialog>? receiver;
+    private IJSObjectReference? attachment;
+    private bool? decision;
+    private bool closing;
+    private bool disposed;
+
+    [Parameter]
+    public string Type { get; set; } = "question";
+
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool ShowCancelButton { get; set; } = true;
+
+    [Parameter]
+    public EventCallback<bool> Decision { get; set; }
+
+    [CascadingParameter(Name = "MisskeyLocaleRevision")]
+    private long LocaleRevision { get; set; }
+
+    private string AccessibleLabel => Type == "error" ? Localizer.Translate("error") : Localizer.Translate("poll");
+    private string IconClass => Type == "error" ? "fas fa-times-circle" : "fas fa-question-circle";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            attachment = await DialogInterop.AttachHighPriorityAsync(
+                modalElement,
+                contentElement,
+                dialogElement,
+                receiver,
+                lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private Task ConfirmAsync(MouseEventArgs args)
+    {
+        _ = args;
+        return CloseAsync(true);
+    }
+
+    private Task CancelAsync(MouseEventArgs args)
+    {
+        _ = args;
+        return CloseAsync(false);
+    }
+
+    private async Task CloseAsync(bool result)
+    {
+        if (closing)
+        {
+            return;
+        }
+
+        closing = true;
+        decision = result;
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("close", lifetime.Token);
+                return;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        await Decision.InvokeAsync(result);
+    }
+
+    [JSInvokable]
+    public Task NotifyOpened() => Task.CompletedTask;
+
+    [JSInvokable]
+    public Task NotifyClosed() => Decision.InvokeAsync(decision ?? false);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+}

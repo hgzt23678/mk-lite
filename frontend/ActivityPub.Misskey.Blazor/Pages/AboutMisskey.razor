@@ -1,0 +1,275 @@
+@page "/about-misskey"
+@implements IAsyncDisposable
+@inject MisskeyFrontendRuntimeConfiguration RuntimeConfiguration
+@inject IAboutMisskeyPhysicsInterop PhysicsInterop
+@inject IMisskeyOverlayService Overlays
+@inject IMisskeyLocalizer Localizer
+@inject NavigationManager Navigation
+@inject ILogger<AboutMisskey> Logger
+
+<PageTitle>@Localizer.Translate("aboutMisskey")</PageTitle>
+
+<MkStickyContainer>
+    <Header><MkPageHeader Title="@Localizer.Translate("aboutMisskey")" /></Header>
+    <ChildContent>
+        <div style="overflow: clip;">
+            <MkSpacer ContentMax="600" MarginMin="20">
+                <div class="_formRoot znqjceqz">
+                    <div id="debug"></div>
+                    <div @ref="physicsContainer"
+                         class="@AboutClass"
+                         style="background-color: var(--panel);"
+                         data-physics-error-code="@physicsErrorCode">
+                        <img src="/client-assets/about-icon.png"
+                             alt=""
+                             class="icon"
+                             draggable="false"
+                             role="button"
+                             tabindex="0"
+                             aria-label="@Localizer.Translate("aboutMisskey")"
+                             aria-disabled="@(!easterEggReady)"
+                             @onclick="StartGravityAsync"
+                             @onkeydown="OnIconKeyDownAsync" />
+                        <div class="misskey">Misskey</div>
+                        <div class="version">v@(RuntimeConfiguration.Version)</div>
+                        @for (int index = 0; index < easterEggEmojis.Length; index++)
+                        {
+                            string emoji = easterEggEmojis[index];
+                            <span @key="index" class="emoji _physics_circle_">
+                                <MkEmoji CssClass="emoji"
+                                         Emoji="@emoji"
+                                         Normal="true"
+                                         NoStyle="true" />
+                            </span>
+                        }
+                    </div>
+                    <div class="_formBlock" style="text-align: center;">
+                        @Localizer.Translate("_aboutMisskey.about")<br />
+                        <a href="https://misskey-hub.net/docs/misskey.html"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           class="_link">@Localizer.Translate("learnMore")</a>
+                    </div>
+                    <div class="_formBlock" style="text-align: center;">
+                        <MkButton Primary="true" Rounded="true" Inline="true" OnClick="ILoveMisskeyAsync">
+                            I <MfmView Text="$[jelly ❤]" /> #Misskey
+                        </MkButton>
+                    </div>
+                    <FormSection>
+                        <div class="_formLinks">
+                            @if (RuntimeConfiguration.SourceUrl is not null)
+                            {
+                                <FormLink To="@RuntimeConfiguration.SourceUrl.AbsoluteUri" External="true">
+                                    <Icon><i class="fas fa-code"></i></Icon>
+                                    <ChildContent>@Localizer.Translate("_aboutMisskey.source")</ChildContent>
+                                    <Suffix>Corresponding source</Suffix>
+                                </FormLink>
+                            }
+                            <FormLink To="https://github.com/misskey-dev/misskey/tree/12.119.2" External="true">
+                                <Icon><i class="fas fa-code-branch"></i></Icon>
+                                <ChildContent>Misskey 12.119.2 upstream</ChildContent>
+                                <Suffix>GitHub</Suffix>
+                            </FormLink>
+                            <FormLink To="https://crowdin.com/project/misskey" External="true">
+                                <Icon><i class="fas fa-language"></i></Icon>
+                                <ChildContent>@Localizer.Translate("_aboutMisskey.translation")</ChildContent>
+                                <Suffix>Crowdin</Suffix>
+                            </FormLink>
+                            <FormLink To="https://www.patreon.com/syuilo" External="true">
+                                <Icon><i class="fas fa-hand-holding-medical"></i></Icon>
+                                <ChildContent>@Localizer.Translate("_aboutMisskey.donate")</ChildContent>
+                                <Suffix>Patreon</Suffix>
+                            </FormLink>
+                        </div>
+                    </FormSection>
+                    <FormSection>
+                        <Label>@Localizer.Translate("_aboutMisskey.contributors")</Label>
+                        <ChildContent>
+                            <div class="_formLinks">
+                                @foreach ((string name, string url) in Contributors)
+                                {
+                                    <FormLink @key="name" To="@url" External="true">@name</FormLink>
+                                }
+                            </div>
+                        </ChildContent>
+                    </FormSection>
+                    <FormSection>
+                        <Label><MfmView Text="$[jelly ❤]" /> @Localizer.Translate("_aboutMisskey.patrons")</Label>
+                        <ChildContent>
+                            @foreach (string patron in Patrons)
+                            {
+                                <div @key="patron">@patron</div>
+                            }
+                        </ChildContent>
+                    </FormSection>
+                </div>
+            </MkSpacer>
+        </div>
+    </ChildContent>
+</MkStickyContainer>
+
+@code {
+    private static readonly string[] DefaultReactions =
+        ["👍", "❤️", "😆", "🤔", "😮", "🎉", "💢", "😥", "😇", "🍮"];
+
+    private static readonly (string Name, string Url)[] Contributors =
+    [
+        ("@syuilo", "https://github.com/syuilo"),
+        ("@AyaMorisawa", "https://github.com/AyaMorisawa"),
+        ("@mei23", "https://github.com/mei23"),
+        ("@acid-chicken", "https://github.com/acid-chicken"),
+        ("@tamaina", "https://github.com/tamaina"),
+        ("@rinsuki", "https://github.com/rinsuki"),
+        ("@Xeltica", "https://github.com/Xeltica"),
+        ("@u1-liquid", "https://github.com/u1-liquid"),
+        ("@marihachi", "https://github.com/marihachi")
+    ];
+
+    private static readonly string[] Patrons =
+    [
+        "まっちゃとーにゅ", "mametsuko", "noellabo", "AureoleArk", "Gargron",
+        "Nokotaro Takeda", "Suji Yan", "oi_yekssim", "regtan", "Hekovic", "nenohi",
+        "Gitmo Life Services", "naga_rus", "Efertone", "Melilot", "motcha", "nanami kan",
+        "sevvie Rose", "Hayato Ishikawa", "Puniko", "skehmatics", "Quinton Macejkovic",
+        "YUKIMOCHI", "dansup", "mewl hayabusa", "Emilis", "Fristi", "makokunsan",
+        "chidori ninokura", "Peter G.", "見当かなみ", "natalie", "Maronu", "Steffen K9",
+        "takimura", "sikyosyounin", "Nesakko", "YuzuRyo61", "blackskye", "sheeta.s",
+        "osapon", "public_yusuke", "CG", "吴浥", "t_w", "Jerry", "nafuchoco",
+        "Takumi Sugita", "GLaTAN", "mkatze", "kabo2468y", "mydarkstar", "Roujo",
+        "DignifiedSilence", "uroco @99", "totokoro", "うし", "kiritan", "weepjp",
+        "Liaizon Wakest", "Duponin", "Blue", "Naoki Hirayama", "wara",
+        "Wataru Manji (manji0)", "みなしま", "kanoy", "xianon", "Denshi", "Osushimaru",
+        "にょんへら", "おのだい", "Leni", "oss", "Weeble", "蝉暮せせせ",
+        "ThatOneCalculator", "pixeldesu"
+    ];
+
+    private readonly CancellationTokenSource lifetime = new();
+    private readonly string[] easterEggEmojis = CreateEasterEggEmojis();
+    private ElementReference physicsContainer;
+    private IJSObjectReference? physicsHandle;
+    private bool easterEggReady;
+    private bool playing;
+    private bool disposed;
+    private string? physicsErrorCode;
+
+    [CascadingParameter]
+    public Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private string AboutClass => playing ? "_formBlock about playing" : "_formBlock about";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            easterEggReady = await PhysicsInterop.PrepareAsync(physicsContainer, lifetime.Token);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException exception)
+        {
+            physicsErrorCode = "ABOUT_PHYSICS_PREPARE_FAILED";
+            Logger.LogWarning(
+                "Misskey about animation preparation failed. FailureType={FailureType}",
+                exception.GetType().Name);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task StartGravityAsync()
+    {
+        if (!easterEggReady || playing || disposed)
+        {
+            return;
+        }
+
+        easterEggReady = false;
+        playing = true;
+        physicsErrorCode = null;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            physicsHandle = await PhysicsInterop.StartAsync(physicsContainer, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException exception)
+        {
+            playing = false;
+            physicsErrorCode = "ABOUT_PHYSICS_START_FAILED";
+            Logger.LogWarning(
+                "Misskey about animation start failed. FailureType={FailureType}",
+                exception.GetType().Name);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private Task OnIconKeyDownAsync(KeyboardEventArgs args) =>
+        args.Key is "Enter" or " " ? StartGravityAsync() : Task.CompletedTask;
+
+    private async Task ILoveMisskeyAsync(MouseEventArgs args)
+    {
+        bool authenticated = false;
+        if (AuthenticationStateTask is not null)
+        {
+            AuthenticationState state = await AuthenticationStateTask;
+            authenticated = state.User.Identity?.IsAuthenticated == true;
+        }
+
+        if (!authenticated)
+        {
+            Navigation.NavigateTo(
+                "/auth/login?returnUrl=%2Fapp%2Fabout-misskey",
+                forceLoad: true);
+            return;
+        }
+
+        Overlays.ShowPostForm(new MisskeyPostFormOptions("I $[jelly ❤] #Misskey", Instant: true));
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (physicsHandle is not null)
+        {
+            try
+            {
+                await physicsHandle.InvokeVoidAsync("stop");
+                await physicsHandle.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+        lifetime.Dispose();
+    }
+
+    private static string[] CreateEasterEggEmojis()
+    {
+        var values = new string[32];
+        for (int index = 0; index < values.Length; index++)
+        {
+            values[index] = DefaultReactions[System.Security.Cryptography.RandomNumberGenerator.GetInt32(DefaultReactions.Length)];
+        }
+        return values;
+    }
+}

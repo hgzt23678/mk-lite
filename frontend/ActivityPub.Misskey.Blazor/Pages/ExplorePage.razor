@@ -1,0 +1,132 @@
+@page "/explore"
+@page "/explore/tags/{Tag}"
+@inject IUserSearchPresentationService UserSearch
+@inject IMisskeyLocalizer Localizer
+@inject NavigationManager Navigation
+
+<PageTitle>@Localizer.Translate("explore")</PageTitle>
+
+<MkStickyContainer>
+    <Header>
+        <MkPageHeader Metadata="HeaderMetadata"
+                      Tabs="HeaderTabs"
+                      Tab="tab"
+                      TabChanged="ChangeTabAsync" />
+    </Header>
+    <ChildContent>
+        <div class="lznhrdub">
+            @if (Tag is not null)
+            {
+                <MkCapabilityUnavailable Capability="explore/hashtags/users"
+                                           Reason="The Dolphin backend does not expose the hashtags/users projection required by this v12 route." />
+            }
+            else if (tab == "search")
+            {
+                <MkSpacer ContentMax="1200">
+                    <div>
+                        <MkFormInput Value="searchQuery"
+                                     ValueChanged="SearchChangedAsync"
+                                     Type="search"
+                                     Debounce="true"
+                                     CssClassAdditional="_formBlock"
+                                     Name="explore-user-search">
+                            <Label><i class="fas fa-search"></i> @Localizer.Translate("searchUser")</Label>
+                        </MkFormInput>
+
+                        <MkFormRadios TValue="string"
+                                      Value="searchOrigin"
+                                      ValueChanged="OriginChangedAsync"
+                                      class="_formBlock">
+                            <Label>@Localizer.Translate("search")</Label>
+                            <ChildContent>
+                                <MkFormRadio TValue="string" Value="@("combined")">@Localizer.Translate("all")</MkFormRadio>
+                                <MkFormRadio TValue="string" Value="@("local")">@Localizer.Translate("local")</MkFormRadio>
+                                <MkFormRadio TValue="string" Value="@("remote")">@Localizer.Translate("remote")</MkFormRadio>
+                            </ChildContent>
+                        </MkFormRadios>
+
+                        @if (searchSource is not null)
+                        {
+                            <MkUserList Pagination="searchSource"
+                                        class="_gap"
+                                        data-explore-search-results="true" />
+                        }
+                    </div>
+                </MkSpacer>
+            }
+            else
+            {
+                <ExploreUsers Capability="@($"explore/{tab}")" />
+            }
+        </div>
+    </ChildContent>
+</MkStickyContainer>
+
+@code {
+    [Parameter]
+    public string? Tag { get; set; }
+
+    private string tab = "featured";
+    private string searchQuery = string.Empty;
+    private string searchOrigin = "combined";
+    private UserSearchPaginationSource? searchSource;
+    private int sourceRevision;
+
+    private MkPageHeaderMetadata HeaderMetadata => new(
+        Localizer.Translate("explore"),
+        Icon: "fas fa-hashtag");
+
+    private IReadOnlyList<MkPageHeaderTab> HeaderTabs =>
+    [
+        new("featured", Localizer.Translate("featured"), "fas fa-bolt"),
+        new("users", Localizer.Translate("users"), "fas fa-users"),
+        new("search", Localizer.Translate("search"))
+    ];
+
+    protected override void OnParametersSet()
+    {
+        if (Tag is not null)
+        {
+            tab = "users";
+            searchSource = null;
+        }
+    }
+
+    private Task ChangeTabAsync(string next)
+    {
+        if (next is not ("featured" or "users" or "search"))
+        {
+            return Task.CompletedTask;
+        }
+
+        tab = next;
+        if (next != "search")
+        {
+            searchSource = null;
+        }
+
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task SearchChangedAsync(string value)
+    {
+        searchQuery = value.Trim();
+        RebuildSearchSource();
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task OriginChangedAsync(string value)
+    {
+        searchOrigin = value is "local" or "remote" ? value : "combined";
+        RebuildSearchSource();
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private void RebuildSearchSource()
+    {
+        searchSource = string.IsNullOrWhiteSpace(searchQuery)
+            ? null
+            : new UserSearchPaginationSource(UserSearch, searchQuery, searchOrigin);
+        sourceRevision++;
+    }
+}

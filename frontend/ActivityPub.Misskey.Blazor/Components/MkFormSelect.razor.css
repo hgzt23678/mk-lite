@@ -1,0 +1,112 @@
+.vblkjoeq > .label {
+    font-size: 0.85em;
+    padding: 0 0 8px 0;
+    user-select: none;
+}
+
+.vblkjoeq > .label:empty {
+    display: none;
+}
+
+.vblkjoeq > .caption {
+    font-size: 0.85em;
+    padding: 8px 0 0 0;
+    color: var(--fgTransparentWeak);
+}
+
+.vblkjoeq > .caption:empty {
+    display: none;
+}
+
+.vblkjoeq > .input {
+    position: relative;
+    cursor: pointer;
+}
+
+.vblkjoeq > .input:hover > .select {
+    border-color: var(--inputBorderHover) !important;
+}
+
+.vblkjoeq > .input > .select {
+    appearance: none;
+    -webkit-appearance: none;
+    display: block;
+    height: var(--mk-form-select-height);
+    width: 100%;
+    margin: 0;
+    padding: 0 12px;
+    font: inherit;
+    font-weight: normal;
+    font-size: 1em;
+    color: var(--fg);
+    background: var(--panel);
+    border: solid 1px var(--panel);
+    border-radius: 6px;
+    outline: none;
+    box-shadow: none;
+    box-sizing: border-box;
+    cursor: pointer;
+    transition: border-color 0.1s ease-out;
+    pointer-events: none;
+    user-select: none;
+}
+
+.vblkjoeq > .input > .prefix,
+.vblkjoeq > .input > .suffix {
+    display: flex;
+    align-items: center;
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    padding: 0 12px;
+    font-size: 1em;
+    height: var(--mk-form-select-height);
+    pointer-events: none;
+}
+
+.vblkjoeq > .input > .prefix:empty,
+.vblkjoeq > .input > .suffix:empty {
+    display: none;
+}
+
+.vblkjoeq > .input > .prefix > *,
+.vblkjoeq > .input > .suffix > * {
+    display: inline-block;
+    min-width: 16px;
+    max-width: 150px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.vblkjoeq > .input > .prefix {
+    left: 0;
+    padding-right: 6px;
+}
+
+.vblkjoeq > .input > .suffix {
+    right: 0;
+    padding-left: 6px;
+}
+
+.vblkjoeq > .input.inline {
+    display: inline-block;
+    margin: 0;
+}
+
+.vblkjoeq > .input.focused > select {
+    border-color: var(--accent) !important;
+}
+
+.vblkjoeq > .input.disabled {
+    opacity: 0.7;
+}
+
+.vblkjoeq > .input.disabled,
+.vblkjoeq > .input.disabled * {
+    cursor: not-allowed !important;
+}
+
+.vblkjoeq > .save {
+    margin: 8px 0 0 0;
+}

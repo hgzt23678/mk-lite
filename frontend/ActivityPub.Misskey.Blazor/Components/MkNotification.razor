@@ -1,0 +1,459 @@
+@implements IAsyncDisposable
+@inject INotificationInterop Browser
+@inject INotificationPresentationService Notifications
+@inject IMisskeyOverlayService Overlays
+@inject IMisskeyLocalizer Localizer
+@inject ILogger<MkNotification> Logger
+
+<div @ref="root" class="@RootClass" @attributes="AttributesWithoutClass">
+    <div class="head">
+        @if (Notification.Type == MisskeyNotificationType.PollEnded && Notification.Note is not null)
+        {
+            <MkAvatar class="icon" User="@Notification.Note.Author" />
+        }
+        else if (Notification.User is not null)
+        {
+            <MkAvatar class="icon" User="@Notification.User" />
+        }
+        else if (SafeIconUrl is not null)
+        {
+            <img class="icon" src="@SafeIconUrl" alt="" />
+        }
+        <div class="sub-icon @Notification.TypeName">
+            @switch (Notification.Type)
+            {
+                case MisskeyNotificationType.Follow:
+                    <i class="fas fa-plus"></i>
+                    break;
+                case MisskeyNotificationType.ReceiveFollowRequest:
+                    <i class="fas fa-clock"></i>
+                    break;
+                case MisskeyNotificationType.FollowRequestAccepted:
+                    <i class="fas fa-check"></i>
+                    break;
+                case MisskeyNotificationType.GroupInvited:
+                    <i class="fas fa-id-card-alt"></i>
+                    break;
+                case MisskeyNotificationType.Renote:
+                    <i class="fas fa-retweet"></i>
+                    break;
+                case MisskeyNotificationType.Reply:
+                    <i class="fas fa-reply"></i>
+                    break;
+                case MisskeyNotificationType.Mention:
+                    <i class="fas fa-at"></i>
+                    break;
+                case MisskeyNotificationType.Quote:
+                    <i class="fas fa-quote-left"></i>
+                    break;
+                case MisskeyNotificationType.PollVote:
+                case MisskeyNotificationType.PollEnded:
+                    <i class="fas fa-poll-h"></i>
+                    break;
+                case MisskeyNotificationType.Reaction when NormalizedReaction is not null:
+                    <MkReactionIcon @ref="reactionIcon"
+                                    Reaction="@NormalizedReaction"
+                                    CustomEmojis="@CustomEmojis"
+                                    NoStyle="true" />
+                    break;
+            }
+        </div>
+    </div>
+    <div class="tail">
+        <header>
+            @if (Notification.Type == MisskeyNotificationType.PollEnded)
+            {
+                <span>@Localizer.Translate("_notification.pollEnded")</span>
+            }
+            else if (Notification.User is not null)
+            {
+                <a class="name"
+                   href="@UserPage(Notification.User)"
+                   data-user-preview="@Notification.User.Id">
+                    <MkUserName User="@Notification.User" />
+                </a>
+            }
+            else if (!string.IsNullOrWhiteSpace(Notification.Header))
+            {
+                <span>@Notification.Header</span>
+            }
+            else if (!string.IsNullOrWhiteSpace(Notification.BlockedReason))
+            {
+                <span class="blocked" data-error-code="@Notification.BlockedReason">@Notification.BlockedReason</span>
+            }
+            @if (WithTime)
+            {
+                <MkTime Time="@Notification.CreatedAt" class="time" />
+            }
+        </header>
+
+        @if (Notification.Type == MisskeyNotificationType.Reaction && Notification.Note is not null)
+        {
+            <a class="text" href="@NotePage(Notification.Note)" title="@GetNoteSummary(Notification.Note)">
+                <i class="fas fa-quote-left"></i>
+                <MfmView Text="@GetNoteSummary(Notification.Note)"
+                         Plain="true"
+                         NoWrap="@(!Full)"
+                         CustomEmojis="@Notification.Note.Emojis" />
+                <i class="fas fa-quote-right"></i>
+            </a>
+        }
+        @if (Notification.Type == MisskeyNotificationType.Renote && Notification.Note?.Renote is { } renote)
+        {
+            <a class="text" href="@NotePage(Notification.Note)" title="@GetNoteSummary(renote)">
+                <i class="fas fa-quote-left"></i>
+                <MfmView Text="@GetNoteSummary(renote)"
+                         Plain="true"
+                         NoWrap="@(!Full)"
+                         CustomEmojis="@renote.Emojis" />
+                <i class="fas fa-quote-right"></i>
+            </a>
+        }
+        @if (Notification.Type is MisskeyNotificationType.Reply or MisskeyNotificationType.Mention or MisskeyNotificationType.Quote &&
+             Notification.Note is not null)
+        {
+            <a class="text" href="@NotePage(Notification.Note)" title="@GetNoteSummary(Notification.Note)">
+                <MfmView Text="@GetNoteSummary(Notification.Note)"
+                         Plain="true"
+                         NoWrap="@(!Full)"
+                         CustomEmojis="@Notification.Note.Emojis" />
+            </a>
+        }
+        @if (Notification.Type is MisskeyNotificationType.PollVote or MisskeyNotificationType.PollEnded &&
+             Notification.Note is not null)
+        {
+            <a class="text" href="@NotePage(Notification.Note)" title="@GetNoteSummary(Notification.Note)">
+                <i class="fas fa-quote-left"></i>
+                <MfmView Text="@GetNoteSummary(Notification.Note)"
+                         Plain="true"
+                         NoWrap="@(!Full)"
+                         CustomEmojis="@Notification.Note.Emojis" />
+                <i class="fas fa-quote-right"></i>
+            </a>
+        }
+        @if (Notification.Type == MisskeyNotificationType.Follow)
+        {
+            <span class="text" style="opacity: 0.6;">
+                @Localizer.Translate("youGotNewFollower")
+                @if (Full && Notification.FollowUser is not null)
+                {
+                    <div><MkFollowButton User="@Notification.FollowUser" Full="true" /></div>
+                }
+            </span>
+        }
+        @if (Notification.Type == MisskeyNotificationType.FollowRequestAccepted)
+        {
+            <span class="text" style="opacity: 0.6;">@Localizer.Translate("followRequestAccepted")</span>
+        }
+        @if (Notification.Type == MisskeyNotificationType.ReceiveFollowRequest)
+        {
+            <span class="text" style="opacity: 0.6;">
+                @Localizer.Translate("receiveFollowRequest")
+                @if (Full)
+                {
+                    <span class="blocked" data-error-code="FOLLOW_REQUEST_ACTIONS_UNAVAILABLE">FOLLOW_REQUEST_ACTIONS_UNAVAILABLE</span>
+                }
+            </span>
+        }
+        @if (Notification.Type == MisskeyNotificationType.GroupInvited)
+        {
+            <span class="text" style="opacity: 0.6;">
+                @Localizer.Translate("groupInvited")
+                @if (Full)
+                {
+                    <span class="blocked" data-error-code="GROUP_INVITATION_ACTIONS_UNAVAILABLE">GROUP_INVITATION_ACTIONS_UNAVAILABLE</span>
+                }
+            </span>
+        }
+        @if (Notification.Type == MisskeyNotificationType.App)
+        {
+            <span class="text">
+                @if (!string.IsNullOrWhiteSpace(Notification.Body))
+                {
+                    <MfmView Text="@Notification.Body" NoWrap="@(!Full)" />
+                }
+                else
+                {
+                    <span class="blocked" data-error-code="@Notification.BlockedReason">@(Notification.BlockedReason ?? "NOTIFICATION_APPLICATION_PAYLOAD_UNAVAILABLE")</span>
+                }
+            </span>
+        }
+        @if (RequiresNote && Notification.Note is null)
+        {
+            <span class="text blocked" data-error-code="NOTIFICATION_NOTE_UNAVAILABLE">NOTIFICATION_NOTE_UNAVAILABLE</span>
+        }
+    </div>
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference root;
+    private MkReactionIcon? reactionIcon;
+    private DotNetObjectReference<MkNotification>? receiver;
+    private IJSObjectReference? attachment;
+    private Guid? tooltipId;
+    private Guid attachedNotificationId;
+    private Guid observedNotificationId;
+    private bool isRead;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public NotificationViewModel Notification { get; set; } = null!;
+
+    [Parameter]
+    public bool WithTime { get; set; }
+
+    [Parameter]
+    public bool Full { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    public ElementReference Element => root;
+
+    private string RootClass => string.Join(' ', new[] { "qglefbjs", Notification.TypeName, AdditionalClass }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private string? SafeIconUrl => SameOriginMediaUrl.Normalize(Notification.IconUrl);
+
+    private string? NormalizedReaction => NormalizeReaction(Notification.Reaction);
+
+    private bool RequiresNote => Notification.Type is
+        MisskeyNotificationType.Reaction or
+        MisskeyNotificationType.Renote or
+        MisskeyNotificationType.Reply or
+        MisskeyNotificationType.Mention or
+        MisskeyNotificationType.Quote or
+        MisskeyNotificationType.PollVote or
+        MisskeyNotificationType.PollEnded;
+
+    private IReadOnlyList<EmojiPickerCustomEmoji> CustomEmojis
+    {
+        get
+        {
+            if (Notification.Note is null)
+            {
+                return [];
+            }
+
+            return Notification.Note.Emojis
+                .SelectMany(value => value.Key.Contains('@', StringComparison.Ordinal)
+                    ? new[] { new EmojiPickerCustomEmoji(value.Key, value.Value, null, []) }
+                    : new[]
+                    {
+                        new EmojiPickerCustomEmoji(value.Key, value.Value, null, []),
+                        new EmojiPickerCustomEmoji(value.Key + "@.", value.Value, null, [])
+                    })
+                .ToArray();
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (observedNotificationId != Notification.InternalId)
+        {
+            observedNotificationId = Notification.InternalId;
+            isRead = Notification.IsRead;
+            if (tooltipId is Guid id)
+            {
+                Overlays.Close(id);
+                tooltipId = null;
+            }
+        }
+        else if (Notification.IsRead)
+        {
+            isRead = true;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            if (attachment is not null && attachedNotificationId != Notification.InternalId)
+            {
+                await attachment.InvokeVoidAsync("dispose").ConfigureAwait(false);
+                await attachment.DisposeAsync().ConfigureAwait(false);
+                attachment = null;
+            }
+
+            if (attachment is null)
+            {
+                receiver ??= DotNetObjectReference.Create(this);
+                attachment = await Browser.AttachAsync(
+                    root,
+                    reactionIcon?.Element,
+                    receiver,
+                    !isRead,
+                    lifetime.Token).ConfigureAwait(false);
+                attachedNotificationId = Notification.InternalId;
+            }
+            else
+            {
+                await attachment.InvokeVoidAsync("setRead", isRead).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public async Task MarkNotificationReadAsync()
+    {
+        if (disposed || isRead)
+        {
+            return;
+        }
+
+        bool marked = await Notifications.MarkReadAsync(Notification.InternalId, lifetime.Token).ConfigureAwait(false);
+        if (!marked)
+        {
+            Logger.LogWarning("Notification read mutation was rejected for {NotificationId}", Notification.InternalId);
+            throw new NotificationPresentationException("NOTIFICATION_MARK_READ_FAILED");
+        }
+
+        isRead = true;
+        Notification = Notification with { IsRead = true };
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task ShowReactionTooltipAsync()
+    {
+        if (disposed || NormalizedReaction is null || reactionIcon is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return InvokeAsync(() =>
+        {
+            if (tooltipId is Guid id && Overlays.SetSimpleReactionTooltipShowing(id, showing: true))
+            {
+                return;
+            }
+
+            tooltipId = Overlays.ShowSimpleReactionTooltip(
+                reactionIcon.Element,
+                NormalizedReaction,
+                CustomEmojis);
+        });
+    }
+
+    [JSInvokable]
+    public Task HideReactionTooltipAsync()
+    {
+        if (disposed)
+        {
+            return Task.CompletedTask;
+        }
+
+        return InvokeAsync(() =>
+        {
+            if (tooltipId is Guid id)
+            {
+                _ = Overlays.SetSimpleReactionTooltipShowing(id, showing: false);
+            }
+        });
+    }
+
+    private string GetNoteSummary(NotificationNoteViewModel note)
+    {
+        string summary = note.ContentWarning ?? note.Text;
+        if (note.MediaCount > 0)
+        {
+            summary += " (" + Localizer.Translate(
+                "withNFiles",
+                new Dictionary<string, object?> { ["n"] = note.MediaCount }) + ")";
+        }
+
+        if (note.HasPoll)
+        {
+            summary += " (" + Localizer.Translate("poll") + ")";
+        }
+
+        if (note.HasReply)
+        {
+            summary += "\n\nRE: ...";
+        }
+
+        if (note.Renote is not null)
+        {
+            summary += "\n\nRN: " + GetNoteSummary(note.Renote);
+        }
+
+        return summary.Trim();
+    }
+
+    private static string NotePage(NotificationNoteViewModel note) => $"/notes/{note.Id}";
+
+    private static string UserPage(NoteAuthorViewModel user) => $"/@{user.Acct}";
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        if (tooltipId is Guid id)
+        {
+            Overlays.Close(id);
+        }
+
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose").ConfigureAwait(false);
+                await attachment.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static string? NormalizeReaction(string? reaction)
+    {
+        if (reaction is null || reaction.Length < 3 || reaction[0] != ':' || reaction[^1] != ':')
+        {
+            return reaction;
+        }
+
+        ReadOnlySpan<char> name = reaction.AsSpan(1, reaction.Length - 2);
+        foreach (char character in name)
+        {
+            if (character is not (>= '0' and <= '9' or >= 'A' and <= 'Z' or >= 'a' and <= 'z' or '_'))
+            {
+                return reaction;
+            }
+        }
+
+        return $":{name.ToString()}@.:";
+    }
+}

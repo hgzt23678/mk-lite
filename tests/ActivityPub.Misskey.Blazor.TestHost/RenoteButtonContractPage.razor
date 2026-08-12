@@ -1,0 +1,56 @@
+@page "/__test/components/renote-button"
+@rendermode InteractiveServer
+@using ActivityPub.Domain
+@inject ITimelinePresentationService Timeline
+
+<main data-contract="renote-button">
+    <MkRenoteButton class="button"
+                    Note="note"
+                    Count="15"
+                    RenoteRequested="RenoteAsync" />
+    <MkRenoteButton class="private-note"
+                    Note="privateNote"
+                    Count="4"
+                    RenoteRequested="RenoteAsync" />
+</main>
+
+@code {
+    private NoteViewModel note = CreateNote(Visibility.Public, "9duke7z2w3");
+    private readonly NoteViewModel privateNote = CreateNote(Visibility.FollowersOnly, "9other");
+
+    private async Task RenoteAsync(NoteViewModel value)
+    {
+        note = await Timeline.RenoteAsync(
+            value.Id,
+            $"renote-contract-{Guid.NewGuid():N}",
+            CancellationToken.None);
+    }
+
+    private static NoteViewModel CreateNote(Visibility visibility, string authorId) => new(
+        Guid.Parse("017f22e2-79b0-7b1d-b2b4-3a89e9af0380"),
+        "9dummqy0w3",
+        new DateTimeOffset(2026, 8, 3, 12, 0, 0, TimeSpan.Zero),
+        new NoteAuthorViewModel(
+            authorId,
+            authorId == "9duke7z2w3" ? "alice" : "other",
+            authorId == "9duke7z2w3" ? "alice" : "other@remote.example",
+            authorId == "9duke7z2w3" ? "Alice" : "Other",
+            "/static-assets/favicon.png",
+            IsBot: false),
+        "renote fixture",
+        null,
+        visibility,
+        null,
+        0,
+        15,
+        0,
+        false,
+        new Dictionary<string, long>(StringComparer.Ordinal),
+        null,
+        [],
+        [],
+        [],
+        new Dictionary<string, string>(StringComparer.Ordinal),
+        null,
+        null);
+}

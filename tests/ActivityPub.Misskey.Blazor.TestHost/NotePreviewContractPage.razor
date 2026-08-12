@@ -1,0 +1,31 @@
+@page "/__test/components/note-preview"
+@rendermode InteractiveServer
+
+<main data-contract="note-preview-slice">
+    <button type="button" data-contract="resize" @onclick="ToggleWidth">resize</button>
+    <section data-contract="preview-host" style="width: @(narrow ? 320 : 520)px;">
+        <MkNotePreview Text="  preview text :party:  "
+                       Account="account"
+                       class="contract-note-preview"
+                       data-fallthrough="note-preview"
+                       aria-label="投稿プレビュー" />
+    </section>
+</main>
+
+@code {
+    private bool narrow;
+
+    private static readonly NoteAuthorViewModel account = new(
+        "alice-id",
+        "alice",
+        "alice",
+        "Alice",
+        "/static-assets/user-unknown.png",
+        IsBot: false,
+        Emojis: new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["party"] = "/static-assets/favicon.png"
+        });
+
+    private void ToggleWidth() => narrow = !narrow;
+}

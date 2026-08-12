@@ -1,0 +1,122 @@
+@inject ISettingsPresentationService Settings
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+
+<div class="_formRoot">
+    @if (loading)
+    {
+        <MkLoading />
+    }
+    else if (!string.IsNullOrWhiteSpace(error))
+    {
+        <MkInfo Warn="true">@error</MkInfo>
+    }
+    else if (tokens.Count == 0)
+    {
+        <div class="_fullinfo">
+            <div>@Localizer.Translate("nothing")</div>
+        </div>
+    }
+    else
+    {
+        @foreach (SettingsApiTokenViewModel token in tokens)
+        {
+            <div @key="token.Id" class="_panel bfomjevm">
+                @if (!string.IsNullOrWhiteSpace(token.IconUri))
+                {
+                    <img class="icon" src="@token.IconUri" alt="" loading="lazy" referrerpolicy="no-referrer" />
+                }
+                <div class="body">
+                    <div class="name">@token.Name</div>
+                    @if (!string.IsNullOrWhiteSpace(token.Description))
+                    {
+                        <div class="description">@token.Description</div>
+                    }
+                    <div class="_keyValue">
+                        <div>@Localizer.Translate("installedDate"):</div>
+                        <div><MkTime Time="@token.CreatedAt" /></div>
+                    </div>
+                    <div class="_keyValue">
+                        <div>@Localizer.Translate("lastUsedDate"):</div>
+                        <div>
+                            @if (token.LastUsedAt is DateTimeOffset lastUsed)
+                            {
+                                <MkTime Time="lastUsed" />
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="actions">
+                        <MkButton Danger="true" Inline="true" OnClick="@(_ => RevokeAsync(token))" aria-label="@Localizer.Translate("delete")">
+                            <i class="fas fa-trash-alt"></i>
+                        </MkButton>
+                    </div>
+                    <details>
+                        <summary>@Localizer.Translate("details")</summary>
+                        <ul>
+                            @foreach (string permission in token.Permissions)
+                            {
+                                <li @key="permission">@Localizer.Translate("_permissions." + permission)</li>
+                            }
+                        </ul>
+                    </details>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private IReadOnlyList<SettingsApiTokenViewModel> tokens = [];
+    private bool loading = true;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        loading = true;
+        error = null;
+        try
+        {
+            tokens = await Settings.ReadApiTokensAsync(CancellationToken.None);
+        }
+        catch (FrontendAuthenticationException exception)
+        {
+            error = exception.ErrorCode;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task RevokeAsync(SettingsApiTokenViewModel token)
+    {
+        try
+        {
+            bool revoked = await Settings.RevokeApiTokenAsync(token.Id, CancellationToken.None);
+            if (!revoked)
+            {
+                error = "The access token was not found or is already revoked.";
+                return;
+            }
+
+            tokens = await Settings.ReadApiTokensAsync(CancellationToken.None);
+        }
+        catch (FrontendAuthenticationException exception)
+        {
+            error = exception.ErrorCode;
+        }
+        catch (InvalidOperationException exception)
+        {
+            error = exception.Message;
+        }
+    }
+}

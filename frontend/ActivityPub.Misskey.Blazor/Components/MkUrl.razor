@@ -1,0 +1,121 @@
+@inject MisskeyFrontendRuntimeConfiguration RuntimeConfiguration
+
+@if (ParsedUrl is null)
+{
+    <span class="@RootClass" @attributes="AttributesWithoutClass">@Url</span>
+}
+else
+{
+    <a class="@RootClass"
+       href="@Href"
+       rel="@Relationship"
+       target="@Target"
+       @oncontextmenu="IgnoreContextMenu"
+       @oncontextmenu:stopPropagation
+       @attributes="AttributesWithoutClass">
+        @if (!IsLocal)
+        {
+            <span class="schema">@ParsedUrl.Scheme:</span><text>//</text>
+            <span class="hostname">@UnicodeHost</span>
+            @if (!ParsedUrl.IsDefaultPort)
+            {
+                <span class="port">:@ParsedUrl.Port</span>
+            }
+        }
+        @if (ParsedUrl.AbsolutePath == "/" && IsLocal)
+        {
+            <span class="self">@UnicodeHost</span>
+        }
+        @if (ParsedUrl.AbsolutePath.Length > 0)
+        {
+            <span class="pathname">@DisplayPath</span>
+        }
+        <span class="query">@SafeDecode(ParsedUrl.Query)</span>
+        <span class="hash">@SafeDecode(ParsedUrl.Fragment)</span>
+        @if (Target == "_blank")
+        {
+            <i class="fas fa-external-link-square-alt icon"></i>
+        }
+    </a>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public string Url { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Relationship { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private Uri? ParsedUrl => TryParseUrl(Url, out Uri? value) ? value : null;
+    private bool IsLocal => ParsedUrl is not null && IsConfiguredLocal(ParsedUrl);
+    private string? Target => IsLocal ? null : "_blank";
+    private string Href => ParsedUrl is null
+        ? "#"
+        : IsLocal ? ParsedUrl.PathAndQuery + ParsedUrl.Fragment : ParsedUrl.AbsoluteUri;
+    private string UnicodeHost => ParsedUrl is null ? string.Empty : ToUnicode(ParsedUrl.IdnHost);
+    private string DisplayPath => ParsedUrl is null
+        ? string.Empty
+        : IsLocal ? SafeDecode(ParsedUrl.AbsolutePath)[1..] : SafeDecode(ParsedUrl.AbsolutePath);
+    private string RootClass => string.Join(' ', new[] { "ieqqeuvs", "_link", AdditionalClass }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private bool IsConfiguredLocal(Uri uri)
+    {
+        Uri? origin = RuntimeConfiguration.PublicBaseUri;
+        return origin is not null &&
+            uri.Scheme.Equals(origin.Scheme, StringComparison.OrdinalIgnoreCase) &&
+            uri.IdnHost.Equals(origin.IdnHost, StringComparison.OrdinalIgnoreCase) &&
+            uri.Port == origin.Port;
+    }
+
+    private static bool TryParseUrl(string value, out Uri? uri)
+    {
+        bool valid = Uri.TryCreate(value, UriKind.Absolute, out uri) &&
+            uri.Scheme is "http" or "https" && string.IsNullOrEmpty(uri.UserInfo);
+        if (!valid)
+        {
+            uri = null;
+        }
+        return valid;
+    }
+
+    private static string SafeDecode(string value)
+    {
+        try
+        {
+            return Uri.UnescapeDataString(value);
+        }
+        catch (UriFormatException)
+        {
+            return value;
+        }
+    }
+
+    private static string ToUnicode(string host)
+    {
+        try
+        {
+            return new IdnMapping().GetUnicode(host);
+        }
+        catch (ArgumentException)
+        {
+            return host;
+        }
+    }
+
+    private static void IgnoreContextMenu(MouseEventArgs _)
+    {
+    }
+}

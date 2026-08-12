@@ -1,0 +1,136 @@
+@implements IDisposable
+@inject MisskeyFrontendRuntimeConfiguration Runtime
+@inject IPizzaxDeviceState DeviceState
+@inject IAuthenticatedActorContext ActorContext
+
+@if (Url.StartsWith("/", StringComparison.Ordinal))
+{
+    <a @attributes="AttributesWithoutClassAndStyle"
+       data-user-preview="@Canonical"
+       class="@RootClass"
+       href="@AppUrl"
+       style="@RootStyle">
+        <img class="icon" src="@AvatarUrl" alt="" />
+        <span class="main"><span class="username">@@@Username</span>@if (ShowHost){<span class="host">@@@UnicodeHost</span>}</span>
+    </a>
+}
+else
+{
+    <a @attributes="AttributesWithoutClassAndStyle"
+       class="@RootClass"
+       href="@Url"
+       target="_blank"
+       rel="noopener"
+       style="@RootStyle">
+        <span class="main"><span class="username">@@@Username</span><span class="host">@@@UnicodeHost</span></span>
+    </a>
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private string? viewerUsername;
+    private bool showFullAcct;
+    private bool deviceSettingsLoaded;
+
+    [Parameter, EditorRequired]
+    public string Username { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Host { get; set; } = string.Empty;
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string LocalHost => Runtime.PublicBaseUri?.IdnHost ??
+        throw new InvalidOperationException("PublicBaseUri is required to render Misskey mentions.");
+
+    private string UnicodeHost => ToUnicode(Host);
+    private string Canonical => string.Equals(Host, LocalHost, StringComparison.Ordinal)
+        ? $"@{Username}"
+        : $"@{Username}@{UnicodeHost}";
+    private string Url => $"/{Canonical}";
+    private string AppUrl => $"/{Canonical}";
+    private string AvatarUrl => $"/avatar/@{Username}@{Host}";
+    private bool ShowHost => !string.Equals(Host, LocalHost, StringComparison.Ordinal) || showFullAcct;
+    private bool IsMe => viewerUsername is not null && string.Equals(
+        $"@{Username}@{UnicodeHost}",
+        $"@{viewerUsername}@{ToUnicode(LocalHost)}".ToLowerInvariant(),
+        StringComparison.Ordinal);
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "akbvjaqn",
+        IsMe ? "isMe" : null,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string RootStyle => string.Join(' ', new[]
+    {
+        $"background: color-mix(in srgb, var({(IsMe ? "--mentionMe" : "--mention")}) 10%, transparent);",
+        AdditionalStyle
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass => ReadAdditionalAttribute("class");
+    private string? AdditionalStyle => ReadAdditionalAttribute("style");
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthenticatedActor? actor = await ActorContext.FindAsync(lifetime.Token).ConfigureAwait(false);
+        viewerUsername = actor?.Username;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || deviceSettingsLoaded || lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        deviceSettingsLoaded = true;
+        try
+        {
+            bool next = await DeviceState.ReadAsync("showFullAcct", false, lifetime.Token);
+            if (!lifetime.IsCancellationRequested && next != showFullAcct)
+            {
+                showFullAcct = next;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private string? ReadAdditionalAttribute(string name) => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue(name, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private static string ToUnicode(string host)
+    {
+        try
+        {
+            return new System.Globalization.IdnMapping().GetUnicode(host);
+        }
+        catch (ArgumentException)
+        {
+            return host;
+        }
+    }
+
+    public void Dispose()
+    {
+        lifetime.Cancel();
+        lifetime.Dispose();
+    }
+}

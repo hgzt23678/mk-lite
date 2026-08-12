@@ -1,0 +1,151 @@
+@inject IMisskeyLocalizer Localizer
+@inject IPizzaxDeviceState DeviceState
+
+<MkStickyContainer>
+    <Header>
+        <MkPageHeader Metadata="HeaderMetadata"
+                      Tabs="TimelineTabs"
+                      Tab="@TimelineKey(kind)"
+                      TabChanged="ChangeTimelineAsync"
+                      DisplayMyAvatar="true" />
+    </Header>
+    <ChildContent>
+        <MkSpacer ContentMax="800">
+            <div class="cmuxhskf" data-timeline="@TimelineKey(kind)">
+                @if (tutorialStep != -1)
+                {
+                    <TimelineTutorial class="tutorial _block"
+                                      Step="tutorialStep"
+                                      StepChanged="SetTutorialStepAsync" />
+                }
+                @if (showFixedPostForm)
+                {
+                    <MkPostForm CssClass="post-form _block"
+                                Fixed="true"
+                                Posted="OnPostedAsync" />
+                }
+                @if (operationError is not null)
+                {
+                    <div class="_fullinfo" role="alert" data-error-code="@operationError">
+                        <div>@Localizer.Translate("somethingHappened")</div>
+                    </div>
+                }
+                @if (queue > 0)
+                {
+                    <div class="new">
+                        <button class="_buttonPrimary" type="button" @onclick="ShowQueuedAsync">
+                            @Localizer.Translate("newNoteRecived")
+                        </button>
+                    </div>
+                }
+                <div class="tl _block">
+                    <TimelineView @ref="timeline"
+                                  class="tl"
+                                  Kind="kind"
+                                  QueueChanged="OnQueueChanged"
+                                  OperationFailed="OnOperationFailed" />
+                </div>
+            </div>
+        </MkSpacer>
+    </ChildContent>
+</MkStickyContainer>
+
+@code {
+    private IReadOnlyList<MkPageHeaderTab> TimelineTabs =>
+    [
+        new("home", Localizer.Translate("_timelines.home"), "fas fa-home", IconOnly: true),
+        new("local", Localizer.Translate("_timelines.local"), "fas fa-comments", IconOnly: true),
+        new("social", Localizer.Translate("_timelines.social"), "fas fa-share-alt", IconOnly: true),
+        new("global", Localizer.Translate("_timelines.global"), "fas fa-globe", IconOnly: true)
+    ];
+
+    private TimelineKind kind;
+    private TimelineView? timeline;
+    private int queue;
+    private string? operationError;
+    private bool deviceSettingsLoaded;
+    private bool showFixedPostForm;
+    private int tutorialStep;
+
+    [Parameter]
+    public TimelineKind InitialKind { get; set; } = TimelineKind.Home;
+
+    protected override void OnParametersSet() => kind = InitialKind;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || deviceSettingsLoaded)
+        {
+            return;
+        }
+
+        deviceSettingsLoaded = true;
+        try
+        {
+            showFixedPostForm = await DeviceState.ReadAsync("showFixedPostForm", false);
+            int storedTutorial = await DeviceState.ReadAsync("tutorial", 0);
+            int normalizedTutorial = storedTutorial is >= -1 and <= 6 ? storedTutorial : 0;
+            bool stateChanged = showFixedPostForm || tutorialStep != normalizedTutorial;
+            tutorialStep = normalizedTutorial;
+            if (stateChanged)
+            {
+                StateHasChanged();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private MkPageHeaderMetadata HeaderMetadata => new(
+        Localizer.Translate("timeline"),
+        Icon: kind switch
+        {
+            TimelineKind.Local => "fas fa-comments",
+            TimelineKind.Hybrid => "fas fa-share-alt",
+            TimelineKind.Global => "fas fa-globe",
+            _ => "fas fa-home"
+        });
+
+    private Task ChangeTimelineAsync(string key)
+    {
+        kind = key switch
+        {
+            "local" => TimelineKind.Local,
+            "social" => TimelineKind.Hybrid,
+            "global" => TimelineKind.Global,
+            _ => TimelineKind.Home
+        };
+        queue = 0;
+        operationError = null;
+        return Task.CompletedTask;
+    }
+
+    private static string TimelineKey(TimelineKind value) => value switch
+    {
+        TimelineKind.Local => "local",
+        TimelineKind.Hybrid => "social",
+        TimelineKind.Global => "global",
+        _ => "home"
+    };
+
+    private void OnOperationFailed(string code) => operationError = code;
+
+    private void OnQueueChanged(int count) => queue = count;
+
+    private Task ShowQueuedAsync() => timeline?.ShowQueuedAsync() ?? Task.CompletedTask;
+
+    private Task OnPostedAsync(NoteViewModel note) =>
+        timeline?.AddCreatedAsync(note) ?? Task.CompletedTask;
+
+    private async Task SetTutorialStepAsync(int value)
+    {
+        if (value is < -1 or > 6)
+        {
+            return;
+        }
+
+        tutorialStep = value;
+        await DeviceState.WriteAsync("tutorial", value);
+    }
+}

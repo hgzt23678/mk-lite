@@ -1,0 +1,176 @@
+@implements IAsyncDisposable
+@inject ISpacerInterop SpacerInterop
+@inject IPizzaxDeviceState DeviceState
+
+<div @ref="root" class="@RootClass" style="@RootStyle" @attributes="AttributesWithoutClassAndStyle">
+    <div class="_content_b6w6v_6" style="@ContentStyle">
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference root;
+    private DotNetObjectReference<MkSpacer>? receiver;
+    private IJSObjectReference? observation;
+    private Task? observationTask;
+    private int margin;
+    private bool disposed;
+
+    [Parameter]
+    public int? ContentMax { get; set; }
+
+    [Parameter]
+    public int MarginMin { get; set; } = 12;
+
+    [Parameter]
+    public int MarginMax { get; set; } = 24;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [CascadingParameter(Name = "ShouldSpacerMin")]
+    public bool ShouldSpacerMin { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        observationTask = ObserveAsync();
+        await observationTask;
+    }
+
+    private async Task ObserveAsync()
+    {
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            string? overriddenDeviceKind = await DeviceState.ReadAsync<string?>(
+                "overridedDeviceKind",
+                null,
+                lifetime.Token);
+            IJSObjectReference result = await SpacerInterop.ObserveAsync(
+                root,
+                new SpacerObservationOptions(overriddenDeviceKind),
+                receiver,
+                lifetime.Token);
+            if (disposed)
+            {
+                await DisposeObservationAsync(result);
+                return;
+            }
+            observation = result;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task UpdateSpacer(double width, int viewportWidth, string deviceKind)
+    {
+        if (disposed)
+        {
+            return Task.CompletedTask;
+        }
+
+        int next = ShouldSpacerMin || string.Equals(deviceKind, "smartphone", StringComparison.Ordinal)
+            ? MarginMin
+            : width > (ContentMax ?? 0) || (width > 360 && viewportWidth > 400)
+                ? MarginMax
+                : MarginMin;
+        if (next == margin)
+        {
+            return Task.CompletedTask;
+        }
+
+        margin = next;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (observationTask is not null)
+        {
+            try
+            {
+                await observationTask;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        if (observation is not null)
+        {
+            await DisposeObservationAsync(observation);
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static async ValueTask DisposeObservationAsync(IJSObjectReference handle)
+    {
+        try
+        {
+            await handle.InvokeVoidAsync("dispose");
+            await handle.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "_root_b6w6v_1",
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string RootStyle => string.Join(' ', new[]
+    {
+        $"padding: {margin.ToString(CultureInfo.InvariantCulture)}px;",
+        AdditionalStyle
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? ContentStyle => ContentMax is > 0
+        ? $"max-width: {ContentMax.Value.ToString(CultureInfo.InvariantCulture)}px;"
+        : null;
+
+    private string? AdditionalClass => ReadAdditionalAttribute("class");
+
+    private string? AdditionalStyle => ReadAdditionalAttribute("style");
+
+    private string? ReadAdditionalAttribute(string name) =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue(name, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute =>
+                !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+}

@@ -1,0 +1,9 @@
+:80 {
+	handle {
+		reverse_proxy api:8080 {
+			header_up Host activitypub
+			header_up X-Forwarded-Host activitypub
+			header_up X-Forwarded-Proto http
+		}
+	}
+}

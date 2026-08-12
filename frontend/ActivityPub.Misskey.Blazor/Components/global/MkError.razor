@@ -1,0 +1,128 @@
+@namespace ActivityPub.Misskey.Blazor.Components
+@implements IAsyncDisposable
+@inject IErrorAppearInterop Browser
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyLocalizer Localizer
+
+@if (animation is not null)
+{
+    <div @ref="root"
+         class="@RootClass"
+         @attributes="AttributesWithoutClass">
+        <img src="/client-assets/about-icon.png" class="_ghost" />
+        <p><i class="fas fa-exclamation-triangle"></i> @Localizer.Translate("somethingHappened")</p>
+        <MkButton class="button" OnClick="EmitRetryAsync">@Localizer.Translate("retry")</MkButton>
+    </div>
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference root;
+    private IJSObjectReference? attachment;
+    private bool? animation;
+    private bool disposed;
+
+    [Parameter]
+    public EventCallback Retry { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "mjndxjcg",
+        animation == true ? "zoom-enter-active zoom-enter-from" : null,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (disposed || attachment is not null)
+        {
+            return;
+        }
+
+        if (animation is null)
+        {
+            try
+            {
+                animation = await DeviceState.ReadAsync("animation", true, lifetime.Token);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (JSDisconnectedException)
+            {
+                animation = true;
+            }
+
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        try
+        {
+            IJSObjectReference created = await Browser.AttachAsync(root, animation.Value, lifetime.Token);
+            if (disposed)
+            {
+                await DisposeAttachmentAsync(created);
+            }
+            else
+            {
+                attachment = created;
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private Task EmitRetryAsync() => Retry.InvokeAsync();
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            await DisposeAttachmentAsync(attachment);
+        }
+        lifetime.Dispose();
+    }
+
+    private static async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try
+        {
+            await handle.InvokeVoidAsync("dispose", cleanup.Token);
+            await handle.DisposeAsync().AsTask().WaitAsync(cleanup.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

@@ -1,0 +1,102 @@
+@implements IAsyncDisposable
+@inject IHashtagTrendPresentationService Trends
+@inject IMisskeyLocalizer Localizer
+@inject NavigationManager Navigation
+
+<MkContainer ShowHeader="@(MisskeyWidgetData.Boolean(Widget, "showHeader", true))" class="@("mkw-trends " + (CssClass ?? string.Empty))">
+    <Header><i class="fas fa-hashtag"></i>@Localizer.Translate("_widgets.trends")</Header>
+    <ChildContent>
+    <div class="wbrkwala">
+        @if (fetching)
+        {
+            <MkLoading />
+        }
+        else
+        {
+            <div class="tags">
+                @foreach (HashtagTrendViewModel stat in stats)
+                {
+                    <div @key="stat.Tag">
+                        <div class="tag">
+                            <a class="a"
+                               href="@TagHref(stat.Tag)"
+                               title="@stat.Tag"
+                               @onclick="() => OpenTag(stat.Tag)">#@stat.Tag</a>
+                            <p>@Localizer.Translate("nUsersMentioned", new Dictionary<string, object?> { ["n"] = stat.UsersCount })</p>
+                        </div>
+                        <MkMiniChart class="chart" Src="stat.Chart" />
+                    </div>
+                }
+            </div>
+        }
+    </div>
+    </ChildContent>
+</MkContainer>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private IReadOnlyList<HashtagTrendViewModel> stats = [];
+    private bool fetching = true;
+    private Task? poller;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public MisskeyWidgetModel Widget { get; set; } = null!;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    protected override void OnInitialized()
+    {
+        poller = PollAsync(lifetime.Token);
+    }
+
+    private async Task PollAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                IReadOnlyList<HashtagTrendViewModel> next = await Trends.ReadAsync(cancellationToken).ConfigureAwait(false);
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    stats = next;
+                    fetching = false;
+                    await InvokeAsync(StateHasChanged);
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(60), cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private string TagHref(string tag) => "/tags/" + Uri.EscapeDataString(tag);
+
+    private void OpenTag(string tag) => Navigation.NavigateTo(TagHref(tag));
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync().ConfigureAwait(false);
+        if (poller is not null)
+        {
+            try
+            {
+                await poller.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+        }
+
+        lifetime.Dispose();
+    }
+}

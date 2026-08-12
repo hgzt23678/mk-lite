@@ -1,0 +1,144 @@
+@implements IAsyncDisposable
+@inject ITimelinePresentationService Timeline
+@inject IWelcomeTimelineInterop WelcomeTimelineInterop
+
+<div class="@RootClass" @attributes="AttributesWithoutClass">
+    <div @ref="scrollbox" class="scrollbox @(scrolling ? "scroll" : null)">
+        @foreach (NoteViewModel note in notes)
+        {
+            <div class="note" @key="note.Id">
+                <div class="content _panel">
+                    <div class="body">
+                        @if (note.ReplyId is not null)
+                        {
+                            <a class="reply" href="@NoteHref(note.ReplyId)"><i class="fas fa-reply"></i></a>
+                        }
+                        @if (!string.IsNullOrEmpty(note.Text))
+                        {
+                            <MfmView Text="@note.Text"
+                                     Author="@note.Author"
+                                     CustomEmojis="@note.Emojis" />
+                        }
+                        @if (note.RenoteId is not null)
+                        {
+                            <a class="rp" href="@NoteHref(note.RenoteId)">RN: ...</a>
+                        }
+                    </div>
+                    @if (note.Media.Count > 0)
+                    {
+                        <div class="richcontent">
+                            <MkMediaList Media="@note.Media" />
+                        </div>
+                    }
+                    @if (note.Poll is not null)
+                    {
+                        <div>
+                            <MkPoll NoteId="@note.Id"
+                                    Poll="@note.Poll"
+                                    CustomEmojis="@note.Emojis"
+                                    ReadOnly="true" />
+                        </div>
+                    }
+                </div>
+                <MkReactionsViewer Note="@note" />
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private IReadOnlyList<NoteViewModel> notes = [];
+    private ElementReference scrollbox;
+    private DotNetObjectReference<WelcomeTimeline>? receiver;
+    private IJSObjectReference? attachment;
+    private bool scrolling;
+    private bool disposed;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[] { "civpbkhh", CssClass, AdditionalClass }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        TimelinePageViewModel page = await Timeline.ReadAsync(
+            TimelineKind.Global,
+            beforeId: null,
+            limit: 10,
+            CancellationToken.None);
+        notes = page.Notes;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || disposed)
+        {
+            return;
+        }
+
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            attachment = await WelcomeTimelineInterop.ObserveAsync(scrollbox, receiver, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public async Task UpdateWelcomeTimelineScroll(bool value)
+    {
+        if (disposed || scrolling == value)
+        {
+            return;
+        }
+
+        scrolling = value;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static string NoteHref(string id) => "/notes/" + Uri.EscapeDataString(id);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+}

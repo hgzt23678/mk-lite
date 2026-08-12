@@ -1,0 +1,369 @@
+/*
+ * Keycloak 26.7.0 adapter for the generated Misskey 12.119.2 styles loaded before this
+ * file. Authentication semantics intentionally remain owned by Keycloak.
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+html,
+body.mk-keycloak-page {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  background-color: var(--bg, rgb(249, 249, 249));
+}
+
+body.mk-keycloak-page {
+  overflow: hidden;
+}
+
+.mk-keycloak-modal {
+  position: fixed;
+  z-index: 1;
+  inset: 0;
+}
+
+.mk-keycloak-modal > .bg {
+  position: fixed;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  animation: mk-keycloak-backdrop-in 0.2s both;
+}
+
+.mk-keycloak-modal > .content {
+  position: fixed;
+  z-index: 2;
+  inset: 0;
+  display: flex;
+  overflow: auto;
+  padding: 32px;
+  pointer-events: none;
+}
+
+.mk-keycloak-window {
+  width: min(370px, 100%);
+  height: min(400px, calc(100dvh - 64px));
+  min-height: min(400px, calc(100dvh - 64px));
+  margin: auto;
+  pointer-events: auto;
+  background-color: var(--panel, rgb(255, 255, 255));
+  animation: mk-keycloak-dialog-in 0.2s both;
+}
+
+.mk-keycloak-window > .header {
+  min-height: 46px;
+  background-color: var(--panelHeaderBg, rgb(255, 255, 255));
+  border-bottom: solid 0.5px var(--panelHeaderDivider, rgb(232, 232, 232));
+}
+
+.mk-keycloak-window > .header > .title {
+  min-width: 0;
+  margin: 0;
+  color: var(--panelHeaderFg, var(--fg));
+  font-size: 1em;
+}
+
+.mk-keycloak-window > .body {
+  min-height: 0;
+  background-color: var(--panel, rgb(255, 255, 255));
+  color: var(--fg, rgb(103, 103, 103));
+}
+
+.eppvobhk {
+  width: 100%;
+}
+
+.eppvobhk > .auth > .avatar {
+  flex: 0 0 auto;
+}
+
+.eppvobhk .matxzzsk > .input > input {
+  border-color: var(--panel, rgb(255, 255, 255));
+}
+
+.eppvobhk .matxzzsk > .input > input[aria-invalid="true"] {
+  border-color: var(--error, rgb(236, 65, 55));
+}
+
+.eppvobhk .matxzzsk > .input > input:focus-visible {
+  outline: none;
+}
+
+.eppvobhk .matxzzsk > .input > .suffix > .password-toggle {
+  display: inline-flex;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--fg);
+  opacity: 0.7;
+  pointer-events: auto;
+}
+
+.eppvobhk .matxzzsk > .input > .suffix > .password-toggle:hover,
+.eppvobhk .matxzzsk > .input > .suffix > .password-toggle:focus-visible,
+.eppvobhk .matxzzsk > .input > .suffix > .password-toggle[aria-pressed="true"] {
+  opacity: 1;
+}
+
+.eppvobhk .matxzzsk > .input > .suffix > .password-toggle:focus-visible,
+.eppvobhk ._textButton:focus-visible,
+.mk-auth-flow-tools ._textButton:focus-visible,
+.mk-auth-attempted-user ._textButton:focus-visible {
+  outline: solid 2px var(--focus);
+  outline-offset: 2px;
+}
+
+.mk-keycloak-field-error {
+  display: block;
+  color: var(--error, rgb(236, 65, 55));
+}
+
+.mk-auth-global-feedback {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 16px 24px 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  color: var(--infoFg);
+  background-color: var(--infoBg);
+}
+
+.mk-auth-global-feedback.error {
+  color: var(--error, rgb(236, 65, 55));
+  background-color: color-mix(in srgb, var(--error, rgb(236, 65, 55)) 12%, var(--panel));
+}
+
+.mk-auth-global-feedback.warning {
+  color: var(--infoWarnFg);
+  background-color: var(--infoWarnBg);
+}
+
+.mk-auth-global-feedback__text {
+  min-width: 0;
+}
+
+.mk-auth-global-feedback + .eppvobhk > .auth > .avatar {
+  display: none;
+}
+
+.eppvobhk .twofa-group {
+  text-align: center;
+}
+
+.eppvobhk .normal-signin > .bghgjjyj,
+.eppvobhk .twofa-group > .bghgjjyj {
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.eppvobhk .twofa-group > p {
+  margin: 0 0 1.5em;
+}
+
+.eppvobhk .totp-group > .matxzzsk {
+  text-align: start;
+}
+
+.mk-keycloak-otp-choices {
+  min-width: 0;
+  margin-inline: 0;
+  border: 0;
+  padding: 0;
+  text-align: start;
+}
+
+.mk-keycloak-otp-choices > legend {
+  margin-bottom: 8px;
+  font-size: 0.85em;
+}
+
+.mk-keycloak-otp-choice {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+}
+
+.mk-keycloak-authenticator-list {
+  margin: 0 0 1.5em;
+}
+
+.mk-keycloak-authenticator {
+  display: grid;
+  gap: 4px;
+  border: solid 0.5px var(--divider);
+  border-radius: 6px;
+  padding: 10px;
+  text-align: start;
+}
+
+.mk-keycloak-authenticator > span {
+  color: var(--fgTransparentWeak);
+  font-size: 0.85em;
+}
+
+.mk-keycloak-authentication-selection {
+  color: var(--fg);
+  font: inherit;
+}
+
+.mk-keycloak-authentication-selection > strong,
+.mk-keycloak-authentication-selection > span {
+  display: block;
+}
+
+.mk-keycloak-authentication-selection > span {
+  margin-top: 4px;
+  color: var(--fgTransparentWeak);
+  font-size: 0.85em;
+}
+
+#kc-webauthn-settings-form {
+  margin-top: 16px;
+}
+
+.mk-passkey-conditional,
+.mk-auth-flow-tools,
+.mk-auth-attempted-user,
+.mk-keycloak-info {
+  box-sizing: border-box;
+  padding: 0 24px 16px;
+  text-align: center;
+}
+
+.mk-passkey-conditional {
+  margin-top: -40px;
+  position: relative;
+  z-index: 2;
+}
+
+.mk-auth-attempted-user {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  color: var(--fgTransparentWeak);
+  font-size: 0.85em;
+}
+
+.mk-auth-attempted-user:empty,
+.mk-keycloak-info:empty {
+  display: none;
+}
+
+.mk-keycloak-fallback-form,
+.mk-keycloak-fallback-group,
+#kc-error-message,
+#kc-info-message {
+  margin: 24px;
+}
+
+.mk-keycloak-fallback-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.85em;
+}
+
+.mk-keycloak-ripple {
+  position: absolute;
+  border-radius: 100%;
+  background: rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  animation: mk-keycloak-ripple 0.5s cubic-bezier(0, 0.5, 0, 1) both;
+}
+
+.mk-keycloak-fallback-input,
+.mk-keycloak-fallback-input-group input,
+.mk-keycloak-fallback-group > input,
+.mk-keycloak-fallback-group > select,
+.mk-keycloak-fallback-group > textarea {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 38px;
+  border: solid 1px var(--panel);
+  border-radius: 6px;
+  padding: 0 12px;
+  color: var(--fg);
+  background: var(--panel);
+  font: inherit;
+}
+
+@keyframes mk-keycloak-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes mk-keycloak-dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes mk-keycloak-ripple {
+  from {
+    opacity: 0.6;
+    transform: scale(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 500px) {
+  .mk-keycloak-modal > .content {
+    padding: 16px;
+  }
+
+  .mk-keycloak-window {
+    height: min(400px, calc(100dvh - 32px));
+    min-height: min(400px, calc(100dvh - 32px));
+  }
+
+  .mk-keycloak-window > .header {
+    min-height: 42px;
+  }
+
+  .mk-auth-global-feedback {
+    margin-inline: 16px;
+  }
+
+  .mk-passkey-conditional,
+  .mk-auth-flow-tools,
+  .mk-auth-attempted-user,
+  .mk-keycloak-info {
+    padding-inline: 16px;
+  }
+}
+
+@media (max-height: 460px) {
+  .mk-keycloak-window {
+    margin-block: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mk-keycloak-modal > .bg,
+  .mk-keycloak-window,
+  .bghgjjyj,
+  .matxzzsk > .input > input {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@supports not (color: color-mix(in srgb, red, blue)) {
+  .mk-auth-global-feedback.error {
+    background-color: var(--panelHighlight, rgb(247, 247, 247));
+  }
+}

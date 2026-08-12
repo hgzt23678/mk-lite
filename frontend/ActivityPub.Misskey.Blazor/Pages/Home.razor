@@ -1,0 +1,177 @@
+@page "/"
+@inject IInstancePresentationService InstanceService
+@inject IMisskeyOverlayService Overlays
+@inject MisskeyFrontendRuntimeConfiguration Runtime
+@inject NavigationManager Navigation
+@inject ILogger<Home> Logger
+@inject IMisskeyLocalizer Localizer
+
+<PageTitle>@(meta?.Name ?? "Misskey")</PageTitle>
+
+@if (authenticated)
+{
+    <MisskeyTimelinePage />
+}
+else if (errorCode is not null)
+{
+    <div class="mk-initialization-error" role="alert" data-error-code="@errorCode">
+        <p>インスタンス情報を取得できません。</p>
+        <span class="mk-error-reference">@errorCode</span>
+    </div>
+}
+else if (meta is not null)
+{
+    <div class="rsqzvsbo">
+        <div class="top">
+            <MkFeaturedPhotos CssClass="bg" />
+            <WelcomeTimeline CssClass="tl" />
+            <div class="shape1"></div>
+            <div class="shape2"></div>
+            <img src="/client-assets/misskey.svg" class="misskey" alt="Misskey" />
+            <div class="emojis" aria-hidden="true">
+                <MkEmoji Emoji="👍" Normal="true" NoStyle="true" />
+                <MkEmoji Emoji="❤" Normal="true" NoStyle="true" />
+                <MkEmoji Emoji="😆" Normal="true" NoStyle="true" />
+                <MkEmoji Emoji="🎉" Normal="true" NoStyle="true" />
+                <MkEmoji Emoji="🍮" Normal="true" NoStyle="true" />
+            </div>
+            <div class="main">
+                <img src="@InstanceIconUrl" alt="" class="icon" />
+                <button @ref="menuSource" class="_button _acrylic menu" type="button" aria-label="@Localizer.Translate("menu")" @onclick="ShowMenu"><i class="fas fa-ellipsis-h"></i></button>
+                <div class="fg">
+                    <h1><span class="text">@meta.Name</span></h1>
+                    <div class="about"><div class="desc">@(string.IsNullOrWhiteSpace(meta.Description) ? Localizer.Translate("headlineMisskey") : meta.Description)</div></div>
+                    <div class="action">
+                        <MkButton Inline="true"
+                                  Rounded="true"
+                                  Gradate="true"
+                                  OnClick="SignUp"
+                                  data-cy-signup="true"
+                                  style="margin-right: 12px;">@Localizer.Translate("signup")</MkButton>
+                        <MkButton Inline="true" Rounded="true" OnClick="SignIn" data-cy-signin="true">@Localizer.Translate("login")</MkButton>
+                    </div>
+                </div>
+            </div>
+            @if (federationInstances is not null)
+            {
+                <div class="federation">
+                    <MkMarquee Duration="40">
+                        @foreach (FederationInstanceViewModel instance in federationInstances)
+                        {
+                            <a class="_federationInstance_jmpas_1" href="@InstanceHref(instance.Host)">
+                                @if (SameOriginMediaUrl.Normalize(instance.IconUrl) is { } instanceIconUrl)
+                                {
+                                    <img class="icon" src="@instanceIconUrl" alt="" decoding="async" />
+                                }
+                                <span class="name _monospace">@instance.Host</span>
+                            </a>
+                        }
+                    </MkMarquee>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private InstanceSummaryViewModel? meta;
+    private IReadOnlyList<FederationInstanceViewModel>? federationInstances;
+    private string? errorCode;
+    private ElementReference menuSource;
+    private bool authenticated;
+
+    private string InstanceIconUrl =>
+        SameOriginMediaUrl.Normalize(meta?.IconUrl) ?? "/static-assets/favicon.ico";
+
+    [CascadingParameter]
+    public Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthenticationStateTask is not null)
+        {
+            AuthenticationState state = await AuthenticationStateTask;
+            authenticated = state.User.Identity?.IsAuthenticated == true;
+        }
+
+        if (authenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            meta = await InstanceService.GetAsync(CancellationToken.None);
+        }
+        catch (InvalidOperationException)
+        {
+            errorCode = "INSTANCE_CONFIGURATION_INVALID";
+            return;
+        }
+
+        try
+        {
+            federationInstances = await InstanceService.ReadFederationInstancesAsync(CancellationToken.None);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            Logger.LogWarning(
+                "The welcome federation projection is unavailable. FailureType={FailureType}",
+                exception.GetType().Name);
+        }
+
+        OpenAuthenticationDialogFromQuery();
+    }
+
+    private void SignIn(MouseEventArgs args)
+        => Overlays.ShowSignIn();
+
+    private void SignUp(MouseEventArgs args)
+    {
+        if (meta is not null)
+        {
+            Overlays.ShowSignUp();
+        }
+    }
+
+    private void OpenAuthenticationDialogFromQuery()
+    {
+        Uri uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        IReadOnlyDictionary<string, Microsoft.Extensions.Primitives.StringValues> query =
+            Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        string? authentication = query.TryGetValue("auth", out Microsoft.Extensions.Primitives.StringValues authValue)
+            ? authValue.ToString()
+            : null;
+        string? error = query.TryGetValue("authError", out Microsoft.Extensions.Primitives.StringValues errorValue)
+            ? errorValue.ToString()
+            : null;
+        string returnUrl = query.TryGetValue("returnUrl", out Microsoft.Extensions.Primitives.StringValues returnValue)
+            ? returnValue.ToString()
+            : "/";
+
+        if (string.Equals(authentication, "signin", StringComparison.Ordinal))
+        {
+            Overlays.ShowSignIn(returnUrl, error);
+        }
+        else if (Runtime.LocalAccountsEnabled && string.Equals(authentication, "signup", StringComparison.Ordinal) &&
+                 meta is not null)
+        {
+            Overlays.ShowSignUp(returnUrl, error);
+        }
+        else
+        {
+            return;
+        }
+
+    }
+
+    private static string InstanceHref(string host) => "/instance-info/" + Uri.EscapeDataString(host);
+
+    private void ShowMenu() => Overlays.ShowPopupMenu(menuSource,
+    [
+        MisskeyMenuItem.Link(Localizer.Translate("instanceInfo"), "fas fa-info-circle", "/about"),
+        MisskeyMenuItem.Link(Localizer.Translate("aboutMisskey"), "fas fa-info-circle", "/about-misskey"),
+        MisskeyMenuItem.Divider,
+        MisskeyMenuItem.ExternalLink(Localizer.Translate("help"), "fas fa-question-circle", "https://misskey-hub.net/help.md")
+    ]);
+}

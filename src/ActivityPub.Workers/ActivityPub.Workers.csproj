@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../ActivityPub.Application/ActivityPub.Application.csproj" />
+    <ProjectReference Include="../ActivityPub.Federation/ActivityPub.Federation.csproj" />
+    <ProjectReference Include="../ActivityPub.Persistence/ActivityPub.Persistence.csproj" />
+    <ProjectReference Include="../ActivityPub.Operations/ActivityPub.Operations.csproj" />
+  </ItemGroup>
+</Project>

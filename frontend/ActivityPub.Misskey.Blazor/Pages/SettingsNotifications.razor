@@ -1,0 +1,104 @@
+@implements IAsyncDisposable
+@attribute [Authorize]
+@inject INotificationPresentationService Notifications
+@inject IMisskeyLocalizer Localizer
+
+<PageTitle>@Localizer.Translate("notifications")</PageTitle>
+
+<div class="_formRoot settings-local-page notifications-settings" data-testid="settings-notifications">
+    <button type="button"
+            class="ffcbddfc _button settings-action"
+            data-action="configure"
+            data-capability-state="false"
+            disabled
+            title="Notification type preferences are not part of the current Dolphin profile contract.">
+        <span class="main _button">
+            <span class="icon"><i class="fas fa-cog" aria-hidden="true"></i></span>
+            <span class="text">@Localizer.Translate("notificationSetting")</span>
+            <span class="right"><span class="text"></span><i class="fas fa-chevron-right icon" aria-hidden="true"></i></span>
+        </span>
+    </button>
+
+    <FormSection>
+        <ChildContent>
+            <button type="button"
+                    class="ffcbddfc _button settings-action"
+                    data-action="mark-all-notifications"
+                    @onclick="MarkAllNotificationsAsync">
+                <span class="main _button">
+                    <span class="icon"><i class="fas fa-check" aria-hidden="true"></i></span>
+                    <span class="text">@Localizer.Translate("markAsReadAllNotifications")</span>
+                    <span class="right"><span class="text"></span><i class="fas fa-chevron-right icon" aria-hidden="true"></i></span>
+                </span>
+            </button>
+
+            <button type="button"
+                    class="ffcbddfc _button settings-action"
+                    data-action="mark-all-unread-notes"
+                    data-capability-state="false"
+                    disabled
+                    title="The current Dolphin backend does not expose i/read-all-unread-notes.">
+                <span class="main _button">
+                    <span class="icon"><i class="fas fa-check" aria-hidden="true"></i></span>
+                    <span class="text">@Localizer.Translate("markAsReadAllUnreadNotes")</span>
+                    <span class="right"><span class="text"></span><i class="fas fa-chevron-right icon" aria-hidden="true"></i></span>
+                </span>
+            </button>
+
+            <button type="button"
+                    class="ffcbddfc _button settings-action"
+                    data-action="mark-all-messaging"
+                    data-capability-state="false"
+                    disabled
+                    title="The current Dolphin backend does not expose i/read-all-messaging-messages.">
+                <span class="main _button">
+                    <span class="icon"><i class="fas fa-check" aria-hidden="true"></i></span>
+                    <span class="text">@Localizer.Translate("markAsReadAllTalkMessages")</span>
+                    <span class="right"><span class="text"></span><i class="fas fa-chevron-right icon" aria-hidden="true"></i></span>
+                </span>
+            </button>
+        </ChildContent>
+    </FormSection>
+
+    <MkInfo Warn="true"
+            CssClassAdditional="_formBlock notifications-capability"
+            data-capability-state="false">
+        Notification type preferences and messaging/unread-note bulk actions require Dolphin API contracts that are not available. The mark-all-notifications action above is connected to the durable notification aggregate.
+    </MkInfo>
+
+    @if (!string.IsNullOrWhiteSpace(status))
+    {
+        <MkInfo CssClassAdditional="_formBlock" data-testid="settings-notifications-status">@status</MkInfo>
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private bool disposed;
+    private string? status;
+
+    private async Task MarkAllNotificationsAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        int count = await Notifications.MarkAllReadAsync(lifetime.Token);
+        status = count == 0
+            ? Localizer.Translate("noNotifications")
+            : $"{count} notifications marked as read";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

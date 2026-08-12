@@ -1,0 +1,136 @@
+@implements IDisposable
+@inject IBlurhashImageInterop Browser
+
+<div @attributes="AttributesWithoutClass" class="@RootClass" title="@Title">
+    @if (!loaded)
+    {
+        <canvas @ref="canvas" width="@Size" height="@Size" title="@Title"></canvas>
+    }
+    @if (SafeSource is not null)
+    {
+        <img @ref="image" src="@SafeSource" title="@Title" alt="@Alt" @onload="OnLoad" />
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference canvas;
+    private ElementReference image;
+    private bool loaded;
+    private bool disposed;
+    private string? renderedKey;
+    private string? drawnKey;
+    private string? drawingKey;
+
+    [Parameter]
+    public string? Src { get; set; }
+
+    [Parameter]
+    public string? Hash { get; set; }
+
+    [Parameter]
+    public string Alt { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public int Size { get; set; } = 64;
+
+    [Parameter]
+    public bool Cover { get; set; } = true;
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string? SafeSource => SameOriginMediaUrl.Normalize(Src);
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "xubzgfgb",
+        Cover ? "cover" : null,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        if (Size is < 1 or > 512)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Size), "BlurHash size must be between 1 and 512 pixels.");
+        }
+
+        string key = $"{Src}\u001f{Hash}\u001f{Size}";
+        if (!string.Equals(key, renderedKey, StringComparison.Ordinal))
+        {
+            renderedKey = key;
+            drawnKey = null;
+            drawingKey = null;
+            loaded = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _ = firstRender;
+        if (disposed || loaded ||
+            string.Equals(drawnKey, renderedKey, StringComparison.Ordinal) ||
+            string.Equals(drawingKey, renderedKey, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        string key = renderedKey!;
+        drawingKey = key;
+        try
+        {
+            bool imageAlreadyLoaded = await Browser.DrawAsync(
+                canvas,
+                image,
+                Hash,
+                Size,
+                lifetime.Token).ConfigureAwait(false);
+            if (string.Equals(renderedKey, key, StringComparison.Ordinal))
+            {
+                drawnKey = key;
+                if (imageAlreadyLoaded && !disposed)
+                {
+                    loaded = true;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        finally
+        {
+            if (string.Equals(drawingKey, key, StringComparison.Ordinal))
+            {
+                drawingKey = null;
+            }
+        }
+    }
+
+    private void OnLoad() => loaded = true;
+
+    public void Dispose()
+    {
+        disposed = true;
+        lifetime.Cancel();
+        lifetime.Dispose();
+    }
+}

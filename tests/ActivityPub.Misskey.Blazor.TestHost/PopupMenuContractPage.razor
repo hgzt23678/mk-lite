@@ -1,0 +1,140 @@
+@page "/__test/components/popup-menu"
+@rendermode InteractiveServer
+@inject IMisskeyOverlayService Overlays
+
+<main data-contract="popup-menu">
+    <button @ref="source" type="button" data-contract="open" @onclick="Open">Open menu</button>
+    <button @ref="completeSource" type="button" data-contract="open-complete" @onclick="OpenComplete">Open complete menu</button>
+    <output data-contract="action-count">@actionCount</output>
+    <output data-contract="closed-count">@closedCount</output>
+    <output data-contract="complete-closed-count">@completeClosedCount</output>
+    <output data-contract="child-action-count">@childActionCount</output>
+    <output data-contract="switch-value">@(switchValue ? "true" : "false")</output>
+</main>
+
+@code {
+    private ElementReference source;
+    private ElementReference completeSource;
+    private int actionCount;
+    private int closedCount;
+    private int completeClosedCount;
+    private int childActionCount;
+    private bool switchValue = true;
+    private IReadOnlyList<MisskeyMenuItem> completeItems = [];
+
+    private void Open()
+    {
+        Overlays.ShowPopupMenu(
+            source,
+            [
+                new MisskeyMenuItem(
+                    MisskeyMenuItemKind.Action,
+                    "First action",
+                    "fas fa-check",
+                    Action: ActionAsync),
+                MisskeyMenuItem.Link("About", "fas fa-info-circle", "/about"),
+                MisskeyMenuItem.Divider,
+                new MisskeyMenuItem(MisskeyMenuItemKind.Label, "Section"),
+                MisskeyMenuItem.ExternalLink(
+                    "Help",
+                    "fas fa-question-circle",
+                    "https://misskey-hub.net/help.md")
+            ],
+            openedViaKeyboard: true,
+            align: "center",
+            width: 288,
+            closed: ClosedAsync);
+    }
+
+    private void OpenComplete()
+    {
+        var pending = new TaskCompletionSource<MisskeyMenuItem?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        NoteAuthorViewModel user = new(
+            "alice",
+            "alice",
+            "alice",
+            "Alice",
+            "/static-assets/user-unknown.png",
+            IsBot: false);
+        completeItems =
+        [
+            new MisskeyMenuItem(MisskeyMenuItemKind.Label, "Complete section"),
+            MisskeyMenuItem.Pending(pending.Task),
+            new MisskeyMenuItem(
+                MisskeyMenuItemKind.Link,
+                "Profile",
+                "fas fa-user",
+                "/@alice",
+                Avatar: user,
+                Indicate: true),
+            new MisskeyMenuItem(
+                MisskeyMenuItemKind.User,
+                User: user,
+                Action: ChildActionAsync,
+                Indicate: true),
+            new MisskeyMenuItem(
+                MisskeyMenuItemKind.Switch,
+                "Enabled",
+                SwitchValue: switchValue,
+                SwitchChanged: SetSwitchAsync),
+            new MisskeyMenuItem(
+                MisskeyMenuItemKind.Parent,
+                "Parent",
+                "fas fa-folder",
+                Children:
+                [
+                    new MisskeyMenuItem(
+                        MisskeyMenuItemKind.Action,
+                        "Child action",
+                        "fas fa-check",
+                        Action: ChildActionAsync)
+                ]),
+            new MisskeyMenuItem(MisskeyMenuItemKind.Action, "Danger", "fas fa-trash", Danger: true),
+            MisskeyMenuItem.Divider
+        ];
+        Overlays.ShowPopupMenu(
+            completeSource,
+            completeItems,
+            openedViaKeyboard: true,
+            width: 288,
+            closed: CompleteClosedAsync);
+        _ = ResolvePendingAsync(pending);
+    }
+
+    private static async Task ResolvePendingAsync(TaskCompletionSource<MisskeyMenuItem?> pending)
+    {
+        await Task.Delay(1_500);
+        pending.TrySetResult(new MisskeyMenuItem(MisskeyMenuItemKind.Action, "Resolved"));
+    }
+
+    private Task ActionAsync()
+    {
+        actionCount++;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task ClosedAsync()
+    {
+        closedCount++;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task CompleteClosedAsync()
+    {
+        completeClosedCount++;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task ChildActionAsync()
+    {
+        childActionCount++;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task SetSwitchAsync(bool value)
+    {
+        switchValue = value;
+        return InvokeAsync(StateHasChanged);
+    }
+}

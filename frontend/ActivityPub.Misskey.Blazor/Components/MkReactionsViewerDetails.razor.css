@@ -1,0 +1,47 @@
+.bqxuuuey {
+    display: flex;
+}
+
+.bqxuuuey > .reaction {
+    max-width: 100px;
+    text-align: center;
+}
+
+.bqxuuuey > .reaction > .icon {
+    display: block;
+    width: 60px;
+    font-size: 60px;
+    margin: 0 auto;
+}
+
+.bqxuuuey > .reaction > .name {
+    font-size: 1em;
+}
+
+.bqxuuuey > .users {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.95em;
+    border-left: solid 0.5px var(--divider);
+    padding-left: 10px;
+    margin-left: 10px;
+    margin-right: 14px;
+    text-align: left;
+}
+
+.bqxuuuey > .users > .user {
+    line-height: 24px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bqxuuuey > .users > .user:not(:last-child) {
+    margin-bottom: 3px;
+}
+
+.bqxuuuey > .users > .user > .avatar {
+    width: 24px;
+    height: 24px;
+    margin-right: 3px;
+}

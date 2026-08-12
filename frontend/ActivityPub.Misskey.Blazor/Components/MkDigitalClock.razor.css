@@ -1,0 +1,15 @@
+.zjobosdg > .colon {
+    opacity: 0;
+    transition: opacity 1s ease;
+}
+
+.zjobosdg > .colon.showColon {
+    opacity: 1;
+    transition: opacity 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .zjobosdg > .colon {
+        transition-duration: 0s;
+    }
+}

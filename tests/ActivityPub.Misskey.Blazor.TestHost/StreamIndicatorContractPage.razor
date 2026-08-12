@@ -1,0 +1,14 @@
+@page "/__test/components/stream-indicator"
+@rendermode InteractiveServer
+@using ActivityPub.Misskey.Blazor.Streaming
+@inject IMisskeyStreamConnectionStatus ConnectionStatus
+
+<main data-contract="stream-indicator">
+    <button id="disconnect-stream" type="button" @onclick="Disconnect">Disconnect stream</button>
+</main>
+
+@code {
+    protected override void OnInitialized() => ConnectionStatus.ReportDisconnected();
+
+    private void Disconnect() => ConnectionStatus.ReportDisconnected();
+}

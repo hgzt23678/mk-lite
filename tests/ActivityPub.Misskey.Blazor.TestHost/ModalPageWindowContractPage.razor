@@ -1,0 +1,67 @@
+@page "/__test/components/modal-page-window"
+@rendermode InteractiveServer
+
+<main data-contract="modal-page-window-host">
+    @if (showing)
+    {
+        <MkModalPageWindow @ref="window"
+                           InitialPath="/first"
+                           MetadataResolver="ResolveMetadata"
+                           Clicked="OnClicked"
+                           Closed="OnClosed"
+                           PathChanged="OnPathChanged"
+                           class="contract-window"
+                           data-contract="modal-page-window">
+            <ChildContent Context="page">
+                <section data-page="@(page.Path)">
+                    <h1>@(page.Path == "/first" ? "First body" : "Second body")</h1>
+                    @if (page.Path == "/first")
+                    {
+                        <button type="button"
+                                data-contract="navigate"
+                                @onclick="() => NavigateSecondAsync(page)">next</button>
+                    }
+                </section>
+            </ChildContent>
+            <Footer Context="page">
+                <footer data-page-footer="@(page.Path)">@(page.Path == "/first" ? "First footer" : "Second footer")</footer>
+            </Footer>
+        </MkModalPageWindow>
+    }
+
+    <output data-contract="state"
+            data-path="@path"
+            data-clicked="@clicked"
+            data-closed="@closed"></output>
+</main>
+
+@code {
+    private MkModalPageWindow? window;
+    private bool showing = true;
+    private string path = "/first";
+    private int clicked;
+    private int closed;
+
+    private static Task NavigateSecondAsync(MkModalPageWindowContext page) => page.NavigateAsync("/second");
+
+    private static MkModalPageWindowMetadata ResolveMetadata(string path) => new(
+        new MkPageHeaderMetadata(
+            path == "/first" ? "First page" : "Second page",
+            Icon: path == "/first" ? "fas fa-home" : "fas fa-stream"),
+        Tabs:
+        [
+            new MkPageHeaderTab("overview", "Overview", "fas fa-home"),
+            new MkPageHeaderTab("activity", "Activity", "fas fa-stream")
+        ],
+        ActiveTab: path == "/first" ? "overview" : "activity");
+
+    private void OnClicked() => clicked++;
+
+    private void OnPathChanged(string value) => path = value;
+
+    private void OnClosed()
+    {
+        closed++;
+        showing = false;
+    }
+}

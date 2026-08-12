@@ -1,0 +1,82 @@
+@implements IDisposable
+@inject IMisskeyOverlayService Overlays
+@inject IMisskeyLocalizer Localizer
+
+<MkModalWindow @ref="dialog"
+               OverlayId="Id"
+               Width="366"
+               Height="500"
+               AccessibleLabel="@Localizer.Translate("signup")"
+               CloseRequested="OnCloseRequestedAsync"
+               Closed="OnClosedAsync">
+    <Header>@Localizer.Translate("signup")</Header>
+    <ChildContent>
+        <div class="_monolithic_">
+            <div class="_section">
+                <MkSignup ReturnUrl="@ReturnUrl"
+                          ErrorCode="@ErrorCode"
+                          AutoSet="AutoSet"
+                          Succeeded="OnSignupAsync"
+                          EmailPending="OnSignupEmailPendingAsync" />
+            </div>
+        </div>
+    </ChildContent>
+</MkModalWindow>
+
+@code {
+    private MkModalWindow? dialog;
+
+    [Parameter, EditorRequired]
+    public Guid Id { get; set; }
+
+    [Parameter]
+    public string ReturnUrl { get; set; } = "/";
+
+    [Parameter]
+    public string? ErrorCode { get; set; }
+
+    [Parameter]
+    public bool AutoSet { get; set; }
+
+    [Parameter]
+    public EventCallback Done { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    [Parameter]
+    public EventCallback Cancelled { get; set; }
+
+    [CascadingParameter(Name = "MisskeyLocaleRevision")]
+    private long LocaleRevision { get; set; }
+
+    private bool registrationResolved;
+
+    protected override void OnInitialized() => Overlays.RegisterCloseHandler(Id, BeginCloseAsync);
+
+    private Task BeginCloseAsync() => dialog?.BeginCloseAsync() ?? Task.CompletedTask;
+
+    private async Task OnSignupAsync()
+    {
+        registrationResolved = true;
+        await Done.InvokeAsync();
+        await BeginCloseAsync();
+    }
+
+    private async Task OnSignupEmailPendingAsync()
+    {
+        registrationResolved = true;
+        await BeginCloseAsync();
+    }
+
+    private Task OnCloseRequestedAsync() =>
+        registrationResolved ? Task.CompletedTask : Cancelled.InvokeAsync();
+
+    private async Task OnClosedAsync()
+    {
+        Overlays.Close(Id);
+        await Closed.InvokeAsync();
+    }
+
+    public void Dispose() => Overlays.UnregisterCloseHandler(Id);
+}

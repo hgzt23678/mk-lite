@@ -1,0 +1,16 @@
+@page "/__test/components/sparkle"
+@rendermode InteractiveServer
+
+<main data-contract="mk-sparkle">
+    <button id="expand-sparkle" type="button" @onclick="() => expanded = !expanded">Resize</button>
+    <button id="remove-sparkle" type="button" @onclick="() => showing = false">Remove</button>
+    @if (showing)
+    {
+        <MkSparkle data-fixture="sparkle">@(expanded ? "Misskey has been updated with a much longer title" : "Updated")</MkSparkle>
+    }
+</main>
+
+@code {
+    private bool expanded;
+    private bool showing = true;
+}

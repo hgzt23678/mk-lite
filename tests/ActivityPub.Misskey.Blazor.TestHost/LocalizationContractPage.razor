@@ -1,0 +1,36 @@
+@namespace ActivityPub.Misskey.Blazor.TestHost
+@page "/__test/components/localization"
+@layout KeyValueContractLayout
+@attribute [AllowAnonymous]
+@using ActivityPub.Misskey.Blazor.Localization
+@inject IMisskeyLocalizer Localizer
+
+<PageTitle>Misskey localization contract</PageTitle>
+
+<main data-contract="localization"
+      data-locale="@Localizer.CurrentLocale"
+      data-direction="@Localizer.Direction"
+      data-culture="@Localizer.Culture.Name"
+      data-revision="@LocaleRevision">
+    <h1>Misskey localization contract</h1>
+    <p data-translation="showMore">@Localizer.Translate("showMore")</p>
+    <p data-translation="weekday">@Localizer.Translate("_weekday.monday")</p>
+    <p data-translation="interpolation">@Localizer.Translate("monthAndDay", InterpolationArguments)</p>
+    <MkContainer ShowHeader="false" MaxHeight="40" class="localization-container">
+        <ChildContent>
+            <div style="height: 120px;">Localized omission fixture</div>
+        </ChildContent>
+    </MkContainer>
+</main>
+
+@code {
+    private static readonly IReadOnlyDictionary<string, object?> InterpolationArguments =
+        new Dictionary<string, object?>
+        {
+            ["month"] = 8,
+            ["day"] = 4
+        };
+
+    [CascadingParameter(Name = "MisskeyLocaleRevision")]
+    public long LocaleRevision { get; set; }
+}

@@ -1,0 +1,14 @@
+@inherits LayoutComponentBase
+
+<AuthorizeView>
+    <Authorized>
+        <UniversalShell>@Body</UniversalShell>
+    </Authorized>
+    <NotAuthorized>
+        <VisitorShell>@Body</VisitorShell>
+    </NotAuthorized>
+</AuthorizeView>
+
+<OverlayHost />
+<MisskeyClientUpdateHost />
+<MisskeyStreamIndicator />

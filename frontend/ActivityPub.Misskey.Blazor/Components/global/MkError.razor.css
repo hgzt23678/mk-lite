@@ -1,0 +1,19 @@
+.mjndxjcg {
+    padding: 32px;
+    text-align: center;
+}
+
+.mjndxjcg > p {
+    margin: 0 0 8px 0;
+}
+
+.mjndxjcg > .button {
+    margin: 0 auto;
+}
+
+.mjndxjcg > img {
+    vertical-align: bottom;
+    height: 128px;
+    margin-bottom: 16px;
+    border-radius: 16px;
+}

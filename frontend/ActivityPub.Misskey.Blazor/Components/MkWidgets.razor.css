@@ -1,0 +1,48 @@
+.vjoppmmu > header {
+    margin: 16px 0;
+}
+
+.vjoppmmu > header > ::deep * {
+    width: 100%;
+    padding: 4px;
+}
+
+.vjoppmmu > ::deep .widget,
+.vjoppmmu .customize-container {
+    contain: content;
+    margin: var(--margin) 0;
+}
+
+.vjoppmmu > ::deep .widget:first-of-type,
+.vjoppmmu .customize-container:first-of-type {
+    margin-top: 0;
+}
+
+.vjoppmmu .customize-container {
+    position: relative;
+    cursor: move;
+}
+
+.vjoppmmu .customize-container > .config,
+.vjoppmmu .customize-container > .remove {
+    position: absolute;
+    top: 8px;
+    z-index: 10000;
+    width: 32px;
+    height: 32px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: 4px;
+}
+
+.vjoppmmu .customize-container > .config {
+    right: 48px;
+}
+
+.vjoppmmu .customize-container > .remove {
+    right: 8px;
+}
+
+.vjoppmmu .customize-container > .handle > ::deep .widget {
+    pointer-events: none;
+}

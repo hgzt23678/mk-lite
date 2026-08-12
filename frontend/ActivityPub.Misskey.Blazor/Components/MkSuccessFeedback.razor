@@ -1,0 +1,203 @@
+@implements IAsyncDisposable
+@inject ISuccessFeedbackInterop FeedbackInterop
+@inject IMisskeyTransientFeedbackService Feedback
+
+<div @ref="modalElement"
+     class="qzhlnise dialog modal-enter-active modal-enter-from"
+     role="status"
+     aria-live="polite"
+     aria-atomic="true"
+     aria-label="@Announcement"
+     data-feedback-kind="success">
+    <div @ref="backgroundElement" class="bg _modalBg" @onclick="BeginCloseAsync"></div>
+    <div @ref="contentElement" class="content" @onclick="BeginCloseFromContentAsync">
+        <div class="iuyakobc iconOnly" @onclick:stopPropagation>
+            <i class="fas fa-check icon success" aria-hidden="true"></i>
+            <span class="mk-visually-hidden">@Announcement</span>
+        </div>
+    </div>
+</div>
+
+@code {
+    private static readonly TimeSpan DisplayDuration = TimeSpan.FromSeconds(1);
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference modalElement;
+    private ElementReference backgroundElement;
+    private ElementReference contentElement;
+    private DotNetObjectReference<MkSuccessFeedback>? receiver;
+    private IJSObjectReference? attachment;
+    private Task? attachmentTask;
+    private bool closing;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public Guid Id { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Announcement { get; set; } = string.Empty;
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            attachmentTask = AttachAndExpireAsync();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task AttachAndExpireAsync()
+    {
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            IJSObjectReference created = await FeedbackInterop.AttachAsync(
+                modalElement,
+                backgroundElement,
+                contentElement,
+                receiver,
+                lifetime.Token);
+            if (disposed)
+            {
+                await DisposeAttachmentAsync(created);
+                return;
+            }
+
+            attachment = created;
+            if (closing)
+            {
+                await CloseAttachmentAsync();
+                return;
+            }
+
+            await Task.Delay(DisplayDuration, lifetime.Token);
+            await BeginCloseAsync();
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            if (!disposed)
+            {
+                Feedback.Close(Id);
+            }
+        }
+        catch (JSException)
+        {
+            // A same-circuit route change can remove this component while WebKit is still
+            // importing the module. Treat that browser-navigation race as disposal, not as a
+            // circuit-fatal rendering exception.
+            if (!disposed)
+            {
+                Feedback.Close(Id);
+            }
+        }
+    }
+
+    private Task BeginCloseFromContentAsync(MouseEventArgs args) => BeginCloseAsync();
+
+    private async Task BeginCloseAsync()
+    {
+        if (closing || disposed)
+        {
+            return;
+        }
+
+        closing = true;
+        if (attachment is not null)
+        {
+            await CloseAttachmentAsync();
+        }
+    }
+
+    private async Task CloseAttachmentAsync()
+    {
+        if (attachment is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await attachment.InvokeVoidAsync("close", lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            if (!disposed)
+            {
+                Feedback.Close(Id);
+            }
+        }
+        catch (JSException)
+        {
+            if (!disposed)
+            {
+                Feedback.Close(Id);
+            }
+        }
+    }
+
+    [JSInvokable]
+    public Task NotifyOpened() => Task.CompletedTask;
+
+    [JSInvokable]
+    public Task NotifyClosed()
+    {
+        Feedback.Close(Id);
+        return Task.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachmentTask is not null)
+        {
+            try
+            {
+                await attachmentTask;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            catch (JSException)
+            {
+            }
+        }
+
+        if (attachment is not null)
+        {
+            await DisposeAttachmentAsync(attachment);
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        try
+        {
+            await handle.InvokeVoidAsync("dispose");
+            await handle.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException)
+        {
+        }
+    }
+}

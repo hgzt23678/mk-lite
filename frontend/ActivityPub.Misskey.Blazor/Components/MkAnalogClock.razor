@@ -1,0 +1,296 @@
+@implements IAsyncDisposable
+@inject IAnalogClockInterop Browser
+
+<svg @ref="element"
+     class="@RootClass"
+     viewBox="0 0 10 10"
+     preserveAspectRatio="none"
+     @attributes="AttributesWithoutClass">
+    @if (Graduations == AnalogClockGraduations.Dots)
+    {
+        @for (var index = 0; index < graduationAngles.Length; index++)
+        {
+            double angle = graduationAngles[index];
+            bool current = CurrentGraduationIndex == index;
+            <circle cx="@Format(5 + (Math.Sin(angle) * (5 - GraduationsPadding)))"
+                    cy="@Format(5 - (Math.Cos(angle) * (5 - GraduationsPadding)))"
+                    r="0.125"
+                    fill="@(current ? "var(--accent)" : "rgba(0, 0, 0, 0.3)")"
+                    opacity="@Format(GraduationOpacity(current, angle))" />
+        }
+    }
+    else if (Graduations == AnalogClockGraduations.Numbers)
+    {
+        @for (var index = 0; index < graduationAngles.Length; index++)
+        {
+            double angle = graduationAngles[index];
+            bool current = CurrentGraduationIndex == index;
+            @RenderTextGraduation(index, angle, current)
+        }
+    }
+
+    <line class="@SecondHandClass"
+          x1="5"
+          y1="@Format(5 + (SecondHandLengthRatio * HandsTailLength))"
+          x2="5"
+          y2="@Format(5 - ((SecondHandLengthRatio * 5) - HandsPadding))"
+          stroke="rgba(0, 0, 0, 0.3)"
+          stroke-width="@Format(Thickness / 2)"
+          style="transform: rotateZ(@(Format(secondAngle))rad)"
+          stroke-linecap="round" />
+
+    <line x1="@Format(5 - (Math.Sin(minuteAngle) * (MinuteHandLengthRatio * HandsTailLength)))"
+          y1="@Format(5 + (Math.Cos(minuteAngle) * (MinuteHandLengthRatio * HandsTailLength)))"
+          x2="@Format(5 + (Math.Sin(minuteAngle) * ((MinuteHandLengthRatio * 5) - HandsPadding)))"
+          y2="@Format(5 - (Math.Cos(minuteAngle) * ((MinuteHandLengthRatio * 5) - HandsPadding)))"
+          stroke="var(--fg)"
+          stroke-width="@Format(Thickness)"
+          stroke-linecap="round" />
+
+    <line x1="@Format(5 - (Math.Sin(hourAngle) * (HourHandLengthRatio * HandsTailLength)))"
+          y1="@Format(5 + (Math.Cos(hourAngle) * (HourHandLengthRatio * HandsTailLength)))"
+          x2="@Format(5 + (Math.Sin(hourAngle) * ((HourHandLengthRatio * 5) - HandsPadding)))"
+          y2="@Format(5 - (Math.Cos(hourAngle) * ((HourHandLengthRatio * 5) - HandsPadding)))"
+          stroke="var(--accent)"
+          stroke-width="@Format(Thickness)"
+          stroke-linecap="round" />
+</svg>
+
+@code {
+    private const double GraduationsPadding = 0.5;
+    private const double TextsPadding = 0.6;
+    private const double HandsPadding = 1;
+    private const double HandsTailLength = 0.7;
+    private const double HourHandLengthRatio = 0.75;
+    private const double MinuteHandLengthRatio = 1;
+    private const double SecondHandLengthRatio = 1;
+    private const double NumbersOpacityFactor = 0.35;
+
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference element;
+    private IJSObjectReference? attachment;
+    private double[] graduationAngles = [];
+    private int initialHour;
+    private double hourAngle;
+    private double minuteAngle;
+    private double secondAngle;
+    private bool initialValuesPrepared;
+    private AnalogClockParameters? attachedParameters;
+    private long generation;
+    private bool disposed;
+
+    [Parameter]
+    public double Thickness { get; set; } = 0.1;
+
+    [Parameter]
+    public double? OffsetMinutes { get; set; }
+
+    [Parameter]
+    public bool TwentyFourHour { get; set; }
+
+    [Parameter]
+    public AnalogClockGraduations Graduations { get; set; } = AnalogClockGraduations.Dots;
+
+    [Parameter]
+    public bool FadeGraduations { get; set; } = true;
+
+    [Parameter]
+    public AnalogClockSecondHandAnimation SecondHandAnimation { get; set; } = AnalogClockSecondHandAnimation.Elastic;
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private int CurrentGraduationIndex => TwentyFourHour ? initialHour : initialHour % 12;
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "mbcofsoe",
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string SecondHandClass => SecondHandAnimation switch
+    {
+        AnalogClockSecondHandAnimation.None => "s",
+        AnalogClockSecondHandAnimation.Elastic => "s animate elastic",
+        AnalogClockSecondHandAnimation.EaseOut => "s animate easeOut",
+        _ => throw new InvalidOperationException("The analog clock second-hand animation is invalid.")
+    };
+
+    private string GraduationsName => Graduations switch
+    {
+        AnalogClockGraduations.None => "none",
+        AnalogClockGraduations.Dots => "dots",
+        AnalogClockGraduations.Numbers => "numbers",
+        _ => throw new InvalidOperationException("The analog clock graduation style is invalid.")
+    };
+
+    private string SecondHandAnimationName => SecondHandAnimation switch
+    {
+        AnalogClockSecondHandAnimation.None => "none",
+        AnalogClockSecondHandAnimation.Elastic => "elastic",
+        AnalogClockSecondHandAnimation.EaseOut => "easeOut",
+        _ => throw new InvalidOperationException("The analog clock second-hand animation is invalid.")
+    };
+
+    private string? AdditionalClass =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        if (!double.IsFinite(Thickness) || Thickness < 0 ||
+            OffsetMinutes is double offset && !double.IsFinite(offset))
+        {
+            throw new ArgumentOutOfRangeException(nameof(Thickness), "Analog clock numeric parameters must be finite and thickness cannot be negative.");
+        }
+
+        int graduations = TwentyFourHour ? 24 : 12;
+        graduationAngles = Enumerable.Range(0, graduations)
+            .Select(index => Math.PI * index / (graduations / 2d))
+            .ToArray();
+
+        if (!initialValuesPrepared)
+        {
+            PrepareInitialValues();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var parameters = new AnalogClockParameters(
+            Thickness,
+            OffsetMinutes,
+            TwentyFourHour,
+            GraduationsName,
+            FadeGraduations,
+            SecondHandAnimationName);
+        if (disposed || !firstRender && attachment is not null && parameters == attachedParameters)
+        {
+            return;
+        }
+
+        long nextGeneration = checked(++generation);
+        await DisposeAttachmentAsync().ConfigureAwait(false);
+        try
+        {
+            IJSObjectReference created = await Browser.AttachAsync(
+                element,
+                Thickness,
+                OffsetMinutes,
+                TwentyFourHour,
+                GraduationsName,
+                FadeGraduations,
+                SecondHandAnimationName,
+                lifetime.Token).ConfigureAwait(false);
+            if (disposed || nextGeneration != generation)
+            {
+                await created.InvokeVoidAsync("dispose").ConfigureAwait(false);
+                await created.DisposeAsync().ConfigureAwait(false);
+                return;
+            }
+
+            attachment = created;
+            attachedParameters = parameters;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        generation++;
+        lifetime.Cancel();
+        await DisposeAttachmentAsync().ConfigureAwait(false);
+        lifetime.Dispose();
+    }
+
+    private void PrepareInitialValues()
+    {
+        DateTimeOffset now = OffsetMinutes is double offset
+            ? DateTimeOffset.UtcNow.AddMinutes(offset % 1_440)
+            : DateTimeOffset.Now;
+        initialHour = now.Hour;
+        int minute = now.Minute;
+        int second = now.Second;
+        hourAngle = Math.PI * (initialHour % (TwentyFourHour ? 24 : 12) + ((minute + (second / 60d)) / 60d)) /
+            (TwentyFourHour ? 12 : 6);
+        minuteAngle = Math.PI * (minute + (second / 60d)) / 30;
+        secondAngle = Math.PI * second / 30;
+        initialValuesPrepared = true;
+    }
+
+    private double GraduationOpacity(bool current, double angle)
+    {
+        if (!FadeGraduations || current)
+        {
+            return 1;
+        }
+
+        double difference = Math.Abs(hourAngle - angle);
+        double angleDifference = Math.Abs((difference + Math.PI) % (Math.PI * 2) - Math.PI);
+        return Math.Max(0, 1 - (angleDifference / Math.PI) - NumbersOpacityFactor);
+    }
+
+    private RenderFragment RenderTextGraduation(int index, double angle, bool current) => builder =>
+    {
+        builder.OpenElement(0, "text");
+        builder.AddAttribute(1, "x", Format(5 + (Math.Sin(angle) * (5 - TextsPadding))));
+        builder.AddAttribute(2, "y", Format(5 - (Math.Cos(angle) * (5 - TextsPadding))));
+        builder.AddAttribute(3, "text-anchor", "middle");
+        builder.AddAttribute(4, "dominant-baseline", "middle");
+        builder.AddAttribute(5, "font-size", current ? "1" : "0.7");
+        builder.AddAttribute(6, "font-weight", current ? "bold" : "normal");
+        builder.AddAttribute(7, "fill", current ? "var(--accent)" : "currentColor");
+        builder.AddAttribute(8, "opacity", Format(GraduationOpacity(current, angle)));
+        builder.AddContent(9, index == 0
+            ? TwentyFourHour ? "24" : "12"
+            : index.ToString(CultureInfo.InvariantCulture));
+        builder.CloseElement();
+    };
+
+    private static string Format(double value) => value.ToString("R", CultureInfo.InvariantCulture);
+
+    private async ValueTask DisposeAttachmentAsync()
+    {
+        IJSObjectReference? current = attachment;
+        attachment = null;
+        if (current is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await current.InvokeVoidAsync("dispose").ConfigureAwait(false);
+            await current.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private sealed record AnalogClockParameters(
+        double Thickness,
+        double? OffsetMinutes,
+        bool TwentyFourHour,
+        string Graduations,
+        bool FadeGraduations,
+        string SecondHandAnimation);
+}

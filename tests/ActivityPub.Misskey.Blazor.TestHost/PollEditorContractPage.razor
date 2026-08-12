@@ -1,0 +1,30 @@
+@page "/__test/components/poll-editor"
+@rendermode InteractiveServer
+@using System.Globalization
+
+<main data-contract="poll-editor-slice">
+    <MkPollEditor Model="model"
+                  ModelChanged="OnModelChanged"
+                  class="contract-poll-editor"
+                  data-fallthrough="poll-editor" />
+    <output data-contract="state"
+            data-changes="@changes"
+            data-choices="@model.Choices.Count"
+            data-multiple="@model.Multiple.ToString().ToLowerInvariant()"
+            data-expiration="@model.Expiration.ToString().ToLowerInvariant()"
+            data-date="@model.AtDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
+            data-time="@model.AtTime.ToString("HH:mm", CultureInfo.InvariantCulture)"
+            data-after="@model.After"
+            data-unit="@model.Unit.ToString().ToLowerInvariant()"></output>
+</main>
+
+@code {
+    private ComposerPollViewModel model = new();
+    private int changes;
+
+    private void OnModelChanged(ComposerPollViewModel value)
+    {
+        model = value;
+        changes++;
+    }
+}

@@ -1,0 +1,65 @@
+@inject ISettingsPresentationService Settings
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+
+<div class="_formRoot">
+    <MkButton Primary="true" CssClassAdditional="_formBlock" OnClick="OpenGeneratorAsync">
+        @Localizer.Translate("generateAccessToken")
+    </MkButton>
+    <FormLink To="/settings/apps" class="_formBlock">@Localizer.Translate("manageAccessTokens")</FormLink>
+    <FormLink To="/api-console" Behavior="window" class="_formBlock">API console</FormLink>
+
+    @if (!string.IsNullOrWhiteSpace(error))
+    {
+        <MkInfo Warn="true" class="_formBlock">@error</MkInfo>
+    }
+
+    @if (showGenerator)
+    {
+        <MkTokenGenerateWindow Done="GenerateAsync" Closed="CloseGeneratorAsync" />
+    }
+</div>
+
+@code {
+    private bool showGenerator;
+    private string? error;
+
+    private Task OpenGeneratorAsync(MouseEventArgs args)
+    {
+        _ = args;
+        error = null;
+        showGenerator = true;
+        return Task.CompletedTask;
+    }
+
+    private Task CloseGeneratorAsync()
+    {
+        showGenerator = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task GenerateAsync(MkTokenGenerateWindowResult result)
+    {
+        try
+        {
+            SettingsApiTokenIssuedViewModel issued = await Settings.GenerateApiTokenAsync(
+                result.Name,
+                result.Permissions,
+                CancellationToken.None);
+            showGenerator = false;
+            Overlays.ShowAlert(new MisskeyAlertOptions(
+                "success",
+                Localizer.Translate("token"),
+                issued.Token,
+                Localizer.Translate("token"),
+                Localizer.Translate("ok")));
+        }
+        catch (Exception exception) when (exception is FrontendAuthenticationException or ArgumentException or InvalidOperationException)
+        {
+            error = exception is FrontendAuthenticationException auth
+                ? auth.ErrorCode
+                : "The access token could not be generated.";
+            showGenerator = false;
+        }
+    }
+}

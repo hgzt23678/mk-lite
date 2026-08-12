@@ -1,0 +1,342 @@
+@implements IAsyncDisposable
+@inject IAuthenticatedActorContext ActorContext
+@inject ICurrentAccountPresentationService CurrentAccount
+@inject IRenoteDetailsPresentationService Details
+@inject IRenoteButtonInterop Browser
+@inject IMisskeyOverlayService Overlays
+@inject IMisskeyLocalizer Localizer
+@inject NavigationManager Navigation
+
+@if (CanRenote)
+{
+    <button @attributes="AdditionalAttributes"
+            @ref="button"
+            class="@RootClass"
+            @onclick="OpenMenuFromPointerAsync">
+        <i class="fas fa-retweet"></i>
+        @if (Count > 0)
+        {
+            <p class="count">@Count</p>
+        }
+    </button>
+}
+else
+{
+    <button @attributes="AdditionalAttributes" class="@RootClass">
+        <i class="fas fa-ban"></i>
+    </button>
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private readonly object attachmentSync = new();
+    private readonly SemaphoreSlim attachmentGate = new(1, 1);
+    private ElementReference button;
+    private DotNetObjectReference<MkRenoteButton>? receiver;
+    private IJSObjectReference? attachment;
+    private CancellationTokenSource? tooltipRequest;
+    private Guid? tooltipId;
+    private string? currentUserId;
+    private string? attachedNoteId;
+    private string? attachingNoteId;
+    private long attachmentGeneration;
+    private bool authenticated;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public NoteViewModel Note { get; set; } = null!;
+
+    [Parameter]
+    public long Count { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback<NoteViewModel> RenoteRequested { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private bool CanRenote =>
+        Note.Visibility is Visibility.Public or Visibility.Unlisted ||
+        string.Equals(Note.Author.Id, currentUserId, StringComparison.Ordinal);
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "eddddedb",
+        "_button",
+        CanRenote ? "canRenote" : null,
+        AdditionalAttributes?.TryGetValue("class", out object? value) == true ? value?.ToString() : null
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthenticatedActor? actor = await ActorContext.FindAsync(lifetime.Token).ConfigureAwait(false);
+        authenticated = actor is not null;
+        if (authenticated)
+        {
+            currentUserId = (await CurrentAccount.GetAsync(lifetime.Token).ConfigureAwait(false)).Id;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _ = firstRender;
+        bool canRenote = CanRenote;
+        string noteId = Note.Id;
+        CancellationToken cancellationToken;
+        long generation;
+        lock (attachmentSync)
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            if (canRenote &&
+                ((attachment is not null &&
+                  string.Equals(attachedNoteId, noteId, StringComparison.Ordinal)) ||
+                 string.Equals(attachingNoteId, noteId, StringComparison.Ordinal)))
+            {
+                return;
+            }
+
+            generation = checked(++attachmentGeneration);
+            cancellationToken = lifetime.Token;
+            attachingNoteId = canRenote ? noteId : null;
+        }
+
+        bool enteredGate = false;
+        try
+        {
+            await attachmentGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            enteredGate = true;
+            lock (attachmentSync)
+            {
+                if (disposed || generation != attachmentGeneration)
+                {
+                    return;
+                }
+            }
+
+            await DetachAsync().ConfigureAwait(false);
+            if (!canRenote)
+            {
+                return;
+            }
+
+            lock (attachmentSync)
+            {
+                if (disposed || generation != attachmentGeneration)
+                {
+                    return;
+                }
+            }
+
+            DotNetObjectReference<MkRenoteButton>? pendingReceiver = DotNetObjectReference.Create(this);
+            IJSObjectReference? pendingAttachment = null;
+            try
+            {
+                pendingAttachment = await Browser.AttachAsync(
+                    button,
+                    pendingReceiver,
+                    cancellationToken).ConfigureAwait(false);
+                lock (attachmentSync)
+                {
+                    if (!disposed && generation == attachmentGeneration)
+                    {
+                        attachment = pendingAttachment;
+                        receiver = pendingReceiver;
+                        attachedNoteId = noteId;
+                        pendingAttachment = null;
+                        pendingReceiver = null;
+                    }
+                }
+            }
+            finally
+            {
+                if (pendingAttachment is not null)
+                {
+                    await DisposeAttachmentAsync(pendingAttachment).ConfigureAwait(false);
+                }
+                pendingReceiver?.Dispose();
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        finally
+        {
+            lock (attachmentSync)
+            {
+                if (generation == attachmentGeneration &&
+                    string.Equals(attachingNoteId, noteId, StringComparison.Ordinal))
+                {
+                    attachingNoteId = null;
+                }
+            }
+
+            if (enteredGate)
+            {
+                attachmentGate.Release();
+            }
+        }
+    }
+
+    private Task OpenMenuFromPointerAsync(MouseEventArgs args) =>
+        OpenMenuAsync(openedViaKeyboard: args.Detail == 0);
+
+    public async Task OpenMenuAsync(bool openedViaKeyboard)
+    {
+        if (!CanRenote)
+        {
+            return;
+        }
+
+        if (!authenticated || await ActorContext.FindAsync(lifetime.Token).ConfigureAwait(false) is null)
+        {
+            string returnUrl = new Uri(Navigation.Uri).PathAndQuery;
+            Overlays.ShowSignIn(returnUrl.StartsWith("/", StringComparison.Ordinal) ? returnUrl : "/");
+            return;
+        }
+
+        Overlays.ShowPopupMenu(
+            button,
+            [
+                new MisskeyMenuItem(
+                    MisskeyMenuItemKind.Action,
+                    Localizer.Translate("renote"),
+                    "fas fa-retweet",
+                    Action: () => RenoteRequested.InvokeAsync(Note)),
+                new MisskeyMenuItem(
+                    MisskeyMenuItemKind.Action,
+                    Localizer.Translate("quote"),
+                    "fas fa-quote-right",
+                    Action: () =>
+                    {
+                        Overlays.ShowPostForm(new MisskeyPostFormOptions(Renote: Note));
+                        return Task.CompletedTask;
+                    })
+            ],
+            openedViaKeyboard);
+    }
+
+    [JSInvokable]
+    public async Task ShowRenoteTooltipAsync()
+    {
+        if (disposed || !CanRenote)
+        {
+            return;
+        }
+
+        tooltipRequest?.Cancel();
+        tooltipRequest?.Dispose();
+        tooltipRequest = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        CancellationToken cancellationToken = tooltipRequest.Token;
+        try
+        {
+            IReadOnlyList<NoteAuthorViewModel> users = await Details.ReadAsync(
+                Note.InternalId,
+                11,
+                cancellationToken).ConfigureAwait(false);
+            if (disposed || cancellationToken.IsCancellationRequested || users.Count == 0)
+            {
+                return;
+            }
+
+            await InvokeAsync(() =>
+            {
+                if (tooltipId is Guid existing)
+                {
+                    Overlays.Close(existing);
+                }
+
+                tooltipId = Overlays.ShowUsersTooltip(button, users, Count);
+            });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task HideRenoteTooltipAsync()
+    {
+        if (disposed)
+        {
+            return Task.CompletedTask;
+        }
+
+        tooltipRequest?.Cancel();
+        return InvokeAsync(() =>
+        {
+            if (tooltipId is Guid id)
+            {
+                _ = Overlays.SetUsersTooltipShowing(id, showing: false);
+            }
+        });
+    }
+
+    private async ValueTask DetachAsync()
+    {
+        IJSObjectReference? detachedAttachment;
+        DotNetObjectReference<MkRenoteButton>? detachedReceiver;
+        lock (attachmentSync)
+        {
+            detachedAttachment = attachment;
+            attachment = null;
+            detachedReceiver = receiver;
+            receiver = null;
+            attachedNoteId = null;
+        }
+
+        if (detachedAttachment is not null)
+        {
+            await DisposeAttachmentAsync(detachedAttachment).ConfigureAwait(false);
+        }
+
+        detachedReceiver?.Dispose();
+    }
+
+    private static async ValueTask DisposeAttachmentAsync(IJSObjectReference current)
+    {
+        try
+        {
+            await current.InvokeVoidAsync("dispose").ConfigureAwait(false);
+            await current.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        lock (attachmentSync)
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            disposed = true;
+            checked
+            {
+                attachmentGeneration++;
+            }
+            attachingNoteId = null;
+        }
+
+        tooltipRequest?.Cancel();
+        tooltipRequest?.Dispose();
+        if (tooltipId is Guid id)
+        {
+            Overlays.Close(id);
+        }
+
+        await lifetime.CancelAsync();
+        await DetachAsync();
+        lifetime.Dispose();
+    }
+}

@@ -1,0 +1,67 @@
+.igpposuu {
+    display: inline;
+}
+
+.igpposuu > .null {
+    display: inline;
+    opacity: 0.7;
+}
+
+.igpposuu > .boolean {
+    display: inline;
+    color: var(--codeBoolean);
+}
+
+.igpposuu > .boolean.true {
+    font-weight: bold;
+}
+
+.igpposuu > .boolean.false {
+    opacity: 0.7;
+}
+
+.igpposuu > .string {
+    display: inline;
+    color: var(--codeString);
+}
+
+.igpposuu > .number {
+    display: inline;
+    color: var(--codeNumber);
+}
+
+.igpposuu > .array.empty,
+.igpposuu > .object.empty {
+    display: inline;
+    opacity: 0.7;
+}
+
+.igpposuu > .array:not(.empty),
+.igpposuu > .object:not(.empty) {
+    display: inline;
+}
+
+.igpposuu > .array:not(.empty) > .element,
+.igpposuu > .object:not(.empty) > .kv {
+    display: block;
+    padding-left: 16px;
+}
+
+.igpposuu > .object:not(.empty) > .kv > .toggle {
+    width: 16px;
+    color: var(--accent);
+    visibility: hidden;
+}
+
+.igpposuu > .object:not(.empty) > .kv > .toggle.visible {
+    visibility: visible;
+}
+
+.igpposuu > .object:not(.empty) > .kv > .k {
+    display: inline;
+    margin-right: 8px;
+}
+
+.igpposuu > .object:not(.empty) > .kv > .v {
+    display: inline;
+}

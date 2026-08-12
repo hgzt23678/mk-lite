@@ -1,0 +1,31 @@
+@page "/__test/components/display-primitives"
+@using ActivityPub.Misskey.Blazor.Presentation
+
+<main data-contract="display-primitives">
+    <MkMention Username="alice"
+               Host="127.0.0.1"
+               data-primitive="mention" />
+    <div data-primitive="mfm-mention"><MfmView Text="@MentionText" /></div>
+    <MkRemoteCaution Href="@RemoteHref"
+                     data-primitive="remote-caution" />
+    <MkUserOnlineIndicator User="onlineUser"
+                           data-primitive="online-indicator" />
+    <MkAvatars UserIds="userIds"
+               data-primitive="avatars" />
+    <MkFileTypeIcon Type="image/png"
+                    data-primitive="file-type" />
+</main>
+
+@code {
+    private const string RemoteHref = "https://remote.example/@alice";
+    private const string MentionText = "@alice@127.0.0.1";
+    private static readonly string[] userIds = ["alice-id", "bob-id"];
+    private static readonly NoteAuthorViewModel onlineUser = new(
+        "alice-id",
+        "alice",
+        "alice",
+        "Alice",
+        "/static-assets/favicon.png",
+        IsBot: false,
+        OnlineStatus: "online");
+}

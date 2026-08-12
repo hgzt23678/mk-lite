@@ -1,0 +1,33 @@
+<MkWindow InitialWidth="null"
+          InitialHeight="null"
+          CanResize="false"
+          Mini="true"
+          Front="true"
+          Closed="Closed">
+    <MkEmojiPicker ShowPinned="ShowPinned"
+                   AsReactionPicker="AsReactionPicker"
+                   CustomEmojis="CustomEmojis"
+                   Chosen="Chosen" />
+</MkWindow>
+
+@code {
+    [Parameter]
+    public ElementReference Src { get; set; }
+
+    [Parameter]
+    public bool ShowPinned { get; set; } = true;
+
+    [Parameter]
+    public bool AsReactionPicker { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<EmojiPickerCustomEmoji> CustomEmojis { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<string> Chosen { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    protected override void OnParametersSet() => ArgumentNullException.ThrowIfNull(CustomEmojis);
+}

@@ -1,0 +1,200 @@
+@page "/authorize-follow"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@implements IAsyncDisposable
+@inject IUserPreviewPresentationService Users
+@inject IMisskeyOverlayService Overlays
+@inject IMisskeyLocalizer Localizer
+@inject NavigationManager Navigation
+@inject ILogger<FollowPage> Logger
+
+<div class="mk-follow-page" data-follow-state="@State" aria-live="polite"></div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private UserPreviewViewModel? user;
+    private string? observedAcct;
+    private bool started;
+    private bool disposed;
+    private string State { get; set; } = "idle";
+
+    [Parameter]
+    public string? Acct { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        if (string.IsNullOrWhiteSpace(Acct))
+        {
+            Acct = ReadQueryAcct(Navigation.Uri);
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        string? next = string.IsNullOrWhiteSpace(Acct) ? null : Acct.Trim();
+        if (string.Equals(observedAcct, next, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        observedAcct = next;
+        started = false;
+        user = null;
+        State = "idle";
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _ = firstRender;
+        if (disposed || started)
+        {
+            return;
+        }
+
+        started = true;
+        await StartAsync();
+        if (!disposed)
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task StartAsync()
+    {
+        if (string.IsNullOrWhiteSpace(observedAcct))
+        {
+            State = "invalid";
+            Overlays.ShowAlert(new(
+                "error",
+                null,
+                "acct is required.",
+                Localizer.Translate("error"),
+                Localizer.Translate("ok")));
+            return;
+        }
+
+        State = "loading";
+        try
+        {
+            user = await Users.ReadAsync(observedAcct, lifetime.Token).ConfigureAwait(false);
+            if (!user.CanFollow)
+            {
+                State = "not-followable";
+                ShowError("This account cannot be followed from the current session.");
+                return;
+            }
+
+            State = "confirming";
+            Overlays.ShowDialog(new(
+                "question",
+                Localizer.Translate("confirm"),
+                Localizer.Translate(
+                    "followConfirm",
+                    new Dictionary<string, object?>
+                    {
+                        ["name"] = string.IsNullOrWhiteSpace(user.User.DisplayName)
+                            ? user.User.Username
+                            : user.User.DisplayName
+                    }),
+                ShowOkButton: true,
+                ShowCancelButton: true,
+                Done: ConfirmAsync));
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception) when (exception is UserPreviewPresentationException or KeyNotFoundException or InvalidOperationException)
+        {
+            State = "error";
+            Logger.LogWarning(
+                "Misskey follow target lookup failed. FailureType={FailureType}",
+                exception.GetType().Name);
+            ShowError(Localizer.Translate("somethingHappened"));
+        }
+    }
+
+    private async Task ConfirmAsync(MisskeyDialogResult result)
+    {
+        if (disposed || result.Canceled || user is null)
+        {
+            return;
+        }
+
+        State = "following";
+        try
+        {
+            user = await Users.FollowAsync(
+                user,
+                $"blazor-follow-page-{Guid.NewGuid():N}",
+                lifetime.Token).ConfigureAwait(false);
+            State = "completed";
+            Overlays.ShowAlert(new(
+                "success",
+                null,
+                Localizer.Translate("followed"),
+                Localizer.Translate("success"),
+                Localizer.Translate("ok")));
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception) when (exception is UserPreviewPresentationException or KeyNotFoundException or InvalidOperationException)
+        {
+            State = "error";
+            Logger.LogWarning(
+                "Misskey follow mutation failed. FailureType={FailureType}",
+                exception.GetType().Name);
+            ShowError(Localizer.Translate("somethingHappened"));
+        }
+
+        if (!disposed)
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ShowError(string text) => Overlays.ShowAlert(new(
+        "error",
+        null,
+        text,
+        Localizer.Translate("error"),
+        Localizer.Translate("ok")));
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        Acct = ReadQueryAcct(args.Location);
+        _ = InvokeAsync(() =>
+        {
+            OnParametersSet();
+            StateHasChanged();
+        });
+    }
+
+    private static string? ReadQueryAcct(string location)
+    {
+        Uri uri = new(location, UriKind.Absolute);
+        return Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query)
+            .TryGetValue("acct", out Microsoft.Extensions.Primitives.StringValues values)
+            ? values.FirstOrDefault()
+            : null;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        disposed = true;
+        Navigation.LocationChanged -= OnLocationChanged;
+        lifetime.Cancel();
+        lifetime.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

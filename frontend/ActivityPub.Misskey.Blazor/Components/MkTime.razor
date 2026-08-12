@@ -1,0 +1,173 @@
+@implements IAsyncDisposable
+@inject ITimeInterop Browser
+@inject IMisskeyLocalizer Localizer
+
+<time @ref="element" title="@absolute" @attributes="AdditionalAttributes">@DisplayText</time>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference element;
+    private DotNetObjectReference<MkTime>? receiver;
+    private IJSObjectReference? attachment;
+    private DateTimeOffset now = DateTimeOffset.UtcNow;
+    private DateTimeOffset attachedTime;
+    private string? attachedMode;
+    private string absolute = string.Empty;
+    private long generation;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public DateTimeOffset Time { get; set; }
+
+    [Parameter]
+    public string Mode { get; set; } = "relative";
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    [CascadingParameter(Name = "MisskeyLocaleRevision")]
+    private long LocaleRevision { get; set; }
+
+    private string DisplayText => Mode switch
+    {
+        "relative" => RelativeTime,
+        "absolute" => absolute,
+        "detail" => $"{absolute} ({RelativeTime})",
+        _ => throw new InvalidOperationException("MkTime mode must be relative, absolute, or detail.")
+    };
+
+    private string RelativeTime
+    {
+        get
+        {
+            double ago = (now - Time).TotalSeconds;
+            return ago switch
+            {
+                >= 31_536_000 => TranslateCount("_ago.yearsAgo", RoundLikeJavascript(ago / 31_536_000)),
+                >= 2_592_000 => TranslateCount("_ago.monthsAgo", RoundLikeJavascript(ago / 2_592_000)),
+                >= 604_800 => TranslateCount("_ago.weeksAgo", RoundLikeJavascript(ago / 604_800)),
+                >= 86_400 => TranslateCount("_ago.daysAgo", RoundLikeJavascript(ago / 86_400)),
+                >= 3_600 => TranslateCount("_ago.hoursAgo", RoundLikeJavascript(ago / 3_600)),
+                >= 60 => TranslateCount("_ago.minutesAgo", checked((long)Math.Truncate(ago / 60))),
+                >= 10 => TranslateCount("_ago.secondsAgo", checked((long)Math.Truncate(ago % 60))),
+                >= -1 => Localizer.Translate("_ago.justNow"),
+                _ => Localizer.Translate("_ago.future")
+            };
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Mode is not ("relative" or "absolute" or "detail"))
+        {
+            throw new ArgumentOutOfRangeException(nameof(Mode));
+        }
+
+        if (absolute.Length == 0 || attachedTime != Time)
+        {
+            absolute = Time.ToLocalTime().ToString("G", Localizer.Culture);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (disposed || firstRender is false && attachedTime == Time && attachedMode == Mode)
+        {
+            return;
+        }
+
+        await DisposeAttachmentAsync().ConfigureAwait(false);
+        receiver ??= DotNetObjectReference.Create(this);
+        long nextGeneration = checked(++generation);
+        try
+        {
+            IJSObjectReference created = await Browser.AttachAsync(
+                element,
+                receiver,
+                nextGeneration,
+                Time.ToUnixTimeMilliseconds(),
+                Mode is "relative" or "detail",
+                lifetime.Token).ConfigureAwait(false);
+            if (disposed)
+            {
+                await created.InvokeVoidAsync("dispose").ConfigureAwait(false);
+                await created.DisposeAsync().ConfigureAwait(false);
+                return;
+            }
+
+            attachment = created;
+            attachedTime = Time;
+            attachedMode = Mode;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task UpdateTime(long callbackGeneration, double nowUnixTimeMilliseconds, string browserAbsolute)
+    {
+        const double minimumUnixTimeMilliseconds = -62_135_596_800_000;
+        const double maximumUnixTimeMilliseconds = 253_402_300_799_999;
+        if (disposed || callbackGeneration != generation ||
+            !double.IsFinite(nowUnixTimeMilliseconds) ||
+            nowUnixTimeMilliseconds is < minimumUnixTimeMilliseconds or > maximumUnixTimeMilliseconds)
+        {
+            return Task.CompletedTask;
+        }
+
+        long milliseconds = checked((long)Math.Truncate(nowUnixTimeMilliseconds));
+        now = DateTimeOffset.FromUnixTimeMilliseconds(milliseconds);
+        if (!string.IsNullOrEmpty(browserAbsolute) && browserAbsolute.Length <= 512)
+        {
+            absolute = browserAbsolute;
+        }
+
+        return InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        lifetime.Cancel();
+        await DisposeAttachmentAsync().ConfigureAwait(false);
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private string TranslateCount(string key, long count) => Localizer.Translate(
+        key,
+        new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["n"] = count.ToString(CultureInfo.InvariantCulture)
+        });
+
+    private static long RoundLikeJavascript(double value) => checked((long)Math.Floor(value + 0.5));
+
+    private async ValueTask DisposeAttachmentAsync()
+    {
+        IJSObjectReference? current = attachment;
+        attachment = null;
+        if (current is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await current.InvokeVoidAsync("dispose").ConfigureAwait(false);
+            await current.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

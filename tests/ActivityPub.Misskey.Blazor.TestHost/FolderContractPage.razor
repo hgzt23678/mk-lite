@@ -1,0 +1,11 @@
+@page "/__test/components/folder"
+@rendermode InteractiveServer
+
+<main style="background: rgb(20, 30, 40); padding: 16px;">
+    <MkFolder PersistKey="browser-contract"
+              data-contract="folder"
+              style="width: 480px;">
+        <Header><i class="fas fa-folder"></i> Folder</Header>
+        <ChildContent><button type="button" data-contract="body">Body</button></ChildContent>
+    </MkFolder>
+</main>

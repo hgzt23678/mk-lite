@@ -1,0 +1,33 @@
+@page "/__test/components/notification"
+@rendermode InteractiveServer
+
+<main data-contract="mk-notification">
+    <button id="show-notification-toast" type="button" @onclick="ShowToast">Show toast</button>
+    <output id="notification-toast-closed-count">@closedCount</output>
+    <section style="width: 480px;">
+        <MkNotification Notification="@BrowserTestNotificationPresentationService.Fixture"
+                        WithTime="true"
+                        Full="true"
+                        class="_panel notification"
+                        data-fixture="notification" />
+    </section>
+    @if (showingToast)
+    {
+        <MkNotificationToast Notification="@BrowserTestNotificationPresentationService.ReadFixture"
+                             Closed="OnToastClosed"
+                             data-fixture="notification-toast" />
+    }
+</main>
+
+@code {
+    private bool showingToast;
+    private int closedCount;
+
+    private void ShowToast() => showingToast = true;
+
+    private void OnToastClosed()
+    {
+        closedCount++;
+        showingToast = false;
+    }
+}

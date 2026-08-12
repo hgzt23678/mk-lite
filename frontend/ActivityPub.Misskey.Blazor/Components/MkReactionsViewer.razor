@@ -1,0 +1,70 @@
+@inject IServiceProvider Services
+
+<div class="@RootClass">
+    @foreach ((string reaction, long count) in Note.Reactions)
+    {
+        <MkReactionsViewerReaction @key="reaction"
+                                   Reaction="@reaction"
+                                   Count="@count"
+                                   IsInitial="@initialReactions.Contains(reaction)"
+                                   Note="@Note"
+                                   IsAuthenticated="@authenticated"
+                                   ReactionSelected="@ReactionSelected" />
+    }
+</div>
+
+@code {
+    private readonly HashSet<string> initialReactions = new(StringComparer.Ordinal);
+    private string? initializedNoteId;
+    private bool authenticated;
+    private bool isMe;
+    private string? identityKey;
+
+    [Parameter, EditorRequired]
+    public NoteViewModel Note { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback<string> ReactionSelected { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private string RootClass => isMe ? "tdflqwzn isMe" : "tdflqwzn";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.Equals(initializedNoteId, Note.Id, StringComparison.Ordinal))
+        {
+            initializedNoteId = Note.Id;
+            initialReactions.Clear();
+            initialReactions.UnionWith(Note.Reactions.Keys);
+        }
+
+        AuthenticationState authentication = AuthenticationStateTask is null
+            ? new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity()))
+            : await AuthenticationStateTask.ConfigureAwait(false);
+        authenticated = authentication.User.Identity?.IsAuthenticated == true;
+        string? nextIdentityKey = authenticated
+            ? authentication.User.FindFirst("sub")?.Value ?? authentication.User.Identity?.Name
+            : null;
+        if (string.Equals(identityKey, nextIdentityKey, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        identityKey = nextIdentityKey;
+        isMe = false;
+        if (authenticated && Services.GetService(typeof(ICurrentAccountPresentationService)) is ICurrentAccountPresentationService current)
+        {
+            try
+            {
+                NoteAuthorViewModel user = await current.GetAsync(CancellationToken.None).ConfigureAwait(false);
+                isMe = string.Equals(user.Id, Note.Author.Id, StringComparison.Ordinal);
+            }
+            catch (InvalidOperationException)
+            {
+                isMe = false;
+            }
+        }
+    }
+}

@@ -1,0 +1,316 @@
+@implements IAsyncDisposable
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+@inject IClipboardInterop Clipboard
+@inject IModalPageWindowInterop WindowInterop
+@inject MisskeyFrontendRuntimeConfiguration Runtime
+@inject NavigationManager Navigation
+
+<MkModal @ref="modal"
+         Clicked="Clicked"
+         Closed="OnClosedAsync"
+         @attributes="AdditionalAttributes">
+    <ChildContent Context="modalContext">
+        <CascadingValue Name="ShouldOmitHeaderTitle" Value="true" IsFixed="true">
+            <CascadingValue Name="ShouldHeaderThin" Value="true" IsFixed="true">
+                <div @ref="rootElement" class="hrmcaedk _narrow_" style="@WindowStyle">
+                    <div @ref="headerElement"
+                         class="header"
+                         @oncontextmenu="ShowContextMenu"
+                         @oncontextmenu:preventDefault="true">
+                        @if (history.Count > 0)
+                        {
+                            <button type="button"
+                                    class="_button"
+                                    title="@Localizer.Translate("goBack")"
+                                    aria-label="@Localizer.Translate("goBack")"
+                                    @onclick="BackAsync"><i class="fas fa-arrow-left" aria-hidden="true"></i></button>
+                        }
+                        else
+                        {
+                            <span style="display: inline-block; width: 20px"></span>
+                        }
+                        @if (currentMetadata?.Header is { } header)
+                        {
+                            <span class="title">
+                                @if (!string.IsNullOrWhiteSpace(header.Icon))
+                                {
+                                    <i class="icon @header.Icon" aria-hidden="true"></i>
+                                }
+                                <span>@header.Title</span>
+                            </span>
+                        }
+                        <button type="button"
+                                class="_button"
+                                title="@Localizer.Translate("close")"
+                                aria-label="@Localizer.Translate("close")"
+                                @onclick="CloseAsync"><i class="fas fa-times" aria-hidden="true"></i></button>
+                    </div>
+                    <div class="body">
+                        <MkStickyContainer>
+                            <Header>
+                                @if (currentMetadata is { HideHeader: false } page)
+                                {
+                                    <MkPageHeader Metadata="page.Header"
+                                                  Tabs="page.Tabs"
+                                                  Actions="page.Actions"
+                                                  Tab="page.ActiveTab"
+                                                  TabChanged="OnTabChangedAsync"
+                                                  DisplayMyAvatar="page.DisplayMyAvatar" />
+                                }
+                            </Header>
+                            <ChildContent>
+                                @ChildContent(routeContext)
+                                @if (Footer is not null)
+                                {
+                                    @Footer(routeContext)
+                                }
+                            </ChildContent>
+                        </MkStickyContainer>
+                    </div>
+                </div>
+            </CascadingValue>
+        </CascadingValue>
+    </ChildContent>
+</MkModal>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private readonly List<string> history = [];
+    private MkModal? modal;
+    private ElementReference rootElement;
+    private ElementReference headerElement;
+    private MkModalPageWindowContext routeContext = null!;
+    private MkModalPageWindowMetadata? currentMetadata;
+    private string currentPath = string.Empty;
+    private string? observedInitialPath;
+    private bool closed;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public string InitialPath { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public RenderFragment<MkModalPageWindowContext> ChildContent { get; set; } = _ => _ => { };
+
+    [Parameter]
+    public RenderFragment<MkModalPageWindowContext>? Footer { get; set; }
+
+    [Parameter]
+    public Func<string, MkModalPageWindowMetadata?>? MetadataResolver { get; set; }
+
+    [Parameter]
+    public int MaxWidth { get; set; } = 860;
+
+    [Parameter]
+    public int MaxHeight { get; set; } = 660;
+
+    [Parameter]
+    public EventCallback Clicked { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    [Parameter]
+    public EventCallback<string> PathChanged { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    public string CurrentPath => currentPath;
+
+    private string WindowStyle =>
+        $"width: {MaxWidth.ToString(CultureInfo.InvariantCulture)}px; " +
+        $"height: min({MaxHeight.ToString(CultureInfo.InvariantCulture)}px, 100%);";
+
+    protected override void OnParametersSet()
+    {
+        ValidateDimensions();
+        string normalized = NormalizePath(InitialPath);
+        if (!string.Equals(observedInitialPath, InitialPath, StringComparison.Ordinal))
+        {
+            observedInitialPath = InitialPath;
+            history.Clear();
+            SetCurrentPath(normalized);
+            return;
+        }
+
+        currentMetadata = MetadataResolver?.Invoke(currentPath);
+    }
+
+    public Task NavigateAsync(string path) => NavigateCoreAsync(path, record: true);
+
+    public async Task BackAsync()
+    {
+        if (history.Count == 0)
+        {
+            return;
+        }
+
+        string previous = history[^1];
+        history.RemoveAt(history.Count - 1);
+        await NavigateCoreAsync(previous, record: false);
+    }
+
+    public Task CloseAsync() => modal?.CloseAsync() ?? Task.CompletedTask;
+
+    private async Task NavigateCoreAsync(string path, bool record)
+    {
+        string normalized = NormalizePath(path);
+        if (string.Equals(currentPath, normalized, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (record)
+        {
+            history.Add(currentPath);
+        }
+
+        SetCurrentPath(normalized);
+        await PathChanged.InvokeAsync(currentPath);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void SetCurrentPath(string path)
+    {
+        currentPath = path;
+        currentMetadata = MetadataResolver?.Invoke(path);
+        routeContext = new MkModalPageWindowContext(path, NavigateAsync, BackAsync);
+    }
+
+    private Task OnTabChangedAsync(string tab) =>
+        currentMetadata?.TabChanged?.Invoke(tab) ?? Task.CompletedTask;
+
+    private void ShowContextMenu(MouseEventArgs _)
+    {
+        Uri? pageUri = TryGetPageUri();
+        var items = new List<MisskeyMenuItem>
+        {
+            new(MisskeyMenuItemKind.Label, currentPath),
+            new(
+                MisskeyMenuItemKind.Action,
+                Localizer.Translate("showInPage"),
+                "fas fa-expand-alt",
+                Action: ExpandAsync),
+            new(
+                MisskeyMenuItemKind.Action,
+                Localizer.Translate("popout"),
+                "fas fa-external-link-alt",
+                Action: PopoutAsync,
+                Disabled: pageUri is null),
+            MisskeyMenuItem.Divider,
+            new(
+                MisskeyMenuItemKind.Action,
+                Localizer.Translate("openInNewTab"),
+                "fas fa-external-link-alt",
+                Action: OpenNewTabAsync,
+                Disabled: pageUri is null),
+            new(
+                MisskeyMenuItemKind.Action,
+                Localizer.Translate("copyLink"),
+                "fas fa-link",
+                Action: CopyLinkAsync,
+                Disabled: pageUri is null)
+        };
+        Overlays.ShowPopupMenu(headerElement, items);
+    }
+
+    private async Task ExpandAsync()
+    {
+        Navigation.NavigateTo(ApplicationPath(currentPath));
+        await CloseAsync();
+    }
+
+    private async Task PopoutAsync()
+    {
+        Uri? pageUri = TryGetPageUri();
+        if (pageUri is null)
+        {
+            return;
+        }
+
+        await WindowInterop.PopoutAsync(pageUri, rootElement, lifetime.Token);
+        await CloseAsync();
+    }
+
+    private async Task OpenNewTabAsync()
+    {
+        Uri? pageUri = TryGetPageUri();
+        if (pageUri is null)
+        {
+            return;
+        }
+
+        await WindowInterop.OpenNewTabAsync(pageUri, lifetime.Token);
+        await CloseAsync();
+    }
+
+    private async Task CopyLinkAsync()
+    {
+        Uri? pageUri = TryGetPageUri();
+        if (pageUri is null)
+        {
+            return;
+        }
+
+        await Clipboard.WriteTextAsync(pageUri.AbsoluteUri, lifetime.Token);
+    }
+
+    private Uri? TryGetPageUri() => Runtime.PublicBaseUri is null
+        ? null
+        : new Uri(Runtime.PublicBaseUri, ApplicationPath(currentPath));
+
+    private async Task OnClosedAsync()
+    {
+        if (closed)
+        {
+            return;
+        }
+
+        closed = true;
+        await lifetime.CancelAsync();
+        await Closed.InvokeAsync();
+    }
+
+    private static string ApplicationPath(string path) =>
+        path.StartsWith("/", StringComparison.Ordinal)
+            ? path
+            : "/" + path.TrimStart('/');
+
+    private static string NormalizePath(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        if (path.Length > 4_096 || path.Any(char.IsControl) || path.Contains('\\', StringComparison.Ordinal))
+        {
+            throw new ArgumentException("The modal page path is invalid.", nameof(path));
+        }
+
+        if (!path.StartsWith("/", StringComparison.Ordinal) || path.StartsWith("//", StringComparison.Ordinal))
+        {
+            throw new ArgumentException("The modal page path must be an application-root path.", nameof(path));
+        }
+
+        return path;
+    }
+
+    private void ValidateDimensions()
+    {
+        if (MaxWidth is <= 0 or > 16_384 || MaxHeight is <= 0 or > 16_384)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxWidth), "The modal page dimensions are invalid.");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

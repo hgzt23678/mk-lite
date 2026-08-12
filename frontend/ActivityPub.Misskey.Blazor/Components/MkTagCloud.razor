@@ -1,0 +1,115 @@
+@implements IAsyncDisposable
+@inject ITagCloudInterop TagCloud
+
+<div @ref="root" class="meijqfqm">
+    <canvas id="@canvasId" class="canvas" width="300" height="300"></canvas>
+    <div id="@tagsId" class="tags">
+        <ul>@ChildContent</ul>
+    </div>
+</div>
+
+@code {
+    private const string IdAlphabet = "abcdefghijklmnopqrstuvwxyz";
+    private static readonly Random SharedRandom = new();
+
+    private readonly string canvasId = RandomId();
+    private readonly string tagsId = RandomId();
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference root;
+    private IJSObjectReference? attachment;
+    private Task? attachmentTask;
+    private bool disposed;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        attachmentTask = AttachAsync();
+        await attachmentTask;
+    }
+
+    private async Task AttachAsync()
+    {
+        try
+        {
+            IJSObjectReference handle = await TagCloud.AttachAsync(
+                canvasId,
+                tagsId,
+                root,
+                lifetime.Token);
+            if (disposed)
+            {
+                await DisposeAttachmentAsync(handle);
+                return;
+            }
+
+            attachment = handle;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachmentTask is not null)
+        {
+            try
+            {
+                await attachmentTask;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        if (attachment is not null)
+        {
+            await DisposeAttachmentAsync(attachment);
+        }
+
+        lifetime.Dispose();
+    }
+
+    private static async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        try
+        {
+            await handle.InvokeVoidAsync("dispose");
+            await handle.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private static string RandomId() => string.Create(
+        16,
+        SharedRandom,
+        (span, random) =>
+        {
+            for (int index = 0; index < span.Length; index++)
+            {
+                span[index] = IdAlphabet[random.Next(IdAlphabet.Length)];
+            }
+        });
+}

@@ -1,0 +1,14 @@
+.zoaiodol {
+    padding: 12px;
+    font-size: 1.1em;
+}
+
+.zoaiodol > .item,
+.zoaiodol > .add {
+    display: inline-block;
+    padding: 8px;
+}
+
+.zoaiodol > .item {
+    cursor: move;
+}

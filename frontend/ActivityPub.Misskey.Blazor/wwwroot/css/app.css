@@ -1,0 +1,255 @@
+:root {
+    color-scheme: light dark;
+    --accent: #86b300;
+    --bg: #f9f9f9;
+    --fg: #676767;
+    --panel: #ffffff;
+    --divider: rgba(0, 0, 0, 0.1);
+    --error: #ec4137;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background-color: var(--bg, #f9f9f9);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #000000;
+        --fg: #dadada;
+        --panel: #111111;
+        --divider: rgba(255, 255, 255, 0.1);
+    }
+}
+
+:root[data-theme="light"] {
+    color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    min-height: 100%;
+    margin: 0;
+    background-color: var(--bg, #f9f9f9);
+}
+
+body {
+    color: var(--fg);
+}
+
+/* MkSignin.vue passes with-password-toggle to the pinned input primitive.  The Vue 3
+   fall-through never implemented the control, so the Razor port completes that intended
+   interaction without changing the surrounding MkInput DOM or exposing the value to a
+   server render batch. */
+.eppvobhk .matxzzsk > .input > .suffix > .password-toggle {
+    display: inline-flex;
+    min-width: 28px;
+    width: 28px;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    color: var(--fg);
+    opacity: 0.7;
+    pointer-events: auto;
+}
+
+.eppvobhk .matxzzsk > .input > .suffix > .password-toggle:hover,
+.eppvobhk .matxzzsk > .input > .suffix > .password-toggle:focus-visible,
+.eppvobhk .matxzzsk > .input > .suffix > .password-toggle[aria-pressed="true"] {
+    opacity: 1;
+}
+
+.eppvobhk .matxzzsk > .caption > .caps-lock-warning {
+    float: right;
+    color: var(--warn, #e5a100);
+}
+
+.eppvobhk .matxzzsk > .caption > .caps-lock-warning[hidden] {
+    display: none;
+}
+
+.eppvobhk .matxzzsk > .caption > .caps-lock-warning > .fas {
+    margin-right: 4px;
+}
+
+/* Misskey renders these surfaces over html's theme background.  An explicit opaque fallback
+   prevents transparent compositor layers when a custom theme omits a background image. */
+.mk-app,
+.dkgtipfy,
+.gbhvwtnk {
+    background-color: var(--bg, #f9f9f9);
+}
+
+a {
+    color: var(--accent);
+}
+
+/* Authentication and initialization failures are host concerns rather than replacement
+   Misskey screens.  Normal UI styling is generated directly from the pinned upstream SFCs. */
+.mk-primary-button,
+.mk-initialization-error button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    border: 0;
+    border-radius: 10px;
+    padding: 0 18px;
+    background: var(--accent);
+    color: #ffffff;
+    font: inherit;
+    cursor: pointer;
+}
+
+.mk-initialization-error {
+    width: min(100% - 32px, 960px);
+    margin: 0 auto;
+    border-left: 4px solid var(--error);
+    padding: 32px 16px;
+}
+
+.mk-error-reference {
+    font-family: ui-monospace, monospace;
+}
+
+#blazor-error-ui {
+    display: none;
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 10000;
+    padding: 16px;
+    background: var(--error);
+    color: white;
+}
+
+/* Supplying Blazor's documented reconnect host keeps the framework from creating an
+   inline <style> element in its shadow DOM.  All reconnect presentation therefore stays
+   in the pinned, same-origin stylesheet and remains compatible with style-src-elem 'self'. */
+.mk-circuit-reconnect {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 2000000;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.mk-circuit-reconnect.components-reconnect-show,
+.mk-circuit-reconnect.components-reconnect-retrying,
+.mk-circuit-reconnect.components-reconnect-failed,
+.mk-circuit-reconnect.components-reconnect-paused,
+.mk-circuit-reconnect.components-reconnect-resume-failed,
+.mk-circuit-reconnect.components-reconnect-rejected {
+    display: flex;
+}
+
+.mk-circuit-reconnect.components-reconnect-hide {
+    display: none;
+}
+
+.mk-circuit-reconnect__dialog {
+    width: min(100%, 420px);
+    border-radius: 12px;
+    padding: 32px;
+    background: var(--panel, #ffffff);
+    color: var(--fg, #676767);
+    text-align: center;
+}
+
+.mk-circuit-reconnect__dialog > .fas {
+    margin-bottom: 16px;
+    color: var(--accent, #86b300);
+    font-size: 40px;
+}
+
+.mk-circuit-reconnect__title {
+    margin: 0 0 12px;
+    font-weight: 700;
+}
+
+.mk-circuit-reconnect__dialog > p:not(.mk-circuit-reconnect__title) {
+    margin: 0 0 20px;
+}
+
+.mk-circuit-reconnect__paused,
+.mk-circuit-reconnect__failed,
+.mk-circuit-reconnect__rejected,
+.mk-circuit-reconnect__resume-failed,
+.mk-circuit-reconnect__reload {
+    display: none;
+}
+
+.mk-circuit-reconnect.components-reconnect-paused .mk-circuit-reconnect__retrying,
+.mk-circuit-reconnect.components-reconnect-failed .mk-circuit-reconnect__retrying,
+.mk-circuit-reconnect.components-reconnect-rejected .mk-circuit-reconnect__retrying,
+.mk-circuit-reconnect.components-reconnect-resume-failed .mk-circuit-reconnect__retrying {
+    display: none;
+}
+
+.mk-circuit-reconnect.components-reconnect-paused .mk-circuit-reconnect__paused,
+.mk-circuit-reconnect.components-reconnect-failed .mk-circuit-reconnect__failed,
+.mk-circuit-reconnect.components-reconnect-rejected .mk-circuit-reconnect__rejected,
+.mk-circuit-reconnect.components-reconnect-resume-failed .mk-circuit-reconnect__resume-failed,
+.mk-circuit-reconnect.components-reconnect-failed .mk-circuit-reconnect__reload,
+.mk-circuit-reconnect.components-reconnect-rejected .mk-circuit-reconnect__reload,
+.mk-circuit-reconnect.components-reconnect-resume-failed .mk-circuit-reconnect__reload {
+    display: block;
+}
+
+.mk-circuit-reconnect__reload {
+    width: fit-content;
+    margin: 0 auto;
+    padding: 8px 20px;
+    border-radius: 999px;
+    color: #ffffff;
+    text-decoration: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+    }
+
+    /* Upstream's modal transition declarations are also !important and more specific than
+       the universal rule above.  Match that specificity so the operating-system preference
+       actually wins without altering the normal 200 ms Misskey timing. */
+    .modal-enter-active > .bg,
+    .modal-leave-active > .bg,
+    .modal-enter-active > .content,
+    .modal-leave-active > .content,
+    .modal-popup-enter-active > .bg,
+    .modal-popup-leave-active > .bg,
+    .modal-popup-enter-active > .content,
+    .modal-popup-leave-active > .content,
+    .modal-drawer-enter-active > .bg,
+    .modal-drawer-leave-active > .bg,
+    .modal-drawer-enter-active > .content,
+    .modal-drawer-leave-active > .content {
+        transition-duration: 0.001ms !important;
+    }
+}
+
+.mk-visually-hidden {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}

@@ -1,0 +1,363 @@
+@implements IAsyncDisposable
+@inject IDialogWindowInterop DialogInterop
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+
+<div @ref="modalElement"
+     class="qzhlnise dialog modal-enter-active modal-enter-from"
+     role="alertdialog"
+     aria-modal="true"
+     aria-label="@ResolvedAccessibleLabel">
+    <div class="bg _modalBg" @onclick="CancelAsync"></div>
+    <div @ref="contentElement" class="content" @onclick:stopPropagation="true">
+        <div @ref="dialogElement" class="mk-dialog">
+            @if (!string.IsNullOrWhiteSpace(Icon))
+            {
+                <div class="icon"><i class="@Icon"></i></div>
+            }
+            else if (Input is null && Select is null)
+            {
+                <div class="icon @Type"><i class="@TypeIconClass"></i></div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Title))
+            {
+                <header><MfmView Text="@Title" /></header>
+            }
+            @if (!string.IsNullOrWhiteSpace(Text))
+            {
+                <div class="body"><MfmView Text="@Text" /></div>
+            }
+            @if (Input is not null)
+            {
+                if (string.Equals(Input.Type, "password", StringComparison.Ordinal))
+                {
+                    <MkFormInput @bind-Value="inputValue"
+                                 Autofocus="true"
+                                 Type="@Input.Type"
+                                 Placeholder="@Input.Placeholder"
+                                 Entered="OkAsync">
+                        <Prefix><i class="fas fa-lock"></i></Prefix>
+                    </MkFormInput>
+                }
+                else
+                {
+                    <MkFormInput @bind-Value="inputValue"
+                                 Autofocus="true"
+                                 Type="@Input.Type"
+                                 Placeholder="@Input.Placeholder"
+                                 Entered="OkAsync" />
+                }
+            }
+            @if (Select is not null)
+            {
+                <MkFormSelect @bind-Value="selectedValue"
+                              Autofocus="true"
+                              Items="@Select.Items" />
+            }
+            @if (Actions is null && (ShowOkButton || ShowCancelButton || Input is not null || Select is not null))
+            {
+                <div class="buttons">
+                    @if (ShowOkButton)
+                    {
+                        <MkButton Inline="true"
+                                  Primary="true"
+                                  Autofocus="@(Input is null && Select is null)"
+                                  OnClick="OkClickAsync">@OkLabel</MkButton>
+                    }
+                    @if (ShowCancelButton || Input is not null || Select is not null)
+                    {
+                        <MkButton Inline="true" OnClick="CancelAsync">@Localizer.Translate("cancel")</MkButton>
+                    }
+                </div>
+            }
+            @if (Actions is not null)
+            {
+                <div class="buttons">
+                    @foreach (MisskeyDialogAction action in Actions)
+                    {
+                        <MkButton @key="action"
+                                  Inline="true"
+                                  Primary="@action.Primary"
+                                  OnClick="args => InvokeActionAsync(action, args)">@action.Text</MkButton>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private static readonly HashSet<string> SupportedTypes = new(StringComparer.Ordinal)
+    {
+        "success", "error", "warning", "info", "question", "waiting"
+    };
+
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference modalElement;
+    private ElementReference contentElement;
+    private ElementReference dialogElement;
+    private DotNetObjectReference<MkDialog>? receiver;
+    private IJSObjectReference? attachment;
+    private string inputValue = string.Empty;
+    private string selectedValue = string.Empty;
+    private MisskeyDialogInput? lastInput;
+    private MisskeyDialogSelect? lastSelect;
+    private bool completionEmitted;
+    private bool closingByAction;
+    private bool closing;
+    private bool disposed;
+
+    [Parameter]
+    public string Type { get; set; } = "info";
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Text { get; set; }
+
+    [Parameter]
+    public MisskeyDialogInput? Input { get; set; }
+
+    [Parameter]
+    public MisskeyDialogSelect? Select { get; set; }
+
+    [Parameter]
+    public string? Icon { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<MisskeyDialogAction>? Actions { get; set; }
+
+    [Parameter]
+    public bool ShowOkButton { get; set; } = true;
+
+    [Parameter]
+    public bool ShowCancelButton { get; set; }
+
+    // Misskey 12.119.2 declares this prop, but its background-click guard is commented out.
+    [Parameter]
+    public bool CancelableByBgClick { get; set; } = true;
+
+    [Parameter]
+    public string? AccessibleLabel { get; set; }
+
+    [Parameter]
+    public EventCallback<MisskeyDialogResult> Done { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    [Parameter]
+    public Guid? OverlayId { get; set; }
+
+    [CascadingParameter(Name = "MisskeyLocaleRevision")]
+    private long LocaleRevision { get; set; }
+
+    private string ResolvedAccessibleLabel => string.IsNullOrWhiteSpace(AccessibleLabel)
+        ? string.IsNullOrWhiteSpace(Title) ? Localizer.Translate("dialog") : Title
+        : AccessibleLabel;
+
+    private string TypeIconClass => Type switch
+    {
+        "success" => "fas fa-check",
+        "error" => "fas fa-times-circle",
+        "warning" => "fas fa-exclamation-triangle",
+        "info" => "fas fa-info-circle",
+        "question" => "fas fa-question-circle",
+        "waiting" => "fas fa-spinner fa-pulse",
+        _ => throw new InvalidOperationException("The dialog type has not been validated.")
+    };
+
+    private string OkLabel => ShowCancelButton || Input is not null || Select is not null
+        ? Localizer.Translate("ok")
+        : Localizer.Translate("gotIt");
+
+    protected override void OnInitialized()
+    {
+        if (OverlayId is Guid id)
+        {
+            Overlays.RegisterCloseHandler(id, BeginCloseAsync);
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!SupportedTypes.Contains(Type))
+        {
+            throw new ArgumentOutOfRangeException(nameof(Type), Type, "The dialog type is not supported by Misskey 12.119.2.");
+        }
+
+        if (Input is not null && Select is not null)
+        {
+            throw new InvalidOperationException("A Misskey dialog cannot contain both input and select controls.");
+        }
+
+        if (!ReferenceEquals(lastInput, Input))
+        {
+            inputValue = Input?.Default ?? string.Empty;
+            lastInput = Input;
+        }
+
+        if (!ReferenceEquals(lastSelect, Select))
+        {
+            selectedValue = Select?.Default ?? string.Empty;
+            lastSelect = Select;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            attachment = await DialogInterop.AttachHighPriorityAsync(
+                modalElement,
+                contentElement,
+                dialogElement,
+                receiver,
+                lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private Task OkClickAsync(MouseEventArgs args)
+    {
+        _ = args;
+        return OkAsync();
+    }
+
+    private Task OkAsync()
+    {
+        if (!ShowOkButton)
+        {
+            return Task.CompletedTask;
+        }
+
+        object result = Input is not null
+            ? inputValue
+            : Select is not null
+                ? selectedValue
+                : true;
+        return CompleteAsync(canceled: false, result);
+    }
+
+    private Task CancelAsync(MouseEventArgs args)
+    {
+        _ = args;
+        return CompleteAsync(canceled: true, result: null);
+    }
+
+    private async Task CompleteAsync(bool canceled, object? result)
+    {
+        if (closing)
+        {
+            return;
+        }
+
+        completionEmitted = true;
+        await Done.InvokeAsync(new MisskeyDialogResult(canceled, result));
+        await BeginCloseAsync();
+    }
+
+    private async Task InvokeActionAsync(MisskeyDialogAction action, MouseEventArgs args)
+    {
+        _ = args;
+        if (closing)
+        {
+            return;
+        }
+
+        closingByAction = true;
+        await action.Callback();
+        await BeginCloseAsync();
+    }
+
+    private async Task BeginCloseAsync()
+    {
+        if (closing)
+        {
+            return;
+        }
+
+        closing = true;
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("close", lifetime.Token);
+                return;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        await NotifyClosed();
+    }
+
+    [JSInvokable]
+    public Task NotifyOpened() => Task.CompletedTask;
+
+    [JSInvokable]
+    public async Task NotifyClosed()
+    {
+        if (!completionEmitted && !closingByAction)
+        {
+            completionEmitted = true;
+            await Done.InvokeAsync(new MisskeyDialogResult(Canceled: true));
+        }
+
+        if (OverlayId is Guid id)
+        {
+            Overlays.Close(id);
+        }
+
+        await Closed.InvokeAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        if (OverlayId is Guid id)
+        {
+            Overlays.UnregisterCloseHandler(id);
+        }
+
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+}

@@ -1,0 +1,194 @@
+@implements IAsyncDisposable
+@inject IFolderInterop Browser
+@inject IPizzaxDeviceState DeviceState
+
+<div @ref="root" class="@RootClass" @attributes="AttributesWithoutClass">
+    <header class="_button" style="@HeaderStyle" @onclick="ToggleAsync">
+        <div class="title">@Header</div>
+        <div class="divider"></div>
+        <button class="_button">
+            @if (showBody)
+            {
+                <i class="fas fa-angle-up"></i>
+            }
+            else
+            {
+                <i class="fas fa-angle-down"></i>
+            }
+        </button>
+    </header>
+    <div @ref="content" style="@BodyStyle">@ChildContent</div>
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference root;
+    private ElementReference content;
+    private IJSObjectReference? attachment;
+    private DotNetObjectReference<MkFolder>? receiver;
+    private bool showBody;
+    private bool narrow;
+    private bool animation = true;
+    private bool initialized;
+    private bool disposed;
+    private long generation;
+    private string? background;
+
+    [Parameter]
+    public bool Expanded { get; set; } = true;
+
+    [Parameter]
+    public string? PersistKey { get; set; }
+
+    [Parameter]
+    public RenderFragment? Header { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "ssazuxis",
+        narrow ? "max-width_500px" : null,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? HeaderStyle => background is null ? null : $"background: {background};";
+    private string? BodyStyle => showBody ? null : "display: none;";
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        if (PersistKey is { } key &&
+            (string.IsNullOrWhiteSpace(key) || key.Length > 128 || key.Any(char.IsControl)))
+        {
+            throw new ArgumentException("The Misskey folder persistence key is invalid.", nameof(PersistKey));
+        }
+
+        if (!initialized)
+        {
+            initialized = true;
+            showBody = Expanded;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            animation = await DeviceState.ReadAsync("animation", true, lifetime.Token).ConfigureAwait(false);
+            receiver = DotNetObjectReference.Create(this);
+            attachment = await Browser.AttachAsync(
+                root,
+                content,
+                PersistKey,
+                showBody,
+                receiver,
+                lifetime.Token).ConfigureAwait(false);
+            FolderBrowserState state = await attachment.InvokeAsync<FolderBrowserState>(
+                "getState",
+                lifetime.Token).ConfigureAwait(false);
+            if (!disposed)
+            {
+                showBody = state.Expanded;
+                background = state.Background;
+                narrow = state.Narrow;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception exception) when (exception is JSDisconnectedException or OperationCanceledException)
+        {
+        }
+    }
+
+    public Task ToggleContentAsync(bool show) => SetExpandedAsync(show);
+
+    [JSInvokable]
+    public Task UpdateFolderNarrow(bool value)
+    {
+        if (disposed || narrow == value)
+        {
+            return Task.CompletedTask;
+        }
+
+        narrow = value;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task ToggleAsync() => SetExpandedAsync(!showBody);
+
+    private async Task SetExpandedAsync(bool value)
+    {
+        if (disposed || showBody == value)
+        {
+            return;
+        }
+
+        long current = ++generation;
+        showBody = value;
+        await InvokeAsync(StateHasChanged);
+        if (attachment is null)
+        {
+            return;
+        }
+
+        try
+        {
+            bool cancelled = await attachment.InvokeAsync<bool>(
+                "setExpanded",
+                lifetime.Token,
+                value,
+                animation,
+                current).ConfigureAwait(false);
+            if (!disposed && generation == current && !cancelled)
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception exception) when (exception is JSDisconnectedException or OperationCanceledException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        generation++;
+        await lifetime.CancelAsync().ConfigureAwait(false);
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose").ConfigureAwait(false);
+                await attachment.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+}

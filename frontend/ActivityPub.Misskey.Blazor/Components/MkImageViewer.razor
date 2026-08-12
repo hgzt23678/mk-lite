@@ -1,0 +1,264 @@
+@implements IAsyncDisposable
+@inject IDialogWindowInterop DialogInterop
+@inject IImageViewerInterop ViewerInterop
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+
+@if (CanRender)
+{
+    <div @ref="modalElement"
+         class="qzhlnise dialog modal-enter-active modal-enter-from"
+         role="dialog"
+         aria-modal="true"
+         aria-label="@MediaName">
+        <div class="bg _modalBg" @onclick="BeginCloseAsync" @oncontextmenu:preventDefault @oncontextmenu:stopPropagation></div>
+        <div @ref="contentElement" class="content" @onclick="BeginCloseAsync">
+            <div @ref="viewerElement"
+                 class="xubzgfga"
+                 tabindex="-1"
+                 @onclick:stopPropagation="true">
+                <header>@MediaName</header>
+                <img @ref="imageElement"
+                     src="@ImageUrl"
+                     alt="@Image.Description"
+                     title="@Image.Description"
+                     @onclick="BeginCloseAsync" />
+                <footer>
+                    <span>@Image.MediaType</span>
+                    <span>@FormattedSize</span>
+                    @if (Image.Width is not null)
+                    {
+                        <span>@FormatNumber(Image.Width)px × @FormatNumber(Image.Height)px</span>
+                    }
+                </footer>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference modalElement;
+    private ElementReference contentElement;
+    private ElementReference viewerElement;
+    private ElementReference imageElement;
+    private DotNetObjectReference<MkImageViewer>? receiver;
+    private IJSObjectReference? dialogAttachment;
+    private IJSObjectReference? viewerAttachment;
+    private Task? attachmentTask;
+    private bool closing;
+    private bool closed;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public NoteMediaViewModel Image { get; set; } = null!;
+
+    [Parameter]
+    public Guid? OverlayId { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    private string? ImageUrl => SameOriginMediaUrl.Normalize(Image.Url);
+    private bool CanRender => ImageUrl is not null;
+    private string MediaName => Image.Description ?? Image.Id;
+    private string FormattedSize => FormatBytes(Image.Size);
+
+    protected override void OnInitialized()
+    {
+        if (OverlayId is Guid id)
+        {
+            Overlays.RegisterCloseHandler(id, BeginCloseAsync);
+        }
+    }
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && CanRender)
+        {
+            attachmentTask = AttachAsync();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task AttachAsync()
+    {
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            IJSObjectReference createdDialog = await DialogInterop.AttachMiddlePriorityAsync(
+                modalElement,
+                contentElement,
+                viewerElement,
+                receiver,
+                lifetime.Token).ConfigureAwait(false);
+            if (disposed)
+            {
+                await DisposeHandleAsync(createdDialog).ConfigureAwait(false);
+                return;
+            }
+
+            dialogAttachment = createdDialog;
+            if (closing)
+            {
+                await CloseDialogAsync().ConfigureAwait(false);
+                return;
+            }
+
+            IJSObjectReference createdViewer = await ViewerInterop.AttachAsync(
+                modalElement,
+                viewerElement,
+                imageElement,
+                lifetime.Token).ConfigureAwait(false);
+            if (disposed)
+            {
+                await DisposeHandleAsync(createdViewer).ConfigureAwait(false);
+                return;
+            }
+
+            viewerAttachment = createdViewer;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            if (!disposed)
+            {
+                await NotifyClosed().ConfigureAwait(false);
+            }
+        }
+    }
+
+    public async Task BeginCloseAsync()
+    {
+        if (closing || disposed)
+        {
+            return;
+        }
+
+        closing = true;
+        if (dialogAttachment is not null)
+        {
+            await CloseDialogAsync().ConfigureAwait(false);
+            return;
+        }
+
+        if (attachmentTask is null)
+        {
+            await NotifyClosed().ConfigureAwait(false);
+        }
+    }
+
+    private async Task CloseDialogAsync()
+    {
+        try
+        {
+            await dialogAttachment!.InvokeVoidAsync("close", lifetime.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            await NotifyClosed().ConfigureAwait(false);
+        }
+    }
+
+    [JSInvokable]
+    public Task NotifyOpened() => Task.CompletedTask;
+
+    [JSInvokable]
+    public async Task NotifyClosed()
+    {
+        if (closed || disposed)
+        {
+            return;
+        }
+
+        closed = true;
+        if (OverlayId is Guid id)
+        {
+            Overlays.Close(id);
+        }
+
+        await Closed.InvokeAsync();
+    }
+
+    private string FormatNumber(int? value) => value?.ToString("N0", Localizer.Culture) ?? "N/A";
+
+    private static string FormatBytes(long? value)
+    {
+        if (value is null)
+        {
+            return "?";
+        }
+
+        if (value == 0)
+        {
+            return "0";
+        }
+
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double absolute = Math.Abs((double)value.Value);
+        int index = Math.Clamp((int)Math.Floor(Math.Log(absolute) / Math.Log(1024)), 0, units.Length - 1);
+        double scaled = absolute / Math.Pow(1024, index);
+        string prefix = value < 0 ? "-" : string.Empty;
+        return $"{prefix}{scaled.ToString("F0", CultureInfo.InvariantCulture)}{units[index]}";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        if (OverlayId is Guid id)
+        {
+            Overlays.UnregisterCloseHandler(id);
+        }
+
+        await lifetime.CancelAsync();
+        if (attachmentTask is not null)
+        {
+            try
+            {
+                await attachmentTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        if (viewerAttachment is not null)
+        {
+            await DisposeHandleAsync(viewerAttachment).ConfigureAwait(false);
+        }
+
+        if (dialogAttachment is not null)
+        {
+            await DisposeHandleAsync(dialogAttachment).ConfigureAwait(false);
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static async ValueTask DisposeHandleAsync(IJSObjectReference handle)
+    {
+        try
+        {
+            await handle.InvokeVoidAsync("dispose").ConfigureAwait(false);
+            await handle.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

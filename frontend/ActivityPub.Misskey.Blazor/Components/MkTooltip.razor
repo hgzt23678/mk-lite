@@ -1,0 +1,168 @@
+@implements IAsyncDisposable
+@using Microsoft.Extensions.DependencyInjection
+@inject IVisibilityTooltipInterop Browser
+@inject IServiceProvider Services
+
+<div @ref="tooltip"
+     @attributes="AttributesWithoutClassAndStyle"
+     id="@Id"
+     class="@RootClass"
+     style="@RootStyle"
+     role="tooltip">
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+    else if (AsMfm)
+    {
+        <MfmView Text="@(Text ?? string.Empty)" />
+    }
+    else
+    {
+        <span>@Text</span>
+    }
+</div>
+
+@code {
+    private ElementReference tooltip;
+    private DotNetObjectReference<MkTooltip>? receiver;
+    private IJSObjectReference? handle;
+    private bool? appliedShowing;
+    private bool disposed;
+
+    [Parameter]
+    public ElementReference Target { get; set; }
+
+    [Parameter]
+    public double? X { get; set; }
+
+    [Parameter]
+    public double? Y { get; set; }
+
+    [Parameter]
+    public string? Text { get; set; }
+
+    [Parameter]
+    public bool AsMfm { get; set; }
+
+    [Parameter]
+    public bool Showing { get; set; }
+
+    [Parameter]
+    public int MaxWidth { get; set; } = 250;
+
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Direction { get; set; } = "top";
+
+    [Parameter]
+    public int InnerMargin { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "buebdbiu",
+        "_acrylic",
+        "_shadow",
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string RootStyle => string.Join(' ', new[]
+    {
+        $"max-width: {Math.Max(0, MaxWidth)}px;",
+        AdditionalStyle
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass => ReadAdditional("class");
+    private string? AdditionalStyle => ReadAdditional("style");
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        if (Direction is not ("top" or "bottom" or "left" or "right"))
+        {
+            throw new ArgumentOutOfRangeException(nameof(Direction));
+        }
+
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            if (handle is null)
+            {
+                bool animation = true;
+                if (Services.GetService<IPizzaxDeviceState>() is { } deviceState)
+                {
+                    try
+                    {
+                        animation = await deviceState.ReadAsync("animation", true, CancellationToken.None);
+                    }
+                    catch (JsonException)
+                    {
+                        animation = true;
+                    }
+                }
+                receiver = DotNetObjectReference.Create(this);
+                handle = await Browser.AttachTooltipAsync(
+                    Target,
+                    tooltip,
+                    receiver,
+                    new(X, Y, Direction, InnerMargin, animation),
+                    CancellationToken.None).ConfigureAwait(false);
+                appliedShowing = true;
+            }
+
+            if (appliedShowing != Showing)
+            {
+                await handle.InvokeVoidAsync(Showing ? "show" : "hide").ConfigureAwait(false);
+                appliedShowing = Showing;
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task NotifyTooltipClosedAsync() => disposed ? Task.CompletedTask : Closed.InvokeAsync();
+
+    public async ValueTask DisposeAsync()
+    {
+        disposed = true;
+        if (handle is not null)
+        {
+            try
+            {
+                await handle.InvokeVoidAsync("dispose").ConfigureAwait(false);
+                await handle.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+        receiver?.Dispose();
+    }
+
+    private string? ReadAdditional(string name) => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue(name, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+}

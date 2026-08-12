@@ -1,0 +1,265 @@
+@implements IAsyncDisposable
+@inject IMisskeyOverlayService Overlays
+@inject IReactionViewerInterop Browser
+@inject IReactionDetailsPresentationService Details
+
+@if (Count > 0)
+{
+    <button @ref="button"
+            class="@RootClass"
+            type="button"
+            @onclick="ToggleReactionAsync">
+        <MkReactionIcon Reaction="@Reaction"
+                        CustomEmojis="CustomEmojis"
+                        class="icon" />
+        <span class="count">@Count</span>
+    </button>
+}
+@foreach (ReactionRipple ripple in ripples)
+{
+    <MkRipple @key="ripple.Id"
+              X="ripple.X"
+              Y="ripple.Y"
+              End="@(() => CloseRipple(ripple.Id))" />
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private readonly List<ReactionRipple> ripples = [];
+    private ElementReference button;
+    private DotNetObjectReference<MkReactionsViewerReaction>? receiver;
+    private IJSObjectReference? attachment;
+    private CancellationTokenSource? tooltipRequest;
+    private IReadOnlyList<NoteAuthorViewModel>? loadedUsers;
+    private Guid? tooltipId;
+    private string? detailCacheKey;
+    private bool? attachedCanToggle;
+    private bool attaching;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public string Reaction { get; set; } = string.Empty;
+
+    [Parameter]
+    public long Count { get; set; }
+
+    [Parameter]
+    public bool IsInitial { get; set; }
+
+    [Parameter, EditorRequired]
+    public NoteViewModel Note { get; set; } = null!;
+
+    [Parameter]
+    public bool IsAuthenticated { get; set; }
+
+    [Parameter]
+    public EventCallback<string> ReactionSelected { get; set; }
+
+    private bool CanToggle =>
+        IsAuthenticated &&
+        ReactionSelected.HasDelegate &&
+        !System.Text.RegularExpressions.Regex.IsMatch(
+            Reaction,
+            "@[A-Za-z0-9_]",
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "hkzvhatu",
+        "_button",
+        string.Equals(Note.ViewerReaction, Reaction, StringComparison.Ordinal) ? "reacted" : null,
+        CanToggle ? "canToggle" : null
+    }.Where(value => value is not null));
+
+    private IReadOnlyList<EmojiPickerCustomEmoji> CustomEmojis => Note.Emojis
+        .Select(emoji => new EmojiPickerCustomEmoji(emoji.Key, emoji.Value, Category: null, Aliases: []))
+        .ToArray();
+
+    protected override void OnParametersSet()
+    {
+        string key = $"{Note.InternalId:N}\u001f{Reaction}\u001f{Count}";
+        if (string.Equals(key, detailCacheKey, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        detailCacheKey = key;
+        loadedUsers = null;
+        tooltipRequest?.Cancel();
+        if (tooltipId is Guid id)
+        {
+            Overlays.Close(id);
+            tooltipId = null;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Count <= 0 || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            if (attachment is null && !attaching)
+            {
+                attaching = true;
+                receiver ??= DotNetObjectReference.Create(this);
+                try
+                {
+                    IJSObjectReference created = await Browser.AttachAsync(
+                        button,
+                        receiver,
+                        CanToggle,
+                        lifetime.Token).ConfigureAwait(false);
+                    if (disposed)
+                    {
+                        await created.InvokeVoidAsync("dispose").ConfigureAwait(false);
+                        await created.DisposeAsync().ConfigureAwait(false);
+                        return;
+                    }
+
+                    attachment = created;
+                    attachedCanToggle = CanToggle;
+                }
+                finally
+                {
+                    attaching = false;
+                }
+            }
+            else if (attachment is not null && attachedCanToggle != CanToggle)
+            {
+                await attachment.InvokeVoidAsync("setCanToggle", CanToggle).ConfigureAwait(false);
+                attachedCanToggle = CanToggle;
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private Task ToggleReactionAsync()
+    {
+        return CanToggle
+            ? ReactionSelected.InvokeAsync(Reaction)
+            : Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public async Task ShowReactionTooltipAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        tooltipRequest?.Cancel();
+        tooltipRequest?.Dispose();
+        tooltipRequest = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        CancellationToken cancellationToken = tooltipRequest.Token;
+        try
+        {
+            IReadOnlyList<NoteAuthorViewModel> users = loadedUsers ?? await Details.ReadAsync(
+                Note.InternalId,
+                Reaction,
+                11,
+                cancellationToken).ConfigureAwait(false);
+            if (cancellationToken.IsCancellationRequested || disposed)
+            {
+                return;
+            }
+
+            await InvokeAsync(() =>
+            {
+                loadedUsers = users;
+                if (tooltipId is Guid existing && Overlays.SetReactionTooltipShowing(existing, showing: true))
+                {
+                    return;
+                }
+
+                tooltipId = Overlays.ShowReactionTooltip(
+                    button,
+                    Reaction,
+                    CustomEmojis,
+                    users,
+                    Count);
+            });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task HideReactionTooltipAsync()
+    {
+        if (disposed)
+        {
+            return Task.CompletedTask;
+        }
+
+        tooltipRequest?.Cancel();
+        return InvokeAsync(() =>
+        {
+            if (tooltipId is Guid id)
+            {
+                _ = Overlays.SetReactionTooltipShowing(id, showing: false);
+            }
+        });
+    }
+
+    [JSInvokable]
+    public Task ShowReactionRippleAsync(double x, double y)
+    {
+        if (disposed || !CanToggle || !double.IsFinite(x) || !double.IsFinite(y))
+        {
+            return Task.CompletedTask;
+        }
+
+        return InvokeAsync(() =>
+        {
+            ripples.Add(new(Guid.NewGuid(), x, y));
+            StateHasChanged();
+        });
+    }
+
+    private void CloseRipple(Guid id) => ripples.RemoveAll(ripple => ripple.Id == id);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        tooltipRequest?.Cancel();
+        tooltipRequest?.Dispose();
+        if (tooltipId is Guid id)
+        {
+            Overlays.Close(id);
+        }
+
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose").ConfigureAwait(false);
+                await attachment.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private sealed record ReactionRipple(Guid Id, double X, double Y);
+}

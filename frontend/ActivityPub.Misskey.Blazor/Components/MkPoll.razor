@@ -1,0 +1,331 @@
+@implements IAsyncDisposable
+@using ActivityPub.Application
+@inject ITimelinePresentationService Timeline
+@inject IAuthenticatedActorContext ActorContext
+@inject IMisskeyOverlayService Overlays
+@inject IMisskeyLocalizer Localizer
+@inject NavigationManager Navigation
+
+<div class="@RootClass"
+     aria-busy="@(voting ? "true" : "false")"
+     @attributes="AttributesWithoutClass">
+    <ul>
+        @for (int index = 0; index < CurrentPoll.Options.Count; index++)
+        {
+            int choiceIndex = index;
+            NotePollOptionViewModel option = CurrentPoll.Options[choiceIndex];
+            bool ownVote = CurrentPoll.OwnVotes.Contains(choiceIndex);
+            <li class="@(ownVote ? "voted" : null)"
+                role="button"
+                tabindex="@(CanVote ? 0 : -1)"
+                aria-disabled="@(!CanVote ? "true" : "false")"
+                aria-pressed="@(ownVote ? "true" : "false")"
+                data-choice-index="@choiceIndex"
+                @onclick="() => RequestVoteAsync(choiceIndex)"
+                @onkeydown="args => OnChoiceKeyDownAsync(args, choiceIndex)">
+                <div class="backdrop" style="width: @Percentage(option)%"></div>
+                <span>
+                    @if (ownVote)
+                    {
+                        <i class="fas fa-check" aria-hidden="true"></i>
+                    }
+                    <MfmView Text="@option.Title" Plain="true" CustomEmojis="CustomEmojis" />
+                    @if (showResult)
+                    {
+                        <span class="votes">(@VotesCountText(option.VotesCount))</span>
+                    }
+                </span>
+            </li>
+        }
+    </ul>
+    @if (!ReadOnly)
+    {
+        <p>
+            <span>@TotalVotesText</span>
+            <span> · </span>
+            @if (!Closed && !IsVoted)
+            {
+                <a role="button"
+                   tabindex="0"
+                   @onclick="ToggleResult"
+                   @onkeydown="OnToggleResultKeyDown">@(showResult ? Localizer.Translate("_poll.vote") : Localizer.Translate("_poll.showResult"))</a>
+            }
+            @if (IsVoted)
+            {
+                <span>@Localizer.Translate("_poll.voted")</span>
+            }
+            else if (Closed)
+            {
+                <span>@Localizer.Translate("_poll.closed")</span>
+            }
+            @if (remaining > 0)
+            {
+                <span> · @TimerText</span>
+            }
+            @if (voting)
+            {
+                <span class="poll-status" role="status" aria-live="polite"> · @Localizer.Translate("processing")</span>
+            }
+        </p>
+    }
+</div>
+
+@if (dialog is not null)
+{
+    <MkPollDialog Type="@dialog.Type"
+                  Text="@dialog.Text"
+                  ShowCancelButton="@dialog.ShowCancel"
+                  Decision="OnDialogDecisionAsync" />
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private CancellationTokenSource? expirationLifetime;
+    private NotePollViewModel? observedParameter;
+    private NotePollViewModel? currentPoll;
+    private PollDialogState? dialog;
+    private long remaining = -1;
+    private int? pendingChoice;
+    private bool showResult;
+    private bool voting;
+
+    [Parameter, EditorRequired]
+    public string NoteId { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public NotePollViewModel Poll { get; set; } = null!;
+
+    [Parameter]
+    public IReadOnlyDictionary<string, string> CustomEmojis { get; set; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    [Parameter]
+    public EventCallback<NotePollViewModel> PollChanged { get; set; }
+
+    [Parameter]
+    public TimeProvider TimeProvider { get; set; } = TimeProvider.System;
+
+    [CascadingParameter(Name = "MisskeyLocaleRevision")]
+    private long LocaleRevision { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private NotePollViewModel CurrentPoll => currentPoll ?? Poll;
+    private long TotalVotes => CurrentPoll.Options.Sum(option => option.VotesCount);
+    private string TotalVotesText => TranslateWith("_poll.totalVotes", ("n", TotalVotes));
+    private bool Closed => CurrentPoll.Expired || remaining == 0;
+    private bool IsVoted => !CurrentPoll.Multiple && CurrentPoll.OwnVotes.Count > 0;
+    private bool CanVote => !ReadOnly && !Closed && !IsVoted && !voting;
+    private string RootClass => string.Join(' ', new[]
+    {
+        "tivcixzd",
+        Closed || IsVoted ? "done" : null,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+    private string TimerText => remaining switch
+    {
+        >= 86_400 => TranslateWith("_poll.remainingDays", ("d", remaining / 86_400), ("h", (remaining / 3_600) % 24)),
+        >= 3_600 => TranslateWith("_poll.remainingHours", ("h", remaining / 3_600), ("m", (remaining / 60) % 60)),
+        >= 60 => TranslateWith("_poll.remainingMinutes", ("m", remaining / 60), ("s", remaining % 60)),
+        _ => TranslateWith("_poll.remainingSeconds", ("s", remaining % 60))
+    };
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(Poll, observedParameter))
+        {
+            return;
+        }
+
+        observedParameter = Poll;
+        currentPoll = Poll;
+        showResult = ReadOnly || IsVoted || Closed;
+        RestartExpirationTimer();
+    }
+
+    private string Percentage(NotePollOptionViewModel option) =>
+        !showResult || TotalVotes == 0
+            ? "0"
+            : (option.VotesCount * 100d / TotalVotes).ToString("0.###", CultureInfo.InvariantCulture);
+
+    private string VotesCountText(long votes) => TranslateWith("_poll.votesCount", ("n", votes));
+
+    private string TranslateWith(string key, params (string Key, object? Value)[] arguments) =>
+        Localizer.Translate(
+            key,
+            arguments.ToDictionary(argument => argument.Key, argument => argument.Value, StringComparer.Ordinal));
+
+    private async Task RequestVoteAsync(int choiceIndex)
+    {
+        if (!CanVote || choiceIndex < 0 || choiceIndex >= CurrentPoll.Options.Count)
+        {
+            return;
+        }
+
+        if (await ActorContext.FindAsync(lifetime.Token).ConfigureAwait(false) is null)
+        {
+            string returnUrl = new Uri(Navigation.Uri).PathAndQuery;
+            Overlays.ShowSignIn(returnUrl.StartsWith("/", StringComparison.Ordinal) ? returnUrl : "/");
+            return;
+        }
+
+        pendingChoice = choiceIndex;
+        dialog = new(
+            "question",
+            TranslateWith("voteConfirm", ("choice", CurrentPoll.Options[choiceIndex].Title)),
+            ShowCancel: true);
+    }
+
+    private Task OnChoiceKeyDownAsync(KeyboardEventArgs args, int choiceIndex)
+    {
+        if (args.Key is "Enter" or " ")
+        {
+            return RequestVoteAsync(choiceIndex);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void ToggleResult() => showResult = !showResult;
+
+    private void OnToggleResultKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key is "Enter" or " ")
+        {
+            ToggleResult();
+        }
+    }
+
+    private async Task OnDialogDecisionAsync(bool confirmed)
+    {
+        PollDialogState? completed = dialog;
+        dialog = null;
+        if (!confirmed || completed?.ShowCancel != true || pendingChoice is not { } choiceIndex)
+        {
+            pendingChoice = null;
+            return;
+        }
+
+        pendingChoice = null;
+        voting = true;
+        try
+        {
+            NoteViewModel updated = await Timeline.VotePollAsync(
+                NoteId,
+                choiceIndex,
+                $"blazor-poll-vote-{Guid.NewGuid():N}",
+                lifetime.Token).ConfigureAwait(false);
+            currentPoll = updated.Poll ?? throw new InvalidOperationException("The voted note no longer contains a poll.");
+            if (!showResult)
+            {
+                showResult = !CurrentPoll.Multiple;
+            }
+
+            await PollChanged.InvokeAsync(CurrentPoll);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (FrontendAuthenticationException)
+        {
+            Overlays.ShowSignIn(new Uri(Navigation.Uri).PathAndQuery);
+        }
+        catch (ClientPollVoteException exception)
+        {
+            dialog = new("error", PollErrorText(exception.Error), ShowCancel: false);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or KeyNotFoundException)
+        {
+            dialog = new("error", Localizer.Translate("somethingHappened"), ShowCancel: false);
+        }
+        finally
+        {
+            voting = false;
+        }
+    }
+
+    private string PollErrorText(ClientPollVoteError error) => error switch
+    {
+        ClientPollVoteError.AlreadyVoted => Localizer.Translate("_poll.voted"),
+        ClientPollVoteError.Expired => Localizer.Translate("_poll.closed"),
+        ClientPollVoteError.InvalidChoice or ClientPollVoteError.Blocked or ClientPollVoteError.NotVisible =>
+            Localizer.Translate("somethingHappened"),
+        _ => Localizer.Translate("notFound")
+    };
+
+    private void RestartExpirationTimer()
+    {
+        expirationLifetime?.Cancel();
+        expirationLifetime?.Dispose();
+        expirationLifetime = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        if (CurrentPoll.ExpiresAt is null)
+        {
+            remaining = -1;
+            return;
+        }
+
+        UpdateRemaining();
+        _ = RunExpirationTimerAsync(expirationLifetime.Token);
+    }
+
+    private async Task RunExpirationTimerAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(3), TimeProvider);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
+            {
+                await InvokeAsync(() =>
+                {
+                    UpdateRemaining();
+                    StateHasChanged();
+                });
+                if (remaining == 0)
+                {
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private void UpdateRemaining()
+    {
+        remaining = CurrentPoll.ExpiresAt is { } expiresAt
+            ? (long)Math.Floor(Math.Max((expiresAt - TimeProvider.GetUtcNow()).TotalSeconds, 0))
+            : -1;
+        if (remaining == 0)
+        {
+            showResult = true;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await lifetime.CancelAsync();
+        if (expirationLifetime is not null)
+        {
+            await expirationLifetime.CancelAsync();
+            expirationLifetime.Dispose();
+        }
+
+        lifetime.Dispose();
+    }
+
+    private sealed record PollDialogState(string Type, string Text, bool ShowCancel);
+}

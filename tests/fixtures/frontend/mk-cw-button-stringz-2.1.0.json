@@ -1,0 +1,20 @@
+{
+  "source": "Misskey 12.119.2 packages/client/src/components/MkCwButton.vue",
+  "upstreamCommit": "a5a74f4434b179cdb1f97af98bf294c8b18de0e2",
+  "counterPackage": "stringz@2.1.0",
+  "counterSource": "https://github.com/sallar/stringz",
+  "regexPackage": "char-regex@1.0.2",
+  "regexSource": "https://github.com/Richienb/char-regex",
+  "license": "MIT",
+  "cases": [
+    { "name": "ascii", "value": "abc", "length": 3 },
+    { "name": "family-zwj", "value": "👨‍👩‍👧‍👦", "length": 1 },
+    { "name": "combining-mark", "value": "é", "length": 1 },
+    { "name": "regional-flag", "value": "🇯🇵", "length": 1 },
+    { "name": "tag-flag", "value": "🏴󠁧󠁢󠁥󠁮󠁧󠁿", "length": 1 },
+    { "name": "skin-tone", "value": "👍🏽", "length": 1 },
+    { "name": "skin-tone-zwj", "value": "👩🏻‍🎓", "length": 1 },
+    { "name": "historical-non-combining-mark", "value": "क्", "length": 2 },
+    { "name": "mixed-label", "value": "A👨‍👩‍👧‍👦é", "length": 3 }
+  ]
+}

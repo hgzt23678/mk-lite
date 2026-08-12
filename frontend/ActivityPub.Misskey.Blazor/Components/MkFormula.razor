@@ -1,0 +1,53 @@
+@implements IAsyncDisposable
+@inject IKatexFormulaInterop Katex
+
+@if (loaded)
+{
+    <MkFormulaCore Formula="@Formula" Block="@Block" @attributes="AdditionalAttributes" />
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private bool loaded;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public string Formula { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public bool Block { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            await Katex.EnsureLoadedAsync(lifetime.Token);
+            if (!disposed)
+            {
+                loaded = true;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

@@ -1,0 +1,7 @@
+# Server廃止
+
+account作成とlocal writeを停止し、廃止日とexport期限を告知する。可能なActorにはMoveを案内するが、本実装はMoveの自動適用をまだ行わないためoperator管理下で移行する。
+
+Actorごとにfollowers、recipient、shared inboxのsnapshotを取り、署名付きDeleteをtransactional outboxへ作成する。全配送を無制限に待たず、合意した期限までsuccess、terminal、Dead Letterを監視・保存する。誤送信防止のため最終停止時刻以後に新規Deliveryがないことを確認する。
+
+export期間後にprivate keyをrevokeし、public Tombstoneと必要な監査証拠を保持する。data deletion手順、backup rotation、S3 version expiration、OIDC client/Vault policy削除を完了してからDNS/TLSを撤去する。

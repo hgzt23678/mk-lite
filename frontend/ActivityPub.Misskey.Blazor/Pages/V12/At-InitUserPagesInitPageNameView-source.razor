@@ -1,0 +1,12 @@
+@page "/@{InitUser}/pages/{InitPageName}/view-source"
+<V12RoutePage Route=@("/@:initUser/pages/:initPageName/view-source") />
+
+@code {
+    [Parameter]
+    public string? InitPageName { get; set; }
+}
+
+@code {
+    [Parameter]
+    public string? InitUser { get; set; }
+}

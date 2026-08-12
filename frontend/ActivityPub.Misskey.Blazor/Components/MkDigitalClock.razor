@@ -1,0 +1,159 @@
+@implements IAsyncDisposable
+@inject IDigitalClockInterop Browser
+
+<span @ref="element" class="@RootClass" @attributes="AttributesWithoutClass">
+    <span>@initialHours</span>
+    <span class="colon">:</span>
+    <span>@initialMinutes</span>
+    @if (ShowSeconds)
+    {
+        <span class="colon">:</span>
+        <span>@initialSeconds</span>
+    }
+    @if (ShowMilliseconds)
+    {
+        <span class="colon">:</span>
+        <span>@initialMilliseconds</span>
+    }
+</span>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference element;
+    private IJSObjectReference? attachment;
+    private bool attachedShowSeconds;
+    private bool attachedShowMilliseconds;
+    private int? attachedOffsetMinutes;
+    private string initialHours = string.Empty;
+    private string initialMinutes = string.Empty;
+    private string initialSeconds = string.Empty;
+    private string initialMilliseconds = string.Empty;
+    private bool initialValuesPrepared;
+    private long generation;
+    private bool disposed;
+
+    [Parameter]
+    public bool ShowSeconds { get; set; } = true;
+
+    [Parameter]
+    public bool ShowMilliseconds { get; set; }
+
+    [Parameter]
+    public int? OffsetMinutes { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "zjobosdg",
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        if (initialValuesPrepared)
+        {
+            return;
+        }
+
+        // The browser timezone is unknowable while producing the first static SSR response.
+        // An explicitly requested Misskey offset is rendered immediately; the JS module replaces
+        // the server-local fallback on the first animation frame after interactivity starts.
+        DateTimeOffset now = DateTimeOffset.Now;
+        if (OffsetMinutes is int offset)
+        {
+            now = DateTimeOffset.UtcNow.AddMinutes(offset % 1_440);
+        }
+
+        initialHours = now.Hour.ToString("00", CultureInfo.InvariantCulture);
+        initialMinutes = now.Minute.ToString("00", CultureInfo.InvariantCulture);
+        initialSeconds = now.Second.ToString("00", CultureInfo.InvariantCulture);
+        initialMilliseconds = (now.Millisecond / 10).ToString("00", CultureInfo.InvariantCulture);
+        initialValuesPrepared = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (disposed || !firstRender && attachment is not null &&
+            attachedShowSeconds == ShowSeconds &&
+            attachedShowMilliseconds == ShowMilliseconds &&
+            attachedOffsetMinutes == OffsetMinutes)
+        {
+            return;
+        }
+
+        long nextGeneration = checked(++generation);
+        await DisposeAttachmentAsync().ConfigureAwait(false);
+        try
+        {
+            IJSObjectReference created = await Browser.AttachAsync(
+                element,
+                ShowSeconds,
+                ShowMilliseconds,
+                OffsetMinutes,
+                lifetime.Token).ConfigureAwait(false);
+            if (disposed || nextGeneration != generation)
+            {
+                await created.InvokeVoidAsync("dispose").ConfigureAwait(false);
+                await created.DisposeAsync().ConfigureAwait(false);
+                return;
+            }
+
+            attachment = created;
+            attachedShowSeconds = ShowSeconds;
+            attachedShowMilliseconds = ShowMilliseconds;
+            attachedOffsetMinutes = OffsetMinutes;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        generation++;
+        lifetime.Cancel();
+        await DisposeAttachmentAsync().ConfigureAwait(false);
+        lifetime.Dispose();
+    }
+
+    private async ValueTask DisposeAttachmentAsync()
+    {
+        IJSObjectReference? current = attachment;
+        attachment = null;
+        if (current is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await current.InvokeVoidAsync("dispose").ConfigureAwait(false);
+            await current.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

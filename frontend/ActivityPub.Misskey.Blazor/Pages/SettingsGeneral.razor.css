@@ -1,0 +1,17 @@
+.general-settings {
+    min-width: 0;
+    background-color: var(--panel);
+    color: var(--fg);
+    padding: 24px;
+    border-radius: 12px;
+}
+
+.general-settings .general-settings-status {
+    margin-top: 1rem;
+}
+
+.general-settings [data-setting="useOsNativeEmojis"] div {
+    margin-top: .35rem;
+    font-size: 1.1em;
+    line-height: 1.2;
+}

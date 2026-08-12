@@ -1,0 +1,193 @@
+@page "/miauth/{Session}"
+@implements IDisposable
+@using ActivityPub.Application
+
+@inject IAuthenticatedActorContext ActorContext
+@inject IMisskeyAuthenticationService Authentication
+@inject IMisskeyLocalizer Localizer
+@inject NavigationManager Navigation
+
+<PageTitle>@Localizer.Translate("shareAccess")</PageTitle>
+<MkStickyContainer>
+    <Header>
+        <MkPageHeader Metadata="@HeaderMetadata" />
+    </Header>
+    <ChildContent>
+        @if (loading)
+        {
+            <div class="waiting _section"><div class="_content"><MkLoading /></div></div>
+        }
+        else if (actor is null)
+        {
+            <div class="signin _section">
+                <MkSignin ReturnUrl="@Navigation.Uri" Login="SignInCompletedAsync" />
+            </div>
+        }
+        else if (state == MiauthState.Denied)
+        {
+            <div class="denied _section"><div class="_content"><p>@Localizer.Translate("_auth.denied")</p></div></div>
+        }
+        else if (state == MiauthState.Accepted)
+        {
+            <div class="accepted _section">
+                <div class="_content">
+                    <p>@(Callback is null ? Localizer.Translate("_auth.pleaseGoBack") : Localizer.Translate("_auth.callback"))</p>
+                </div>
+            </div>
+        }
+        else
+        {
+            <section class="_section miauth">
+                @if (!string.IsNullOrWhiteSpace(Name))
+                {
+                    <div class="_title">@Localizer.Translate("_auth.shareAccess", new Dictionary<string, object?> { ["name"] = Name })</div>
+                }
+                else
+                {
+                    <div class="_title">@Localizer.Translate("_auth.shareAccessAsk")</div>
+                }
+                <div class="_content">
+                    <p>@Localizer.Translate("_auth.permissionAsk")</p>
+                    <ul>
+                        @foreach (string permission in permissions)
+                        {
+                            <li @key="permission">@Localizer.Translate("_permissions." + permission)</li>
+                        }
+                    </ul>
+                </div>
+                <div class="_footer">
+                    <MkButton Inline="true" OnClick="Deny">@Localizer.Translate("cancel")</MkButton>
+                    <MkButton Inline="true" Primary="true" OnClick="AcceptAsync">@Localizer.Translate("accept")</MkButton>
+                </div>
+            </section>
+        }
+    </ChildContent>
+</MkStickyContainer>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private AuthenticatedActor? actor;
+    private MiauthState state = MiauthState.Awaiting;
+    private bool loading = true;
+    private IReadOnlyList<string> permissions = Array.Empty<string>();
+
+    [Parameter]
+    public string? Session { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "callback")]
+    public string? Callback { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "name")]
+    public string? Name { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "icon")]
+    public string? Icon { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "permission")]
+    public string? Permission { get; set; }
+
+    private MkPageHeaderMetadata HeaderMetadata => new("MiAuth");
+
+    protected override async Task OnParametersSetAsync()
+    {
+        permissions = ParsePermissions(Permission);
+        loading = true;
+        state = MiauthState.Awaiting;
+        if (string.IsNullOrWhiteSpace(Session) || Session.Length > 256 || Session.Any(char.IsControl))
+        {
+            state = MiauthState.Denied;
+            loading = false;
+            return;
+        }
+
+        actor = await ActorContext.FindAsync(lifetime.Token);
+        loading = false;
+    }
+
+    private async Task SignInCompletedAsync()
+    {
+        actor = await ActorContext.FindAsync(lifetime.Token);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void Deny(MouseEventArgs args)
+    {
+        _ = args;
+        state = MiauthState.Denied;
+    }
+
+    private async Task AcceptAsync(MouseEventArgs args)
+    {
+        _ = args;
+        if (actor is null || string.IsNullOrWhiteSpace(Session))
+        {
+            state = MiauthState.Denied;
+            return;
+        }
+
+        state = MiauthState.Waiting;
+        try
+        {
+            MisskeyIssuedToken issued = await Authentication.IssueAsync(
+                actor.Username,
+                Session,
+                string.IsNullOrWhiteSpace(Name) ? "MiAuth application" : Name.Trim(),
+                description: null,
+                iconUri: SafeIcon(Icon),
+                callbackUri: null,
+                permissions,
+                lifetime.Token);
+            state = MiauthState.Accepted;
+            if (Uri.TryCreate(Callback, UriKind.Absolute, out Uri? callback) &&
+                IsAllowedCallback(callback))
+            {
+                Navigation.NavigateTo(AppendSession(callback, Session), forceLoad: true);
+            }
+            _ = issued.Token;
+        }
+        catch (ArgumentException)
+        {
+            state = MiauthState.Denied;
+        }
+        catch (InvalidOperationException)
+        {
+            state = MiauthState.Denied;
+        }
+    }
+
+    public void Dispose() => lifetime.Dispose();
+
+    private static IReadOnlyList<string> ParsePermissions(string? value) =>
+        (value ?? string.Empty)
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Where(permission => ActivityPub.Application.MisskeyPermissions.All.Contains(permission))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+    private static string? SafeIcon(string? icon) =>
+        Uri.TryCreate(icon, UriKind.Absolute, out Uri? uri) &&
+        uri.Scheme is "https" or "http" &&
+        string.IsNullOrEmpty(uri.UserInfo)
+            ? uri.AbsoluteUri
+            : null;
+
+    private static bool IsAllowedCallback(Uri callback) =>
+        callback.Scheme is "http" or "https" or "sampleapp" && string.IsNullOrEmpty(callback.UserInfo);
+
+    private static string AppendSession(Uri callback, string session)
+    {
+        var builder = new UriBuilder(callback);
+        string query = builder.Query.TrimStart('?');
+        string encoded = Uri.EscapeDataString(session);
+        builder.Query = string.IsNullOrEmpty(query) ? $"session={encoded}" : $"{query}&session={encoded}";
+        return builder.Uri.AbsoluteUri;
+    }
+
+    private enum MiauthState
+    {
+        Awaiting,
+        Waiting,
+        Accepted,
+        Denied,
+    }
+}

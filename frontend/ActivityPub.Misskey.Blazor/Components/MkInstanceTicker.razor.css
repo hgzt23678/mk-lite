@@ -1,0 +1,31 @@
+.hpaizdrt {
+    height: 1.1rem;
+    border-radius: 4px 0 0 4px;
+    overflow: hidden;
+    color: #fff;
+    text-shadow:
+        1px 0 1px #000,
+        .866px .5px 1px #000,
+        .5px .866px 1px #000,
+        0 1px 1px #000,
+        -.5px .866px 1px #000,
+        -.866px .5px 1px #000,
+        -1px 0 1px #000,
+        -.866px -.5px 1px #000,
+        -.5px -.866px 1px #000,
+        0 -1px 1px #000,
+        .5px -.866px 1px #000,
+        .866px -.5px 1px #000;
+}
+
+.hpaizdrt > .icon {
+    height: 100%;
+}
+
+.hpaizdrt > .name {
+    margin-left: 4px;
+    line-height: 1.1rem;
+    font-size: 0.9em;
+    vertical-align: top;
+    font-weight: bold;
+}

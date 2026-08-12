@@ -1,0 +1,42 @@
+@inject IMisskeyLocalizer Localizer
+
+<MkPagination @ref="pagingComponent"
+              TItem="UserFollowRelationListItem"
+              Source="Pagination"
+              @attributes="AdditionalAttributes">
+    <EmptyContent>
+        <div class="_fullinfo">
+            <img src="/client-assets/about-icon.png" class="_ghost" />
+            <div>@Localizer.Translate("noUsers")</div>
+        </div>
+    </EmptyContent>
+    <ChildContent Context="relations">
+        <div class="mk-following-or-followers">
+            <div class="users">
+                @foreach (UserFollowRelationListItem relation in relations)
+                {
+                    <MkUserInfo @key="relation.RelationId" CssClass="user" User="relation.User" />
+                }
+            </div>
+        </div>
+    </ChildContent>
+</MkPagination>
+
+@code {
+    private MkPagination<UserFollowRelationListItem>? pagingComponent;
+
+    [Parameter, EditorRequired]
+    public IMisskeyPaginationSource<UserFollowRelationListItem> Pagination { get; set; } = default!;
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    public Task LoadMoreAsync() => RequirePagingComponent().LoadMoreAsync();
+
+    public Task ReloadAsync() => RequirePagingComponent().ReloadAsync();
+
+    public Task RefreshAsync() => RequirePagingComponent().RefreshAsync();
+
+    private MkPagination<UserFollowRelationListItem> RequirePagingComponent() =>
+        pagingComponent ?? throw new InvalidOperationException("The user follow list pagination component is not rendered.");
+}

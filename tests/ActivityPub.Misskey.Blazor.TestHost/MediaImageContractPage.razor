@@ -1,0 +1,59 @@
+@page "/__test/components/media-image"
+@using ActivityPub.Misskey.Blazor.Presentation
+
+<main data-contract="media-image">
+    <section data-primitive="preview" style="display: grid; width: 320px; height: 180px;">
+        <MkMediaImage Image="preview"
+                      OpenRequested="OpenAsync"
+                      class="image"
+                      data-id="preview" />
+    </section>
+    <section data-primitive="raw" style="display: grid; width: 320px; height: 180px;">
+        <MkMediaImage Image="raw" Raw="true" class="image" data-id="raw" />
+    </section>
+    <section data-primitive="remote">
+        <MkMediaImage Image="remote" class="image" data-id="remote" />
+    </section>
+    <output data-viewer-opened="@openedId">@openedId</output>
+</main>
+
+@code {
+    private const string Blurhash = "LEHV6nWB2yk8pyo0adR*.7kCMdnj";
+    private static readonly NoteMediaViewModel preview = Media(
+        "preview",
+        "image/gif",
+        "/static-assets/favicon.png",
+        "/static-assets/user-unknown.png");
+    private static readonly NoteMediaViewModel raw = Media(
+        "raw",
+        "image/png",
+        "/static-assets/favicon.png",
+        "/static-assets/user-unknown.png");
+    private static readonly NoteMediaViewModel remote = Media(
+        "remote",
+        "image/png",
+        "https://tracker.invalid/image.png",
+        "https://tracker.invalid/preview.png");
+    private string openedId = string.Empty;
+
+    private Task OpenAsync(NoteMediaViewModel media)
+    {
+        openedId = media.Id;
+        return Task.CompletedTask;
+    }
+
+    private static NoteMediaViewModel Media(
+        string id,
+        string mediaType,
+        string url,
+        string previewUrl) => new(
+            id,
+            mediaType,
+            url,
+            previewUrl,
+            $"{id} description",
+            Blurhash,
+            512,
+            512,
+            Sensitive: false);
+}

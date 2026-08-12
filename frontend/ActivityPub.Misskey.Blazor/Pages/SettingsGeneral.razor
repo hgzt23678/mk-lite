@@ -1,0 +1,450 @@
+@implements IAsyncDisposable
+@inject ISettingsGeneralInterop GeneralInterop
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyLocalizer Localizer
+
+<PageTitle>@Localizer.Translate("general")</PageTitle>
+
+<div class="_formRoot settings-local-page general-settings" data-testid="settings-general">
+    @if (!loaded)
+    {
+        <MkLoading />
+    }
+    else
+    {
+        <MkFormSelect Value="@language"
+                      ValueChanged="SaveLanguageAsync"
+                      Items="@LanguageItems"
+                      CssClassAdditional="_formBlock"
+                      data-setting="lang">
+            <Label>@Localizer.Translate("uiLanguage")</Label>
+            <Caption>
+                <span>@I18nBefore</span>
+                <FormLink To="https://crowdin.com/project/misskey" External="true" Inline="true">Crowdin</FormLink>
+                <span>@I18nAfter</span>
+            </Caption>
+        </MkFormSelect>
+
+        <MkFormRadios TValue="string"
+                      Value="@deviceKind"
+                      ValueChanged="SaveDeviceKindAsync"
+                      CssClassAdditional="_formBlock"
+                      data-setting="overridedDeviceKind">
+            <Label>@Localizer.Translate("overridedDeviceKind")</Label>
+            <ChildContent>
+                <MkFormRadio TValue="string" ModelValue="@deviceKind" ModelValueChanged="SaveDeviceKindAsync" Value="@string.Empty">
+                    @Localizer.Translate("auto")
+                </MkFormRadio>
+                <MkFormRadio TValue="string" ModelValue="@deviceKind" ModelValueChanged="SaveDeviceKindAsync" Value="@("smartphone")">
+                    <i class="fas fa-mobile-alt" aria-hidden="true"></i> @Localizer.Translate("smartphone")
+                </MkFormRadio>
+                <MkFormRadio TValue="string" ModelValue="@deviceKind" ModelValueChanged="SaveDeviceKindAsync" Value="@("tablet")">
+                    <i class="fas fa-tablet-alt" aria-hidden="true"></i> @Localizer.Translate("tablet")
+                </MkFormRadio>
+                <MkFormRadio TValue="string" ModelValue="@deviceKind" ModelValueChanged="SaveDeviceKindAsync" Value="@("desktop")">
+                    <i class="fas fa-desktop" aria-hidden="true"></i> @Localizer.Translate("desktop")
+                </MkFormRadio>
+            </ChildContent>
+        </MkFormRadios>
+
+        <MkFormSwitch Value="@showFixedPostForm" ValueChanged="SaveShowFixedPostFormAsync" CssClassAdditional="_formBlock" data-setting="showFixedPostForm">
+            @Localizer.Translate("showFixedPostForm")
+        </MkFormSwitch>
+
+        <FormSection>
+            <Label>@Localizer.Translate("behavior")</Label>
+            <ChildContent>
+                <MkFormSwitch Value="@imageNewTab" ValueChanged="SaveImageNewTabAsync" CssClassAdditional="_formBlock" data-setting="imageNewTab">
+                    @Localizer.Translate("openImageInNewTab")
+                </MkFormSwitch>
+                <MkFormSwitch Value="@enableInfiniteScroll" ValueChanged="SaveEnableInfiniteScrollAsync" CssClassAdditional="_formBlock" data-setting="enableInfiniteScroll">
+                    @Localizer.Translate("enableInfiniteScroll")
+                </MkFormSwitch>
+                <MkFormSwitch Value="@useReactionPickerForContextMenu" ValueChanged="SaveContextReactionAsync" CssClassAdditional="_formBlock" data-setting="useReactionPickerForContextMenu">
+                    @Localizer.Translate("useReactionPickerForContextMenu")
+                </MkFormSwitch>
+                <MkFormSwitch Value="@disablePagesScript" ValueChanged="SaveDisablePagesScriptAsync" CssClassAdditional="_formBlock" data-setting="disablePagesScript">
+                    @Localizer.Translate("disablePagesScript")
+                </MkFormSwitch>
+                <MkFormSelect Value="@serverDisconnectedBehavior"
+                              ValueChanged="SaveServerDisconnectedBehaviorAsync"
+                              Items="@ServerDisconnectedBehaviorItems"
+                              CssClassAdditional="_formBlock"
+                              data-setting="serverDisconnectedBehavior">
+                    <Label>@Localizer.Translate("whenServerDisconnected")</Label>
+                </MkFormSelect>
+            </ChildContent>
+        </FormSection>
+
+        <FormSection>
+            <Label>@Localizer.Translate("appearance")</Label>
+            <ChildContent>
+                <MkFormSwitch Value="@disableAnimatedMfm" ValueChanged="SaveDisableAnimatedMfmAsync" CssClassAdditional="_formBlock" data-setting="disableAnimatedMfm">
+                    @Localizer.Translate("disableAnimatedMfm")
+                </MkFormSwitch>
+                <MkFormSwitch Value="@reduceAnimation" ValueChanged="SaveReduceAnimationAsync" CssClassAdditional="_formBlock" data-setting="reduceAnimation">
+                    @Localizer.Translate("reduceUiAnimation")
+                </MkFormSwitch>
+                <MkFormSwitch Value="@useBlurEffect" ValueChanged="SaveUseBlurEffectAsync" CssClassAdditional="_formBlock" data-setting="useBlurEffect">
+                    @Localizer.Translate("useBlurEffect")
+                </MkFormSwitch>
+                <MkFormSwitch Value="@useBlurEffectForModal" ValueChanged="SaveUseBlurEffectForModalAsync" CssClassAdditional="_formBlock" data-setting="useBlurEffectForModal">
+                    @Localizer.Translate("useBlurEffectForModal")
+                </MkFormSwitch>
+                <MkFormSwitch Value="@showGapBetweenNotesInTimeline" ValueChanged="SaveShowGapAsync" CssClassAdditional="_formBlock" data-setting="showGapBetweenNotesInTimeline">
+                    @Localizer.Translate("showGapBetweenNotesInTimeline")
+                </MkFormSwitch>
+                <MkFormSwitch Value="@loadRawImages" ValueChanged="SaveLoadRawImagesAsync" CssClassAdditional="_formBlock" data-setting="loadRawImages">
+                    @Localizer.Translate("loadRawImages")
+                </MkFormSwitch>
+                <MkFormSwitch Value="@disableShowingAnimatedImages" ValueChanged="SaveDisableShowingAnimatedImagesAsync" CssClassAdditional="_formBlock" data-setting="disableShowingAnimatedImages">
+                    @Localizer.Translate("disableShowingAnimatedImages")
+                </MkFormSwitch>
+                <MkFormSwitch Value="@squareAvatars" ValueChanged="SaveSquareAvatarsAsync" CssClassAdditional="_formBlock" data-setting="squareAvatars">
+                    @Localizer.Translate("squareAvatars")
+                </MkFormSwitch>
+                <MkFormSwitch Value="@useSystemFont" ValueChanged="SaveUseSystemFontAsync" CssClassAdditional="_formBlock" data-setting="useSystemFont">
+                    @Localizer.Translate("useSystemFont")
+                </MkFormSwitch>
+                <MkFormSwitch Value="@useOsNativeEmojis" ValueChanged="SaveUseOsNativeEmojisAsync" CssClassAdditional="_formBlock" data-setting="useOsNativeEmojis">
+                    @Localizer.Translate("useOsNativeEmojis")
+                    <div aria-label="emoji preview">🍮🍦🍭🍩🍰🍫🍬🥞🍪</div>
+                </MkFormSwitch>
+                <MkFormSwitch Value="@disableDrawer" ValueChanged="SaveDisableDrawerAsync" CssClassAdditional="_formBlock" data-setting="disableDrawer">
+                    @Localizer.Translate("disableDrawer")
+                </MkFormSwitch>
+                <MkFormRadios TValue="string"
+                              Value="@fontSize"
+                              ValueChanged="SaveFontSizeAsync"
+                              CssClassAdditional="_formBlock"
+                              data-setting="fontSize">
+                    <Label>@Localizer.Translate("fontSize")</Label>
+                    <ChildContent>
+                        <MkFormRadio TValue="string" ModelValue="@fontSize" ModelValueChanged="SaveFontSizeAsync" Value="@string.Empty">
+                            <span style="font-size: 14px;">Aa</span>
+                        </MkFormRadio>
+                        <MkFormRadio TValue="string" ModelValue="@fontSize" ModelValueChanged="SaveFontSizeAsync" Value="@("1")">
+                            <span style="font-size: 15px;">Aa</span>
+                        </MkFormRadio>
+                        <MkFormRadio TValue="string" ModelValue="@fontSize" ModelValueChanged="SaveFontSizeAsync" Value="@("2")">
+                            <span style="font-size: 16px;">Aa</span>
+                        </MkFormRadio>
+                        <MkFormRadio TValue="string" ModelValue="@fontSize" ModelValueChanged="SaveFontSizeAsync" Value="@("3")">
+                            <span style="font-size: 17px;">Aa</span>
+                        </MkFormRadio>
+                    </ChildContent>
+                </MkFormRadios>
+            </ChildContent>
+        </FormSection>
+
+        <FormSection>
+            <ChildContent>
+                <MkFormSwitch Value="@aiChanMode" ValueChanged="SaveAiChanModeAsync" data-setting="aiChanMode">
+                    @Localizer.Translate("aiChanMode")
+                </MkFormSwitch>
+            </ChildContent>
+        </FormSection>
+
+        <MkFormSelect Value="@instanceTicker"
+                      ValueChanged="SaveInstanceTickerAsync"
+                      Items="@InstanceTickerItems"
+                      CssClassAdditional="_formBlock"
+                      data-setting="instanceTicker">
+            <Label>@Localizer.Translate("instanceTicker")</Label>
+        </MkFormSelect>
+
+        <MkFormSelect Value="@nsfw"
+                      ValueChanged="SaveNsfwAsync"
+                      Items="@NsfwItems"
+                      CssClassAdditional="_formBlock"
+                      data-setting="nsfw">
+            <Label>@Localizer.Translate("nsfw")</Label>
+        </MkFormSelect>
+
+        <MkFormRange Value="@numberOfPageCache"
+                     ValueChanged="SaveNumberOfPageCacheAsync"
+                     Min="1"
+                     Max="10"
+                     Step="1"
+                     Easing="true"
+                     CssClassAdditional="_formBlock"
+                     data-setting="numberOfPageCache">
+            <Label>@Localizer.Translate("numberOfPageCache")</Label>
+            <Caption>@Localizer.Translate("numberOfPageCacheDescription")</Caption>
+        </MkFormRange>
+
+        <FormLink To="/settings/deck" class="_formBlock">
+            <ChildContent>@Localizer.Translate("deck")</ChildContent>
+        </FormLink>
+        <FormLink To="/settings/custom-css" class="_formBlock">
+            <Icon><i class="fas fa-code" aria-hidden="true"></i></Icon>
+            <ChildContent>@Localizer.Translate("customCss")</ChildContent>
+        </FormLink>
+
+        @if (!string.IsNullOrWhiteSpace(status))
+        {
+            <MkInfo CssClassAdditional="_formBlock" data-testid="settings-general-status">@status</MkInfo>
+        }
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private bool loaded;
+    private bool disposed;
+    private string language = string.Empty;
+    private string deviceKind = string.Empty;
+    private string serverDisconnectedBehavior = "quiet";
+    private string nsfw = "respect";
+    private string instanceTicker = "remote";
+    private string fontSize = string.Empty;
+    private bool useSystemFont;
+    private bool showFixedPostForm;
+    private bool imageNewTab;
+    private bool enableInfiniteScroll = true;
+    private bool useReactionPickerForContextMenu;
+    private bool disablePagesScript;
+    private bool disableAnimatedMfm;
+    private bool reduceAnimation;
+    private bool useBlurEffect = true;
+    private bool useBlurEffectForModal = true;
+    private bool showGapBetweenNotesInTimeline;
+    private bool loadRawImages;
+    private bool disableShowingAnimatedImages;
+    private bool squareAvatars;
+    private bool useOsNativeEmojis;
+    private bool disableDrawer;
+    private bool aiChanMode;
+    private double numberOfPageCache = 5;
+    private string? status;
+
+    private IReadOnlyList<MkFormSelectItem> LanguageItems =>
+        Localizer.SupportedLocales
+            .Select(locale => MkFormSelectItem.Option(locale.Locale, locale.LanguageName))
+            .ToArray();
+
+    private IReadOnlyList<MkFormSelectItem> ServerDisconnectedBehaviorItems =>
+    [
+        MkFormSelectItem.Option("reload", Localizer.Translate("_serverDisconnectedBehavior.reload")),
+        MkFormSelectItem.Option("dialog", Localizer.Translate("_serverDisconnectedBehavior.dialog")),
+        MkFormSelectItem.Option("quiet", Localizer.Translate("_serverDisconnectedBehavior.quiet"))
+    ];
+
+    private IReadOnlyList<MkFormSelectItem> InstanceTickerItems =>
+    [
+        MkFormSelectItem.Option("none", Localizer.Translate("_instanceTicker.none")),
+        MkFormSelectItem.Option("remote", Localizer.Translate("_instanceTicker.remote")),
+        MkFormSelectItem.Option("always", Localizer.Translate("_instanceTicker.always"))
+    ];
+
+    private IReadOnlyList<MkFormSelectItem> NsfwItems =>
+    [
+        MkFormSelectItem.Option("respect", Localizer.Translate("_nsfw.respect")),
+        MkFormSelectItem.Option("ignore", Localizer.Translate("_nsfw.ignore")),
+        MkFormSelectItem.Option("force", Localizer.Translate("_nsfw.force"))
+    ];
+
+    private string I18nBefore
+    {
+        get
+        {
+            string text = Localizer.Translate("i18nInfo");
+            int marker = text.IndexOf("{link}", StringComparison.Ordinal);
+            return marker < 0 ? text : text[..marker];
+        }
+    }
+
+    private string I18nAfter
+    {
+        get
+        {
+            string text = Localizer.Translate("i18nInfo");
+            int marker = text.IndexOf("{link}", StringComparison.Ordinal);
+            return marker < 0 ? string.Empty : text[(marker + "{link}".Length)..];
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            language = Localizer.CurrentLocale;
+            string? storedDeviceKind = await DeviceState.ReadAsync<string?>("overridedDeviceKind", null, lifetime.Token);
+            deviceKind = storedDeviceKind is "smartphone" or "tablet" or "desktop" ? storedDeviceKind : string.Empty;
+            serverDisconnectedBehavior = Normalize(
+                await DeviceState.ReadAsync("serverDisconnectedBehavior", "quiet", lifetime.Token),
+                ["quiet", "reload", "dialog"],
+                "quiet");
+            nsfw = Normalize(await DeviceState.ReadAsync("nsfw", "respect", lifetime.Token), ["respect", "ignore", "force"], "respect");
+            instanceTicker = Normalize(await DeviceState.ReadAsync("instanceTicker", "remote", lifetime.Token), ["none", "remote", "always"], "remote");
+            showFixedPostForm = await DeviceState.ReadAsync("showFixedPostForm", false, lifetime.Token);
+            imageNewTab = await DeviceState.ReadAsync("imageNewTab", false, lifetime.Token);
+            enableInfiniteScroll = await DeviceState.ReadAsync("enableInfiniteScroll", true, lifetime.Token);
+            useReactionPickerForContextMenu = await DeviceState.ReadAsync("useReactionPickerForContextMenu", false, lifetime.Token);
+            disablePagesScript = await DeviceState.ReadAsync("disablePagesScript", false, lifetime.Token);
+            disableAnimatedMfm = !await DeviceState.ReadAsync("animatedMfm", true, lifetime.Token);
+            reduceAnimation = !await DeviceState.ReadAsync("animation", true, lifetime.Token);
+            useBlurEffect = await DeviceState.ReadAsync("useBlurEffect", true, lifetime.Token);
+            useBlurEffectForModal = await DeviceState.ReadAsync("useBlurEffectForModal", true, lifetime.Token);
+            showGapBetweenNotesInTimeline = await DeviceState.ReadAsync("showGapBetweenNotesInTimeline", false, lifetime.Token);
+            loadRawImages = await DeviceState.ReadAsync("loadRawImages", false, lifetime.Token);
+            disableShowingAnimatedImages = await DeviceState.ReadAsync("disableShowingAnimatedImages", false, lifetime.Token);
+            squareAvatars = await DeviceState.ReadAsync("squareAvatars", false, lifetime.Token);
+            useOsNativeEmojis = await DeviceState.ReadAsync("useOsNativeEmojis", false, lifetime.Token);
+            disableDrawer = await DeviceState.ReadAsync("disableDrawer", false, lifetime.Token);
+            aiChanMode = await DeviceState.ReadAsync("aiChanMode", false, lifetime.Token);
+            numberOfPageCache = Math.Clamp(
+                await DeviceState.ReadAsync("numberOfPageCache", 5, lifetime.Token),
+                1,
+                10);
+            fontSize = NormalizeFontSize(await GeneralInterop.ReadRawAsync("fontSize", lifetime.Token));
+            useSystemFont = await GeneralInterop.ReadRawAsync("useSystemFont", lifetime.Token) is not null;
+            await GeneralInterop.ApplySystemFontAsync(useSystemFont, lifetime.Token);
+            loaded = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException) when (disposed)
+        {
+        }
+    }
+
+    private async Task SaveLanguageAsync(string value)
+    {
+        if (Localizer.TrySelectLocale(value))
+        {
+            language = Localizer.CurrentLocale;
+            SetSaved();
+        }
+        await Task.CompletedTask;
+    }
+
+    private async Task SaveDeviceKindAsync(string value)
+    {
+        deviceKind = value is "smartphone" or "tablet" or "desktop" ? value : string.Empty;
+        await DeviceState.WriteAsync<string?>("overridedDeviceKind", string.IsNullOrEmpty(deviceKind) ? null : deviceKind, lifetime.Token);
+        SetSaved();
+    }
+
+    private Task SaveServerDisconnectedBehaviorAsync(string value) => SaveStringAsync(
+        "serverDisconnectedBehavior",
+        value,
+        ["quiet", "reload", "dialog"],
+        "quiet",
+        v => serverDisconnectedBehavior = v);
+
+    private Task SaveNsfwAsync(string value) => SaveStringAsync(
+        "nsfw",
+        value,
+        ["respect", "ignore", "force"],
+        "respect",
+        v => nsfw = v);
+
+    private Task SaveInstanceTickerAsync(string value) => SaveStringAsync(
+        "instanceTicker",
+        value,
+        ["none", "remote", "always"],
+        "remote",
+        v => instanceTicker = v);
+
+    private async Task SaveFontSizeAsync(string value)
+    {
+        fontSize = NormalizeFontSize(value);
+        if (string.IsNullOrEmpty(fontSize))
+        {
+            await GeneralInterop.RemoveAsync("fontSize", lifetime.Token);
+        }
+        else
+        {
+            await GeneralInterop.WriteRawAsync("fontSize", fontSize, lifetime.Token);
+        }
+
+        SetSaved();
+    }
+
+    private async Task SaveUseSystemFontAsync(bool value)
+    {
+        useSystemFont = value;
+        if (value)
+        {
+            await GeneralInterop.WriteRawAsync("useSystemFont", "t", lifetime.Token);
+        }
+        else
+        {
+            await GeneralInterop.RemoveAsync("useSystemFont", lifetime.Token);
+        }
+
+        await GeneralInterop.ApplySystemFontAsync(value, lifetime.Token);
+        SetSaved();
+    }
+
+    private Task SaveShowFixedPostFormAsync(bool value) => SaveBoolAsync("showFixedPostForm", value, v => showFixedPostForm = v);
+    private Task SaveImageNewTabAsync(bool value) => SaveBoolAsync("imageNewTab", value, v => imageNewTab = v);
+    private Task SaveEnableInfiniteScrollAsync(bool value) => SaveBoolAsync("enableInfiniteScroll", value, v => enableInfiniteScroll = v);
+    private Task SaveContextReactionAsync(bool value) => SaveBoolAsync("useReactionPickerForContextMenu", value, v => useReactionPickerForContextMenu = v);
+    private Task SaveDisablePagesScriptAsync(bool value) => SaveBoolAsync("disablePagesScript", value, v => disablePagesScript = v);
+    private Task SaveDisableAnimatedMfmAsync(bool value) => SaveBoolAsync("animatedMfm", !value, v => disableAnimatedMfm = !v);
+    private Task SaveReduceAnimationAsync(bool value) => SaveBoolAsync("animation", !value, v => reduceAnimation = !v);
+    private Task SaveUseBlurEffectAsync(bool value) => SaveBoolAsync("useBlurEffect", value, v => useBlurEffect = v);
+    private Task SaveUseBlurEffectForModalAsync(bool value) => SaveBoolAsync("useBlurEffectForModal", value, v => useBlurEffectForModal = v);
+    private Task SaveShowGapAsync(bool value) => SaveBoolAsync("showGapBetweenNotesInTimeline", value, v => showGapBetweenNotesInTimeline = v);
+    private Task SaveLoadRawImagesAsync(bool value) => SaveBoolAsync("loadRawImages", value, v => loadRawImages = v);
+    private Task SaveDisableShowingAnimatedImagesAsync(bool value) => SaveBoolAsync("disableShowingAnimatedImages", value, v => disableShowingAnimatedImages = v);
+    private Task SaveSquareAvatarsAsync(bool value) => SaveBoolAsync("squareAvatars", value, v => squareAvatars = v);
+    private Task SaveUseOsNativeEmojisAsync(bool value) => SaveBoolAsync("useOsNativeEmojis", value, v => useOsNativeEmojis = v);
+    private Task SaveDisableDrawerAsync(bool value) => SaveBoolAsync("disableDrawer", value, v => disableDrawer = v);
+    private Task SaveAiChanModeAsync(bool value) => SaveBoolAsync("aiChanMode", value, v => aiChanMode = v);
+
+    private async Task SaveNumberOfPageCacheAsync(double value)
+    {
+        numberOfPageCache = Math.Clamp(Math.Round(value, MidpointRounding.AwayFromZero), 1, 10);
+        await DeviceState.WriteAsync("numberOfPageCache", (int)numberOfPageCache, lifetime.Token);
+        SetSaved();
+    }
+
+    private async Task SaveBoolAsync(string key, bool value, Action<bool> update)
+    {
+        update(value);
+        await DeviceState.WriteAsync(key, value, lifetime.Token);
+        SetSaved();
+    }
+
+    private async Task SaveStringAsync(
+        string key,
+        string value,
+        IReadOnlyCollection<string> allowed,
+        string fallback,
+        Action<string> update)
+    {
+        string normalized = allowed.Contains(value) ? value : fallback;
+        update(normalized);
+        await DeviceState.WriteAsync(key, normalized, lifetime.Token);
+        SetSaved();
+    }
+
+    private void SetSaved() => status = Localizer.Translate("saved");
+
+    private static string Normalize(string value, IReadOnlyCollection<string> allowed, string fallback) =>
+        allowed.Contains(value) ? value : fallback;
+
+    private static string NormalizeFontSize(string? value) => value is "1" or "2" or "3" ? value : string.Empty;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

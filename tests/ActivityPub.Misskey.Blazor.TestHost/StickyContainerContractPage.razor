@@ -1,0 +1,22 @@
+@namespace ActivityPub.Misskey.Blazor.TestHost
+@page "/__test/sticky-container"
+@layout KeyValueContractLayout
+@attribute [AllowAnonymous]
+
+<PageTitle>MkStickyContainer contract</PageTitle>
+
+<MkStickyContainer class="fixture-sticky-outer" data-contract="outer">
+    <Header>
+        <div class="fixture-sticky-outer-height" style="height: 48px;">outer header</div>
+    </Header>
+    <ChildContent>
+        <MkStickyContainer class="fixture-sticky-inner" data-contract="inner">
+            <Header>
+                <div class="fixture-sticky-inner-height" style="height: 32px;">inner header</div>
+            </Header>
+            <ChildContent>
+                <div style="height: 400px;">nested body</div>
+            </ChildContent>
+        </MkStickyContainer>
+    </ChildContent>
+</MkStickyContainer>

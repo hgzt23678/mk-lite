@@ -1,0 +1,118 @@
+@inject IMisskeyLocalizer Localizer
+
+<MkPagination @ref="pagingComponent"
+              TItem="NoteViewModel"
+              Source="Source"
+              DisableAutoLoad="DisableAutoLoad"
+              DisplayLimit="DisplayLimit"
+              RefreshKey="RefreshKey"
+              QueueChanged="QueueChanged"
+              Loaded="Loaded"
+              @attributes="AdditionalAttributes">
+    <EmptyContent>
+        <div class="_fullinfo">
+            <img src="/client-assets/about-icon.png" class="_ghost" />
+            <div>@Localizer.Translate("noNotes")</div>
+        </div>
+    </EmptyContent>
+    <ChildContent Context="notes">
+        <div class="@RootClass">
+            <MkDateSeparatedList TItem="NoteViewModel"
+                                 Items="notes"
+                                 GetId="GetNoteId"
+                                 GetCreatedAt="GetNoteCreatedAt"
+                                 ShouldInsertAdvertisement="ShouldInsertAdvertisement"
+                                 AdvertisementContent="AdvertisementContent"
+                                 Direction="@Direction"
+                                 Reversed="Source.Options.Reversed"
+                                 NoGap="NoGap"
+                                 Ad="true"
+                                 class="notes">
+                <ChildContent Context="note">
+                    <NoteView @key="note.Id"
+                              Note="note"
+                              CssClass="qtqtichx"
+                              ReplyRequested="ReplyRequested"
+                              RenoteRequested="RenoteRequested"
+                              ReactionRequested="ReactionRequested" />
+                </ChildContent>
+            </MkDateSeparatedList>
+        </div>
+    </ChildContent>
+</MkPagination>
+
+@code {
+    private MkPagination<NoteViewModel>? pagingComponent;
+
+    [Parameter, EditorRequired]
+    public IMisskeyPaginationSource<NoteViewModel> Source { get; set; } = default!;
+
+    [Parameter]
+    public bool NoGap { get; set; }
+
+    [Parameter]
+    public bool DisableAutoLoad { get; set; }
+
+    [Parameter]
+    public int DisplayLimit { get; set; } = 30;
+
+    [Parameter]
+    public object? RefreshKey { get; set; }
+
+    [Parameter]
+    public RenderFragment<NoteViewModel>? AdvertisementContent { get; set; }
+
+    [Parameter]
+    public EventCallback<NoteViewModel> ReplyRequested { get; set; }
+
+    [Parameter]
+    public EventCallback<NoteViewModel> RenoteRequested { get; set; }
+
+    [Parameter]
+    public EventCallback<(NoteViewModel Note, string Reaction)> ReactionRequested { get; set; }
+
+    [Parameter]
+    public EventCallback<int> QueueChanged { get; set; }
+
+    [Parameter]
+    public EventCallback Loaded { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    public MkPagination<NoteViewModel>? PagingComponent => pagingComponent;
+
+    public IReadOnlyList<NoteViewModel> Items =>
+        pagingComponent?.Items ?? Array.Empty<NoteViewModel>();
+
+    public bool More => pagingComponent?.More ?? false;
+
+    public bool IsFetching => pagingComponent?.IsFetching ?? true;
+
+    private string RootClass => NoGap ? "giivymft noGap" : "giivymft";
+
+    private string Direction => Source.Options.Reversed ? "up" : "down";
+
+    public Task ReloadAsync() => pagingComponent?.ReloadAsync() ?? Task.CompletedTask;
+
+    public Task RefreshAsync() => pagingComponent?.RefreshAsync() ?? Task.CompletedTask;
+
+    public Task LoadMoreAsync() => pagingComponent?.LoadMoreAsync() ?? Task.CompletedTask;
+
+    public Task LoadMoreAheadAsync() => pagingComponent?.LoadMoreAheadAsync() ?? Task.CompletedTask;
+
+    public Task ShowQueuedAsync() => pagingComponent?.ShowQueuedAsync() ?? Task.CompletedTask;
+
+    public Task UpsertAsync(NoteViewModel note) =>
+        pagingComponent?.UpsertAsync(note) ?? Task.CompletedTask;
+
+    public Task RemoveItemAsync(Func<NoteViewModel, bool> finder) =>
+        pagingComponent?.RemoveItemAsync(finder) ?? Task.CompletedTask;
+
+    private static string GetNoteId(NoteViewModel note) => note.Id;
+
+    private static DateTimeOffset GetNoteCreatedAt(NoteViewModel note) => note.CreatedAt;
+
+    private static bool ShouldInsertAdvertisement(NoteViewModel note) =>
+        note.ShouldInsertAdvertisement;
+}

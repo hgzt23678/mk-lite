@@ -1,0 +1,44 @@
+@page "/__test/components/media-primitives"
+@using ActivityPub.Misskey.Blazor.Presentation
+
+<main data-contract="media-primitives">
+    <div style="width: 64px; height: 64px;" data-primitive="blurhash">
+        <MkImgWithBlurhash Hash="@Blurhash" Size="8" />
+    </div>
+    <div style="width: 64px; height: 64px;" data-primitive="loaded-image">
+        <MkImgWithBlurhash Hash="@Blurhash" Src="/static-assets/favicon.png" Alt="Loaded image" Cover="false" />
+    </div>
+    <div style="width: 320px; height: 180px;" data-primitive="video">
+        <MkMediaVideo Video="video" />
+    </div>
+    <div data-primitive="banner">
+        <MkMediaBanner Media="audio" />
+    </div>
+    <div style="width: 640px;" data-primitive="media-list">
+        <MkMediaList Media="mediaList" />
+    </div>
+</main>
+
+@code {
+    private const string Blurhash = "LEHV6nWB2yk8pyo0adR*.7kCMdnj";
+
+    private static readonly NoteMediaViewModel video = Media("video", "video/mp4", sensitive: false);
+    private static readonly NoteMediaViewModel audio = Media("audio", "audio/ogg", sensitive: true);
+    private static readonly NoteMediaViewModel[] mediaList =
+    [
+        Media("image", "image/png", sensitive: false),
+        Media("list-video", "video/mp4", sensitive: false),
+        Media("document", "application/pdf", sensitive: false)
+    ];
+
+    private static NoteMediaViewModel Media(string id, string mediaType, bool sensitive) => new(
+        id,
+        mediaType,
+        "/static-assets/favicon.png",
+        "/static-assets/favicon.png",
+        $"{id} description",
+        Blurhash,
+        512,
+        512,
+        sensitive);
+}

@@ -1,0 +1,134 @@
+@page "/user-info/{UserId}"
+@implements IAsyncDisposable
+@inject IUserPreviewPresentationService Users
+@inject IMisskeyLocalizer Localizer
+@inject ILogger<UserInfoPage> Logger
+
+<PageTitle>User information</PageTitle>
+
+<MkStickyContainer>
+    <Header>
+        <MkPageHeader Metadata="HeaderMetadata" />
+    </Header>
+    <ChildContent>
+        <MkSpacer ContentMax="600" MarginMin="16" MarginMax="32">
+            @if (loading)
+            {
+                <MkLoading />
+            }
+            else if (user is null)
+            {
+                <div class="_fullinfo" role="alert" data-user-info-state="error">
+                    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                    <span>@Localizer.Translate("somethingHappened")</span>
+                    @if (!string.IsNullOrWhiteSpace(errorCode))
+                    {
+                        <code>@errorCode</code>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="_formRoot user-info-page" data-testid="user-info-page">
+                    <div class="_formBlock user-info-summary">
+                        <MkUserInfo User="@user" CssClass="user" />
+                    </div>
+
+                    <div class="_formBlock _formLinksGrid">
+                        <FormLink To="@($"/@{user.User.Acct}")">Profile</FormLink>
+                        @if (user.CanFollow)
+                        {
+                            <span class="user-info-follow"><MkFollowButton User="@user" Mini="true" /></span>
+                        }
+                    </div>
+
+                    <div class="_formBlock user-info-values">
+                        <MkKeyValue Oneline="true">
+                            <Key>ID</Key>
+                            <Value><span class="_monospace">@user.Id</span></Value>
+                        </MkKeyValue>
+                        <MkKeyValue Oneline="true">
+                            <Key>@Localizer.Translate("notes")</Key>
+                            <Value>@user.NotesCount.ToString("N0", Localizer.Culture)</Value>
+                        </MkKeyValue>
+                        <MkKeyValue Oneline="true">
+                            <Key>@Localizer.Translate("following")</Key>
+                            <Value>@user.FollowingCount.ToString("N0", Localizer.Culture)</Value>
+                        </MkKeyValue>
+                        <MkKeyValue Oneline="true">
+                            <Key>@Localizer.Translate("followers")</Key>
+                            <Value>@user.FollowersCount.ToString("N0", Localizer.Culture)</Value>
+                        </MkKeyValue>
+                    </div>
+
+                    <MkInfo Warn="true"
+                            CssClassAdditional="_formBlock user-info-capability"
+                            data-capability-state="false">
+                        Moderation flags, sign-in history, raw ActivityPub inspection, charts, Drive administration, and IP data require the Dolphin admin contracts and are intentionally not represented by fabricated values.
+                    </MkInfo>
+                </div>
+            }
+        </MkSpacer>
+    </ChildContent>
+</MkStickyContainer>
+
+@code {
+    [Parameter, EditorRequired]
+    public string UserId { get; set; } = string.Empty;
+
+    private readonly CancellationTokenSource lifetime = new();
+    private UserPreviewViewModel? user;
+    private string? errorCode;
+    private bool loading = true;
+    private bool disposed;
+
+    private MkPageHeaderMetadata HeaderMetadata => new(
+        "User information",
+        Icon: "fas fa-user");
+
+    protected override Task OnInitializedAsync()
+    {
+        _ = LoadAsync();
+        return Task.CompletedTask;
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            user = await Users.ReadAsync(UserId, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (UserPreviewPresentationException exception)
+        {
+            errorCode = exception.ErrorCode;
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+        {
+            errorCode = "USER_INFO_QUERY_FAILED";
+            Logger.LogWarning(exception, "User information query failed with {ErrorCode}.", errorCode);
+        }
+        finally
+        {
+            loading = false;
+            if (!disposed)
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

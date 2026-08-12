@@ -1,0 +1,85 @@
+@page "/mfm-cheat-sheet"
+@inject IMisskeyLocalizer Localizer
+
+<PageTitle>@Localizer.Translate("_mfm.cheatSheet")</PageTitle>
+<HeadContent>
+    <meta name="misskey:page-icon" content="fas fa-question-circle" />
+</HeadContent>
+
+<MkStickyContainer>
+    <Header><MkPageHeader Metadata="HeaderMetadata" /></Header>
+    <ChildContent>
+        <MkSpacer ContentMax="800">
+            <div class="mwysmxbg">
+                <div class="intro">@Localizer.Translate("_mfm.intro")</div>
+                @foreach (MfmCheatEntry entry in entries)
+                {
+                    <section @key="entry.Key" class="section _block" data-mfm-feature="@entry.Key">
+                        <div class="title">@Localizer.Translate($"_mfm.{entry.Key}")</div>
+                        <div class="content">
+                            <p>@Localizer.Translate($"_mfm.{entry.Key}Description")</p>
+                            <div class="preview">
+                                <MfmView Text="@entry.Value" />
+                                <MkFormTextarea Value="@entry.Value"
+                                                ValueChanged="value => entry.Value = value">
+                                    <Label>MFM</Label>
+                                </MkFormTextarea>
+                            </div>
+                        </div>
+                    </section>
+                }
+            </div>
+        </MkSpacer>
+    </ChildContent>
+</MkStickyContainer>
+
+@code {
+    private readonly List<MfmCheatEntry> entries = [];
+
+    private MkPageHeaderMetadata HeaderMetadata => new(
+        Localizer.Translate("_mfm.cheatSheet"),
+        Icon: "fas fa-question-circle");
+
+    protected override void OnInitialized()
+    {
+        string dummy = Localizer.Translate("_mfm.dummy");
+        entries.AddRange(
+        [
+            new("mention", "@example"),
+            new("hashtag", "#test"),
+            new("url", "https://example.com"),
+            new("link", $"[{dummy}](https://example.com)"),
+            new("emoji", ":emojiname:"),
+            new("bold", $"**{dummy}**"),
+            new("small", $"<small>{dummy}</small>"),
+            new("quote", $"> {dummy}"),
+            new("center", $"<center>{dummy}</center>"),
+            new("inlineCode", "`<: \"Hello, world!\"`"),
+            new("blockCode", "```\n~ (#i, 100) {\n\\t<: ? ((i % 15) = 0) \"FizzBuzz\"\n}\n```"),
+            new("inlineMath", "\\(x= \\frac{-b' \\pm \\sqrt{(b')^2-ac}}{a}\\)"),
+            new("flip", $"$[flip {dummy}]\n$[flip.v {dummy}]\n$[flip.h,v {dummy}]"),
+            new("font", $"$[font.serif {dummy}]\n$[font.monospace {dummy}]\n$[font.cursive {dummy}]\n$[font.fantasy {dummy}]"),
+            new("x2", "$[x2 🍮]"),
+            new("x3", "$[x3 🍮]"),
+            new("x4", "$[x4 🍮]"),
+            new("blur", $"$[blur {dummy}]"),
+            new("jelly", "$[jelly 🍮] $[jelly.speed=5s 🍮]"),
+            new("tada", "$[tada 🍮] $[tada.speed=5s 🍮]"),
+            new("jump", "$[jump 🍮] $[jump.speed=5s 🍮]"),
+            new("bounce", "$[bounce 🍮] $[bounce.speed=5s 🍮]"),
+            new("spin", "$[spin 🍮] $[spin.left 🍮] $[spin.alternate 🍮]\n$[spin.x 🍮] $[spin.x,left 🍮] $[spin.x,alternate 🍮]\n$[spin.y 🍮] $[spin.y,left 🍮] $[spin.y,alternate 🍮]\n\n$[spin.speed=5s 🍮]"),
+            new("shake", "$[shake 🍮] $[shake.speed=5s 🍮]"),
+            new("twitch", "$[twitch 🍮] $[twitch.speed=5s 🍮]"),
+            new("rainbow", "$[rainbow 🍮] $[rainbow.speed=5s 🍮]"),
+            new("sparkle", "$[sparkle 🍮]"),
+            new("rotate", "$[rotate 🍮]"),
+            new("plain", "<plain>**bold** @mention #hashtag `code` $[x2 🍮]</plain>")
+        ]);
+    }
+
+    private sealed class MfmCheatEntry(string key, string value)
+    {
+        public string Key { get; } = key;
+        public string Value { get; set; } = value;
+    }
+}

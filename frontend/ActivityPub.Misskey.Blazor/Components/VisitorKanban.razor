@@ -1,0 +1,123 @@
+@inject IMisskeyOverlayService Overlays
+@inject MisskeyFrontendRuntimeConfiguration Runtime
+@inject NavigationManager Navigation
+@inject IMisskeyLocalizer Localizer
+
+<div class="@RootClass" style="@BackgroundStyle" @attributes="AttributesWithoutClass">
+    <div class="back@(Transparent ? " transparent" : string.Empty)"></div>
+    <div class="contents">
+        <div class="wrapper">
+            <h1 class="@(Full ? "full" : null)">
+                <a href="/" class="link">
+                    @if (SafeLogoImageUrl is not null)
+                    {
+                        <img class="logo" src="@SafeLogoImageUrl" alt="logo" />
+                    }
+                    else
+                    {
+                        <span class="text">@Instance.Name</span>
+                    }
+                </a>
+            </h1>
+            @if (Full)
+            {
+                <div class="about"><div class="desc">@(string.IsNullOrWhiteSpace(Instance.Description) ? Localizer.Translate("introMisskey") : Instance.Description)</div></div>
+                <div class="action">
+                    <button class="_buttonPrimary" type="button" @onclick="SignUp">@Localizer.Translate("signup")</button>
+                    <button class="_button" type="button" @onclick="SignIn">@Localizer.Translate("login")</button>
+                </div>
+                @if (Announcements is not null)
+                {
+                    <div class="announcements panel">
+                        <header>@Localizer.Translate("announcements")</header>
+                        <div class="list">
+                            @foreach (VisitorAnnouncementViewModel announcement in Announcements)
+                            {
+                                <section class="item" @key="announcement.Id">
+                                    <div class="title">@announcement.Title</div>
+                                    <div class="content">
+                                        <MfmView Text="@announcement.Text" />
+                                        @if (SafeMediaUrl(announcement.ImageUrl) is { } announcementImageUrl)
+                                        {
+                                            <img src="@announcementImageUrl" alt="announcement image" />
+                                        }
+                                    </div>
+                                </section>
+                            }
+                        </div>
+                    </div>
+                }
+                @if (PoweredBy)
+                {
+                    <div class="powered-by">
+                        <b><a href="/">@Host</a></b>
+                        <small>Powered by <a href="https://github.com/misskey-dev/misskey" target="_blank" rel="noopener noreferrer">Misskey</a></small>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public InstanceSummaryViewModel Instance { get; set; } = null!;
+
+    [Parameter]
+    public bool Full { get; set; }
+
+    [Parameter]
+    public bool Transparent { get; set; }
+
+    [Parameter]
+    public bool PoweredBy { get; set; }
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    // null remains distinct from a successful persisted empty collection during SSR loading.
+    [Parameter]
+    public IReadOnlyList<VisitorAnnouncementViewModel>? Announcements { get; set; }
+
+    private string RootClass => string.Join(' ', new[] { "rwqkcmrc", CssClass, AdditionalClass }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private string Host => Runtime.PublicBaseUri?.IdnHost ?? Instance.Name;
+
+    private string? BackgroundStyle => Transparent
+        ? "background-image: none"
+        : SafeBackgroundImage(Instance.BackgroundImageUrl);
+
+    private string? SafeLogoImageUrl => SafeMediaUrl(Instance.LogoImageUrl);
+
+    private void SignIn()
+        => Overlays.ShowSignIn(CurrentReturnUrl);
+
+    private void SignUp() => Overlays.ShowSignUp(CurrentReturnUrl);
+
+    private string CurrentReturnUrl
+    {
+        get
+        {
+            string relative = Navigation.ToBaseRelativePath(Navigation.Uri);
+            return "/" + relative.TrimStart('/');
+        }
+    }
+
+    private static string? SafeBackgroundImage(string? value) =>
+        SameOriginMediaUrl.CssBackgroundImage(value);
+
+    private static string? SafeMediaUrl(string? value) => SameOriginMediaUrl.Normalize(value);
+}

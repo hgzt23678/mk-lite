@@ -1,0 +1,26 @@
+.fwhjspax {
+    text-align: center;
+    border-radius: 10px;
+    overflow: clip;
+    background-size: cover;
+    background-position: center center;
+}
+
+.fwhjspax > .content {
+    overflow: hidden;
+}
+
+.fwhjspax > .content > .icon {
+    display: block;
+    margin: 16px auto 0 auto;
+    height: 64px;
+    border-radius: 8px;
+}
+
+.fwhjspax > .content > .name {
+    display: block;
+    padding: 16px;
+    color: #fff;
+    text-shadow: 0 0 8px #000;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+}

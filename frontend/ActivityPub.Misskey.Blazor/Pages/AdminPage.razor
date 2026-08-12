@@ -1,0 +1,56 @@
+@page "/admin"
+@page "/admin/{Section}"
+@inject IMisskeyLocalizer Localizer
+
+<div class="vvcocwet wide">
+    <div class="body">
+        <div class="nav">
+            <div class="baaadecd">
+                <MkSuperMenu Definition="MenuDefinition" />
+            </div>
+        </div>
+        <div class="main">
+            <div class="bkzroven">
+                @switch (NormalizedSection)
+                {
+                    case "announcements":
+                        <AdminAnnouncements />
+                        break;
+                    case "relays":
+                        <AdminRelays />
+                        break;
+                    case null:
+                    case "overview":
+                        <AdminOverview />
+                        break;
+                    default:
+                        <MkCapabilityUnavailable Capability="@AdminCapability"
+                                                   Reason="This administration section is not enabled by the current Dolphin backend contract." />
+                        break;
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string? Section { get; set; }
+
+    private string? NormalizedSection => string.IsNullOrWhiteSpace(Section)
+        ? null
+        : Section.Trim().ToLowerInvariant();
+
+    private string AdminCapability => $"admin/{NormalizedSection ?? "unknown"}";
+
+    private IReadOnlyList<MkSuperMenuGroup> MenuDefinition { get; } =
+    [
+        new(
+            null,
+        [
+            MkSuperMenuEntry.Route("dashboard", "/admin/overview", "fas fa-tachometer-alt"),
+            MkSuperMenuEntry.Route("announcements", "/admin/announcements", "fas fa-broadcast-tower"),
+            MkSuperMenuEntry.Route("relays", "/admin/relays", "fas fa-globe")
+        ])
+    ];
+}

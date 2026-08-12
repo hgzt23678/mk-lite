@@ -1,0 +1,34 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ActivityPub.Api/ActivityPub.Api.csproj" />
+    <Project Path="src/ActivityPub.Application/ActivityPub.Application.csproj" />
+    <Project Path="src/ActivityPub.Domain/ActivityPub.Domain.csproj" />
+    <Project Path="src/ActivityPub.Federation/ActivityPub.Federation.csproj" />
+    <Project Path="src/ActivityPub.Identity/ActivityPub.Identity.csproj" />
+    <Project Path="src/ActivityPub.Media/ActivityPub.Media.csproj" />
+    <Project Path="src/ActivityPub.MastodonApi/ActivityPub.MastodonApi.csproj" />
+    <Project Path="src/ActivityPub.MisskeyApi/ActivityPub.MisskeyApi.csproj" />
+    <Project Path="src/ActivityPub.Moderation/ActivityPub.Moderation.csproj" />
+    <Project Path="src/ActivityPub.Operations/ActivityPub.Operations.csproj" />
+    <Project Path="src/ActivityPub.Persistence/ActivityPub.Persistence.csproj" />
+    <Project Path="src/ActivityPub.Workers/ActivityPub.Workers.csproj" />
+  </Folder>
+  <Folder Name="/frontend/">
+    <Project Path="frontend/ActivityPub.Misskey.Blazor/ActivityPub.Misskey.Blazor.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ActivityPub.Domain.Tests/ActivityPub.Domain.Tests.csproj" />
+    <Project Path="tests/ActivityPub.Federation.Tests/ActivityPub.Federation.Tests.csproj" />
+    <Project Path="tests/ActivityPub.Persistence.Tests/ActivityPub.Persistence.Tests.csproj" />
+    <Project Path="tests/ActivityPub.Property.Tests/ActivityPub.Property.Tests.csproj" />
+    <Project Path="tests/ActivityPub.Api.Tests/ActivityPub.Api.Tests.csproj" />
+    <Project Path="tests/ActivityPub.Media.Tests/ActivityPub.Media.Tests.csproj" />
+    <Project Path="tests/ActivityPub.Moderation.Tests/ActivityPub.Moderation.Tests.csproj" />
+    <Project Path="tests/ActivityPub.Misskey.Blazor.Tests/ActivityPub.Misskey.Blazor.Tests.csproj" />
+    <Project Path="tests/ActivityPub.Misskey.Blazor.TestHost/ActivityPub.Misskey.Blazor.TestHost.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/ActivityPub.Load/ActivityPub.Load.csproj" />
+    <Project Path="tools/ActivityPub.Fuzz/ActivityPub.Fuzz.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,202 @@
+@implements IDisposable
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyLocalizer Localizer
+
+@if (CanRender)
+{
+    @if (hide)
+    {
+        <div @key="(Image.Id, Hidden: true)" @attributes="AttributesWithoutClass" class="@HiddenClass" @onclick="Reveal">
+            <MkImgWithBlurhash class="bg" Hash="@Image.Blurhash" Title="@Image.Description" Alt="@Image.Description" />
+            <div class="text">
+                <div class="wrapper">
+                    <b style="display: block;"><i class="fas fa-exclamation-triangle"></i> @Localizer.Translate("sensitive")</b>
+                    <span style="display: block;">@Localizer.Translate("clickToShow")</span>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div @key="(Image.Id, Hidden: false)" @attributes="AttributesWithoutClass" class="@VisibleClass">
+            <a href="@FullUrl"
+               title="@MediaName"
+               @onclick="OpenAsync"
+               @onclick:preventDefault="OpenRequested.HasDelegate">
+                <MkImgWithBlurhash Hash="@Image.Blurhash"
+                                   Src="@SelectedSource"
+                                   Alt="@Image.Description"
+                                   Title="@Image.Description"
+                                   Cover="false" />
+                @if (string.Equals(Image.MediaType, "image/gif", StringComparison.Ordinal))
+                {
+                    <div class="gif">GIF</div>
+                }
+            </a>
+            <button class="_button hide" title="@Localizer.Translate("hide")" @onclick="Hide"><i class="fas fa-eye-slash"></i></button>
+        </div>
+    }
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private CancellationTokenSource? settingsRequest;
+    private string? mediaKey;
+    private bool settingsLoaded;
+    private bool loadRawImages;
+    private bool disableShowingAnimatedImages;
+    private bool visibilityOverridden;
+    private bool hide;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public NoteMediaViewModel Image { get; set; } = null!;
+
+    [Parameter]
+    public bool Raw { get; set; }
+
+    [Parameter]
+    public EventCallback<NoteMediaViewModel> OpenRequested { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string? FullUrl => SameOriginMediaUrl.Normalize(Image.Url);
+    private string? PreviewUrl => SameOriginMediaUrl.Normalize(Image.PreviewUrl);
+    private bool CanRender => FullUrl is not null && PreviewUrl is not null;
+    private string MediaName => Image.Description ?? Image.Id;
+    private string HiddenClass => MergeClass("qjewsnkg");
+    private string VisibleClass => MergeClass("gqnyydlz");
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+    private string SelectedSource
+    {
+        get
+        {
+            if (Raw || loadRawImages)
+            {
+                return FullUrl!;
+            }
+
+            string preview = PreviewUrl!;
+            return disableShowingAnimatedImages ? AddStaticFlag(preview) : preview;
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        string key = $"{Image.Id}\u001f{Image.Url}\u001f{Image.PreviewUrl}\u001f{Image.Sensitive}\u001f{Raw}";
+        if (string.Equals(key, mediaKey, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        mediaKey = key;
+        settingsLoaded = false;
+        loadRawImages = false;
+        disableShowingAnimatedImages = false;
+        visibilityOverridden = false;
+        hide = Image.Sensitive;
+        settingsRequest?.Cancel();
+        settingsRequest?.Dispose();
+        settingsRequest = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _ = firstRender;
+        if (!CanRender || settingsLoaded || disposed || settingsRequest is null)
+        {
+            return;
+        }
+
+        settingsLoaded = true;
+        string key = mediaKey!;
+        CancellationToken cancellationToken = settingsRequest.Token;
+        try
+        {
+            string policy = await DeviceState.ReadAsync("nsfw", "respect", cancellationToken).ConfigureAwait(false);
+            bool nextLoadRaw = await DeviceState.ReadAsync("loadRawImages", false, cancellationToken).ConfigureAwait(false);
+            bool nextDisableAnimated = await DeviceState.ReadAsync(
+                "disableShowingAnimatedImages",
+                false,
+                cancellationToken).ConfigureAwait(false);
+            if (disposed || cancellationToken.IsCancellationRequested ||
+                !string.Equals(key, mediaKey, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            if (policy is not ("force" or "respect" or "ignore"))
+            {
+                policy = "respect";
+            }
+
+            bool nextHide = policy == "force" || Image.Sensitive && policy != "ignore";
+            bool sourceChanged = loadRawImages != nextLoadRaw ||
+                disableShowingAnimatedImages != nextDisableAnimated;
+            loadRawImages = nextLoadRaw;
+            disableShowingAnimatedImages = nextDisableAnimated;
+            bool hideChanged = !visibilityOverridden && hide != nextHide;
+            if (hideChanged)
+            {
+                hide = nextHide;
+            }
+
+            if (sourceChanged || hideChanged)
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private string MergeClass(string root) => string.IsNullOrWhiteSpace(AdditionalClass)
+        ? root
+        : $"{root} {AdditionalClass}";
+
+    private static string AddStaticFlag(string value) =>
+        value.Contains('?') ? $"{value}&static=1" : $"{value}?static=1";
+
+    private void Reveal()
+    {
+        visibilityOverridden = true;
+        hide = false;
+    }
+
+    private void Hide()
+    {
+        visibilityOverridden = true;
+        hide = true;
+    }
+
+    private Task OpenAsync() => OpenRequested.HasDelegate
+        ? OpenRequested.InvokeAsync(Image)
+        : Task.CompletedTask;
+
+    public void Dispose()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        settingsRequest?.Cancel();
+        settingsRequest?.Dispose();
+        lifetime.Cancel();
+        lifetime.Dispose();
+    }
+}

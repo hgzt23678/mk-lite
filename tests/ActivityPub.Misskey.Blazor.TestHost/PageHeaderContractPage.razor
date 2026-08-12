@@ -1,0 +1,130 @@
+@namespace ActivityPub.Misskey.Blazor.TestHost
+@page "/__test/page-header"
+@layout KeyValueContractLayout
+@attribute [AllowAnonymous]
+@inject NavigationManager Navigation
+@using ActivityPub.Misskey.Blazor.Presentation
+
+<PageTitle>MkPageHeader contract</PageTitle>
+
+<section aria-label="MkPageHeader contract controls">
+    <button type="button" data-contract-resize @onclick="ToggleWidth">幅を切り替え</button>
+    <button type="button" data-contract-thin @onclick="() => thin = !thin">thinを切り替え</button>
+    <button type="button" data-contract-omit @onclick="() => omitTitle = !omitTitle">titleを省略</button>
+    <a href="/__test/key-value" data-contract-leave>別ページへ移動</a>
+    <output data-contract-state>@activeTab|@metadataMode|@actionCalls</output>
+</section>
+
+<div class="fixture-page-header-viewport" style="@ViewportStyle">
+    <div class="fixture-page-header-scroll" style="height: 320px; overflow-y: auto;">
+        <MkStickyContainer class="fixture-page-header-sticky" data-contract="sticky">
+            <Header>
+                <CascadingValue Name="ShouldHeaderThin" Value="thin">
+                    <CascadingValue Name="ShouldOmitHeaderTitle" Value="omitTitle">
+                        <MkPageHeader Metadata="CurrentMetadata"
+                                      Tabs="tabs"
+                                      Tab="@activeTab"
+                                      TabChanged="ChangeTabAsync"
+                                      Actions="actions"
+                                      DisplayMyAvatar="true"
+                                      class="fixture-page-header"
+                                      data-contract="page-header" />
+                    </CascadingValue>
+                </CascadingValue>
+            </Header>
+            <ChildContent>
+                <div class="fixture-page-header-body" style="height: 1400px; padding-top: 900px;">
+                    <button type="button" data-contract-metadata @onclick="ToggleMetadataAsync">metadataを切り替え</button>
+                    <button type="button" data-contract-tab @onclick='() => ChangeTabAsync("activity")'>タブを変更</button>
+                </div>
+            </ChildContent>
+        </MkStickyContainer>
+    </div>
+</div>
+
+@code {
+    private readonly NoteAuthorViewModel headerUser = new(
+        "9pageheader",
+        "header-user",
+        "header-user@example.test",
+        "Header $[jelly User]",
+        "/static-assets/favicon.png",
+        IsBot: false);
+
+    private IReadOnlyList<MkPageHeaderTab> tabs = [];
+    private IReadOnlyList<MkPageHeaderAction> actions = [];
+    private string activeTab = "overview";
+    private int metadataMode;
+    private int actionCalls;
+    private bool narrowWidth;
+    private bool thin;
+    private bool omitTitle;
+
+    private string ViewportStyle => $"width: {(narrowWidth ? 420 : 760)}px; max-width: 100%;";
+
+    private MkPageHeaderMetadata CurrentMetadata => metadataMode switch
+    {
+        1 => new(
+            "契約ヘッダー",
+            "avatar subtitle",
+            Avatar: headerUser,
+            Background: "#224466",
+            AvatarOnlineStatus: "online"),
+        2 => new(
+            "契約ヘッダー",
+            "username subtitle",
+            UserName: headerUser,
+            Background: "#224466"),
+        _ => new(
+            "契約ヘッダー",
+            "icon subtitle",
+            Icon: "fas fa-vial",
+            Background: "#224466")
+    };
+
+    protected override void OnInitialized()
+    {
+        tabs =
+        [
+            new("overview", "概要", "fas fa-home"),
+            new("activity", "アクティビティ", "fas fa-stream"),
+            new(
+                null,
+                "履歴へ移動",
+                "fas fa-history",
+                IconOnly: true,
+                OnClick: _ =>
+                {
+                    Navigation.NavigateTo("/__test/key-value?from=page-header");
+                    return Task.CompletedTask;
+                })
+        ];
+        actions =
+        [
+            new("metadataを切り替え", "fas fa-sync", ToggleMetadataAsync, Highlighted: true),
+            new("操作を記録", "fas fa-bolt", RecordActionAsync)
+        ];
+    }
+
+    private Task ChangeTabAsync(string value)
+    {
+        activeTab = value;
+        return Task.CompletedTask;
+    }
+
+    private Task ToggleMetadataAsync()
+    {
+        metadataMode = (metadataMode + 1) % 3;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private Task RecordActionAsync()
+    {
+        actionCalls++;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void ToggleWidth() => narrowWidth = !narrowWidth;
+}

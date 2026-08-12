@@ -1,0 +1,36 @@
+@page "/__test/components/form-link"
+@rendermode InteractiveServer
+
+<main data-contract="form-link-page">
+    <FormLink To="/settings/profile"
+              Active="true"
+              Inline="true"
+              Behavior="browser"
+              class="_formBlock contract-link"
+              style="margin-bottom: 8px;"
+              data-contract="internal"
+              disabled="disabled">
+        <Icon><i class="fas fa-user"></i></Icon>
+        <ChildContent>プロフィール</ChildContent>
+        <Suffix>Account</Suffix>
+    </FormLink>
+
+    <FormLink To="https://remote.example/path"
+              External="true"
+              Active="true"
+              data-contract="external">
+        <ChildContent>外部サイト</ChildContent>
+        <Suffix>Remote</Suffix>
+    </FormLink>
+
+    <FormLink data-contract="action" @onclick="CountClick">
+        通知をすべて既読にする
+    </FormLink>
+    <output data-contract="clicks">@clicks</output>
+</main>
+
+@code {
+    private int clicks;
+
+    private void CountClick() => clicks++;
+}

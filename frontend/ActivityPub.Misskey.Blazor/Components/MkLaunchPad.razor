@@ -1,0 +1,166 @@
+@implements IAsyncDisposable
+@inject IMisskeyOverlayService Overlays
+
+<MkModal @ref="modal"
+         Source="Source"
+         PreferType="MkModalType.Auto"
+         Anchor="Anchor"
+         TransparentBackground="true"
+         Clicked="CloseAsync"
+         Escape="CloseAsync"
+         Opened="OnOpenedAsync"
+         Closed="OnClosedAsync">
+    <ChildContent Context="context">
+        <div class="@SurfaceClass(context.Type)"
+             style="@MaximumHeightStyle(context.MaximumHeight)"
+             @onclick:stopPropagation="true">
+            <div class="main">
+                @foreach (MisskeyMenuItem item in Items)
+                {
+                    if (item.Kind == MisskeyMenuItemKind.Action)
+                    {
+                        <button @key="item"
+                                type="button"
+                                class="_button"
+                                disabled="@item.Disabled"
+                                @onclick="() => InvokeActionAsync(item)">
+                            <i class="icon @item.Icon"></i>
+                            <div class="text">@item.Text</div>
+                            @if (item.Indicate)
+                            {
+                                <span class="indicator"><i class="fas fa-circle"></i></span>
+                            }
+                        </button>
+                    }
+                    else
+                    {
+                        <a @key="item"
+                           href="@item.Href"
+                           target="@item.Target"
+                           download="@item.Download"
+                           @onclick="CloseAsync">
+                            <i class="icon @item.Icon"></i>
+                            <div class="text">@item.Text</div>
+                            @if (item.Indicate)
+                            {
+                                <span class="indicator"><i class="fas fa-circle"></i></span>
+                            }
+                        </a>
+                    }
+                }
+            </div>
+        </div>
+    </ChildContent>
+</MkModal>
+
+@code {
+    private MkModal? modal;
+    private bool pendingClose;
+    private bool opened;
+    private bool closed;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public Guid Id { get; set; }
+
+    [Parameter]
+    public ElementReference? Source { get; set; }
+
+    [Parameter]
+    public MkModalAnchor Anchor { get; set; } = new("right", "center");
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<MisskeyMenuItem> Items { get; set; } = [];
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    protected override void OnInitialized() => Overlays.RegisterCloseHandler(Id, CloseAsync);
+
+    protected override void OnParametersSet()
+    {
+        ArgumentNullException.ThrowIfNull(Anchor);
+        ArgumentNullException.ThrowIfNull(Items);
+        if (Items.Count == 0 || Items.Any(item =>
+                item.Kind is not (MisskeyMenuItemKind.Action or MisskeyMenuItemKind.Link) ||
+                string.IsNullOrWhiteSpace(item.Text) ||
+                string.IsNullOrWhiteSpace(item.Icon)))
+        {
+            throw new ArgumentException("The launch pad requires actionable link or button items.", nameof(Items));
+        }
+    }
+
+    private static string SurfaceClass(string modalType) => modalType == "drawer"
+        ? "szkkfdyq _popup _shadow asDrawer"
+        : "szkkfdyq _popup _shadow";
+
+    private static string? MaximumHeightStyle(double? maximumHeight) => maximumHeight is double value
+        ? $"max-height: {value.ToString("0.###", CultureInfo.InvariantCulture)}px;"
+        : null;
+
+    private async Task InvokeActionAsync(MisskeyMenuItem item)
+    {
+        if (item.Disabled || item.Action is null || disposed)
+        {
+            return;
+        }
+
+        await item.Action();
+        await CloseAsync();
+    }
+
+    public Task CloseAsync()
+    {
+        if (disposed)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (modal is null || !opened)
+        {
+            pendingClose = true;
+            return Task.CompletedTask;
+        }
+
+        return modal.CloseAsync();
+    }
+
+    private async Task OnOpenedAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        opened = true;
+        if (pendingClose && modal is not null)
+        {
+            pendingClose = false;
+            await modal.CloseAsync();
+        }
+    }
+
+    private async Task OnClosedAsync()
+    {
+        if (closed || disposed)
+        {
+            return;
+        }
+
+        closed = true;
+        opened = false;
+        await Closed.InvokeAsync();
+        Overlays.Close(Id);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        if (!disposed)
+        {
+            disposed = true;
+            Overlays.UnregisterCloseHandler(Id);
+        }
+
+        return ValueTask.CompletedTask;
+    }
+}

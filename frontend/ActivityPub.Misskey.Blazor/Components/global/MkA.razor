@@ -1,0 +1,133 @@
+@namespace ActivityPub.Misskey.Blazor.Components
+@inject NavigationManager Navigation
+@inject IMisskeyOverlayService Overlays
+@inject IClipboardInterop Clipboard
+@inject IMisskeyLocalizer Localizer
+@implements IAsyncDisposable
+
+<a href="@To"
+   class="@CssClass"
+   target="@(Behavior == "window" ? "_blank" : null)"
+   rel="@(Behavior == "window" ? "noopener noreferrer" : null)"
+   @onclick="NavigateAsync"
+   @onclick:preventDefault="true"
+   @oncontextmenu="ShowContextMenuAsync"
+   @oncontextmenu:preventDefault="true"
+   @oncontextmenu:stopPropagation="true"
+   @attributes="AttributesWithoutClass">
+    @ChildContent
+</a>
+
+@code {
+    [Parameter, EditorRequired]
+    public string To { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? ActiveClass { get; set; }
+
+    [Parameter]
+    public string? CssClassAdditional { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    [Parameter]
+    public string? Behavior { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private bool disposed;
+
+    private string? CssClass => string.Join(' ', new[]
+    {
+        CssClassAdditional,
+        IsActive ? ActiveClass : null,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private bool IsActive => !string.IsNullOrWhiteSpace(ActiveClass) &&
+        string.Equals(
+            Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].TrimEnd('/'),
+            To.TrimStart('/').Split('?', '#')[0].TrimEnd('/'),
+            StringComparison.OrdinalIgnoreCase);
+
+    private Task NavigateAsync(MouseEventArgs args)
+    {
+        if (disposed)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (Behavior is not null and not "window" and not "browser" and not "modalWindow")
+        {
+            throw new InvalidOperationException("Unsupported Misskey link behavior.");
+        }
+
+        if (Behavior == "browser")
+        {
+            Navigation.NavigateTo(To, forceLoad: true);
+        }
+        else if (args.ShiftKey || Behavior is "window" or "modalWindow")
+        {
+            // A new tab is the safe same-origin equivalent when no server circuit window
+            // host is available. The original target remains the exact href.
+            Navigation.NavigateTo(To, forceLoad: false);
+        }
+        else
+        {
+            Navigation.NavigateTo(To);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void ShowContextMenuAsync(MouseEventArgs args)
+    {
+        if (disposed || string.IsNullOrWhiteSpace(To))
+        {
+            return;
+        }
+
+        Overlays.ShowContextMenu(
+            args.ClientX,
+            args.ClientY,
+            [
+                new(MisskeyMenuItemKind.Label, To),
+                MisskeyMenuItem.Link(Localizer.Translate("showInPage"), "fas fa-expand-alt", To),
+                MisskeyMenuItem.ExternalLink(Localizer.Translate("openInNewTab"), "fas fa-external-link-alt", To),
+                MisskeyMenuItem.Divider,
+                new(
+                    MisskeyMenuItemKind.Action,
+                    Localizer.Translate("copyLink"),
+                    "fas fa-link",
+                    Action: CopyLinkAsync)
+            ]);
+    }
+
+    private async Task CopyLinkAsync()
+    {
+        Uri baseUri = new(Navigation.BaseUri, UriKind.Absolute);
+        Uri absolute = Uri.TryCreate(To, UriKind.Absolute, out Uri? absoluteTo)
+            ? absoluteTo
+            : new Uri(baseUri, To);
+        await Clipboard.WriteTextAsync(absolute.AbsoluteUri, CancellationToken.None);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        disposed = true;
+        return ValueTask.CompletedTask;
+    }
+}

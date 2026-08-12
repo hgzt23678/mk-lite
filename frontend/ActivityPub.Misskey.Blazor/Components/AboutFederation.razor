@@ -1,0 +1,129 @@
+@inject IAboutPresentationService About
+@inject IMisskeyLocalizer Localizer
+
+<div class="taeiyria">
+    <div class="query">
+        <MkFormInput Value="host"
+                     ValueChanged="ChangeHostAsync"
+                     Debounce="true">
+            <Prefix><i class="fas fa-search"></i></Prefix>
+            <Label>@Localizer.Translate("host")</Label>
+        </MkFormInput>
+        <MkFormSplit style="margin-top: var(--margin);">
+            <MkFormSelect Value="state"
+                          ValueChanged="ChangeStateAsync"
+                          Items="StateItems">
+                <Label>@Localizer.Translate("state")</Label>
+            </MkFormSelect>
+            <MkFormSelect Value="sort"
+                          ValueChanged="ChangeSortAsync"
+                          Items="SortItems">
+                <Label>@Localizer.Translate("sort")</Label>
+            </MkFormSelect>
+        </MkFormSplit>
+    </div>
+
+    <MkPagination TItem="FederationInstanceViewModel"
+                  Source="source"
+                  RefreshKey="refreshKey">
+        <ChildContent Context="items">
+            <div class="dqokceoi">
+                @foreach (FederationInstanceViewModel instance in items)
+                {
+                    <a @key="instance.Id"
+                       class="instance"
+                       href="@InstanceHref(instance.Host)"
+                       title="@Tooltip(instance)">
+                        <MkInstanceCardMini Instance="instance" />
+                    </a>
+                }
+            </div>
+        </ChildContent>
+    </MkPagination>
+</div>
+
+@code {
+    private string host = string.Empty;
+    private string state = "federating";
+    private string sort = "+pubSub";
+    private long refreshKey;
+    private AboutFederationPaginationSource source = default!;
+
+    private IReadOnlyList<MkFormSelectItem> StateItems =>
+    [
+        new("all", Localizer.Translate("all")),
+        new("federating", Localizer.Translate("federating")),
+        new("subscribing", Localizer.Translate("subscribing")),
+        new("publishing", Localizer.Translate("publishing")),
+        new("suspended", Localizer.Translate("suspended")),
+        new("blocked", Localizer.Translate("blocked")),
+        new("notResponding", Localizer.Translate("notResponding"))
+    ];
+
+    private IReadOnlyList<MkFormSelectItem> SortItems =>
+    [
+        SortItem("+pubSub", "pubSub", "descendingOrder"),
+        SortItem("-pubSub", "pubSub", "ascendingOrder"),
+        SortItem("+notes", "notes", "descendingOrder"),
+        SortItem("-notes", "notes", "ascendingOrder"),
+        SortItem("+users", "users", "descendingOrder"),
+        SortItem("-users", "users", "ascendingOrder"),
+        SortItem("+following", "following", "descendingOrder"),
+        SortItem("-following", "following", "ascendingOrder"),
+        SortItem("+followers", "followers", "descendingOrder"),
+        SortItem("-followers", "followers", "ascendingOrder"),
+        SortItem("+caughtAt", "registeredAt", "descendingOrder"),
+        SortItem("-caughtAt", "registeredAt", "ascendingOrder"),
+        SortItem("+lastCommunicatedAt", "lastCommunication", "descendingOrder"),
+        SortItem("-lastCommunicatedAt", "lastCommunication", "ascendingOrder")
+    ];
+
+    protected override void OnInitialized() => RecreateSource();
+
+    private Task ChangeHostAsync(string value)
+    {
+        host = value;
+        RecreateSource();
+        return Task.CompletedTask;
+    }
+
+    private Task ChangeStateAsync(string value)
+    {
+        state = value;
+        RecreateSource();
+        return Task.CompletedTask;
+    }
+
+    private Task ChangeSortAsync(string value)
+    {
+        sort = value;
+        RecreateSource();
+        return Task.CompletedTask;
+    }
+
+    private void RecreateSource()
+    {
+        source = new AboutFederationPaginationSource(About, host, state, sort);
+        refreshKey++;
+    }
+
+    private MkFormSelectItem SortItem(string value, string field, string direction) =>
+        new(value, $"{Localizer.Translate(field)} ({Localizer.Translate(direction)})");
+
+    private string Tooltip(FederationInstanceViewModel instance)
+    {
+        string communicated = instance.LastCommunicatedAt?.ToString("G", Localizer.Culture) ?? "-";
+        return $"Last communicated: {communicated}\nStatus: {Status(instance)}";
+    }
+
+    private static string Status(FederationInstanceViewModel instance) => instance switch
+    {
+        { IsSuspended: true } => "Suspended",
+        { IsBlocked: true } => "Blocked",
+        { IsNotResponding: true } => "Error",
+        _ => "Alive"
+    };
+
+    private static string InstanceHref(string hostValue) =>
+        "/instance-info/" + Uri.EscapeDataString(hostValue);
+}

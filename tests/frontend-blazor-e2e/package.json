@@ -1,0 +1,16 @@
+{
+  "name": "activitypub-misskey-blazor-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:background": "playwright test background-opacity.spec.ts",
+    "test:overlays": "playwright test overlay-stack.spec.ts",
+    "test:upstream-dom": "playwright test upstream-dom-parity.spec.ts",
+    "test:tailnet": "playwright test tailnet-signin-contract.spec.ts",
+    "install:browsers": "playwright install chromium firefox webkit"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1"
+  }
+}

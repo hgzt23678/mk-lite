@@ -1,0 +1,151 @@
+@page "/__test/components/pagination"
+@rendermode InteractiveServer
+@implements IDisposable
+
+<main data-contract="pagination">
+    <button type="button" data-contract="prepend" @onclick="PrependAsync">prepend</button>
+    <button type="button" data-contract="reload" @onclick="ReloadAsync">reload</button>
+    <output data-contract="queue-count">@queueCount</output>
+    <output data-contract="request-count">@source.RequestCount</output>
+    <div data-contract="scroll" style="height: 180px; overflow-y: auto;">
+        <MkPagination @ref="pagination"
+                      TItem="PaginationFixtureItem"
+                      Source="source"
+                      DisplayLimit="20"
+                      QueueChanged="QueueChanged">
+            <ChildContent Context="items">
+                <div data-contract="items">
+                    @foreach (PaginationFixtureItem item in items)
+                    {
+                        <div @key="item.Id"
+                             data-pagination-item="@item.Id"
+                             data-ad="@item.ShouldInsertAdvertisement.ToString().ToLowerInvariant()"
+                             style="height: 48px;">
+                            @item.Id
+                        </div>
+                    }
+                </div>
+            </ChildContent>
+        </MkPagination>
+    </div>
+
+    <section data-contract="error-pagination">
+        <MkPagination TItem="PaginationFixtureItem" Source="errorSource">
+            <ChildContent Context="items">
+                @foreach (PaginationFixtureItem item in items)
+                {
+                    <div data-error-page-item="@item.Id">@item.Id</div>
+                }
+            </ChildContent>
+        </MkPagination>
+    </section>
+</main>
+
+@code {
+    private readonly BrowserPaginationSource source = new();
+    private readonly BrowserErrorPaginationSource errorSource = new();
+    private MkPagination<PaginationFixtureItem>? pagination;
+    private int queueCount;
+
+    protected override void OnInitialized()
+    {
+        source.RequestCountChanged += HandleRequestCountChanged;
+    }
+
+    private void HandleRequestCountChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private async Task PrependAsync()
+    {
+        if (pagination is not null)
+        {
+            await pagination.PrependAsync(new("live-1"));
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (pagination is not null)
+        {
+            await pagination.ReloadAsync();
+        }
+    }
+
+    private void QueueChanged(int count) => queueCount = count;
+
+    public void Dispose()
+    {
+        source.RequestCountChanged -= HandleRequestCountChanged;
+    }
+
+    private sealed record PaginationFixtureItem(
+        string Id,
+        bool ShouldInsertAdvertisement = false);
+
+    private sealed class BrowserPaginationSource : IMisskeyPaginationSource<PaginationFixtureItem>
+    {
+        private int requestCount;
+
+        public int RequestCount => Volatile.Read(ref requestCount);
+
+        public event Action? RequestCountChanged;
+
+        public MisskeyPaginationOptions Options { get; } = new(Limit: 6);
+
+        public ValueTask<IReadOnlyList<PaginationFixtureItem>> FetchAsync(
+            MisskeyPaginationRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Interlocked.Increment(ref requestCount);
+            RequestCountChanged?.Invoke();
+            if (request.UntilId is null)
+            {
+                return ValueTask.FromResult<IReadOnlyList<PaginationFixtureItem>>(
+                [
+                    new("initial-6"),
+                    new("initial-5"),
+                    new("initial-4"),
+                    new("initial-3"),
+                    new("initial-2"),
+                    new("initial-1"),
+                    new("initial-sentinel")
+                ]);
+            }
+
+            return ValueTask.FromResult<IReadOnlyList<PaginationFixtureItem>>(
+            [
+                new("older-3"),
+                new("older-2"),
+                new("older-1")
+            ]);
+        }
+
+        public string GetId(PaginationFixtureItem item) => item.Id;
+
+        public PaginationFixtureItem MarkAdvertisement(PaginationFixtureItem item) =>
+            item with { ShouldInsertAdvertisement = true };
+    }
+
+    private sealed class BrowserErrorPaginationSource : IMisskeyPaginationSource<PaginationFixtureItem>
+    {
+        private int requestCount;
+
+        public MisskeyPaginationOptions Options { get; } = new(Limit: 10);
+
+        public ValueTask<IReadOnlyList<PaginationFixtureItem>> FetchAsync(
+            MisskeyPaginationRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Interlocked.Increment(ref requestCount) == 1)
+            {
+                return ValueTask.FromException<IReadOnlyList<PaginationFixtureItem>>(
+                    new InvalidOperationException("pagination browser fixture failure"));
+            }
+
+            return ValueTask.FromResult<IReadOnlyList<PaginationFixtureItem>>([]);
+        }
+
+        public string GetId(PaginationFixtureItem item) => item.Id;
+    }
+}

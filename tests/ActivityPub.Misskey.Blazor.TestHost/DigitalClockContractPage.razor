@@ -1,0 +1,15 @@
+@page "/__test/components/digital-clock"
+@rendermode InteractiveServer
+
+<main data-contract="mk-digital-clock">
+    <button id="toggle-ms" type="button" @onclick="() => showMilliseconds = !showMilliseconds">Milliseconds</button>
+    <MkDigitalClock ShowSeconds="true"
+                    ShowMilliseconds="@showMilliseconds"
+                    OffsetMinutes="0"
+                    class="fixture-clock"
+                    data-fixture="digital-clock" />
+</main>
+
+@code {
+    private bool showMilliseconds;
+}

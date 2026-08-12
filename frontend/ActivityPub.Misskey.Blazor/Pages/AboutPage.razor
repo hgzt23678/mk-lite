@@ -1,0 +1,219 @@
+@page "/about"
+@implements IDisposable
+@inject IInstancePresentationService InstanceService
+@inject IAboutPresentationService About
+@inject MisskeyFrontendRuntimeConfiguration RuntimeConfiguration
+@inject NavigationManager Navigation
+@inject IMisskeyLocalizer Localizer
+@inject ILogger<AboutPage> Logger
+
+<PageTitle>@Localizer.Translate("instanceInfo")</PageTitle>
+
+<MkStickyContainer>
+    <Header>
+        <MkPageHeader Metadata="HeaderMetadata"
+                      Actions="HeaderActions"
+                      Tabs="HeaderTabs"
+                      Tab="tab"
+                      TabChanged="ChangeTabAsync" />
+    </Header>
+    <ChildContent>
+        @if (tab == "overview")
+        {
+            <MkSpacer ContentMax="600" MarginMin="20">
+                @if (instance is null && !instanceLoadFailed)
+                {
+                    <MkLoading />
+                }
+                else if (instanceLoadFailed)
+                {
+                    <MkError Retry="LoadInstanceAsync" />
+                }
+                else
+                {
+                    <div class="_formRoot">
+                        <div class="_formBlock fwhjspax" style="@BannerStyle">
+                            <div class="content">
+                                <img src="@InstanceIconUrl" alt="" class="icon" />
+                                <div class="name">
+                                    <b>@instance!.Name</b>
+                                </div>
+                            </div>
+                        </div>
+
+                        <MkKeyValue class="_formBlock">
+                            <Key>@Localizer.Translate("description")</Key>
+                            <Value>@instance.Description</Value>
+                        </MkKeyValue>
+
+                        <FormSection>
+                            <MkKeyValue class="_formBlock" Copy="RuntimeConfiguration.Version">
+                                <Key>Misskey</Key>
+                                <Value>@RuntimeConfiguration.Version</Value>
+                            </MkKeyValue>
+                            <FormLink To="/about-misskey">@Localizer.Translate("aboutMisskey")</FormLink>
+                        </FormSection>
+
+                        <FormSection>
+                            <MkFormSplit>
+                                <MkKeyValue class="_formBlock">
+                                    <Key>@Localizer.Translate("administrator")</Key>
+                                    <Value>@instance.MaintainerName</Value>
+                                </MkKeyValue>
+                                <MkKeyValue class="_formBlock">
+                                    <Key>@Localizer.Translate("contact")</Key>
+                                    <Value>@instance.MaintainerEmail</Value>
+                                </MkKeyValue>
+                            </MkFormSplit>
+                            @if (!string.IsNullOrWhiteSpace(instance.TosUrl))
+                            {
+                                <FormLink To="@instance.TosUrl" External="true" class="_formBlock">@Localizer.Translate("tos")</FormLink>
+                            }
+                        </FormSection>
+
+                        <MkFormSuspense TResult="AboutStatisticsViewModel" P="About.GetStatisticsAsync">
+                            <ChildContent Context="stats">
+                                <FormSection>
+                                    <Label>@Localizer.Translate("statistics")</Label>
+                                    <ChildContent>
+                                        <MkFormSplit>
+                                            <MkKeyValue class="_formBlock">
+                                                <Key>@Localizer.Translate("users")</Key>
+                                                <Value>@FormatNumber(stats.OriginalUsersCount)</Value>
+                                            </MkKeyValue>
+                                            <MkKeyValue class="_formBlock">
+                                                <Key>@Localizer.Translate("notes")</Key>
+                                                <Value>@FormatNumber(stats.OriginalNotesCount)</Value>
+                                            </MkKeyValue>
+                                        </MkFormSplit>
+                                    </ChildContent>
+                                </FormSection>
+                            </ChildContent>
+                        </MkFormSuspense>
+
+                        <FormSection>
+                            <Label>Well-known resources</Label>
+                            <ChildContent>
+                                <div class="_formLinks">
+                                    <FormLink To="@PublicUrl("/.well-known/host-meta")" External="true">host-meta</FormLink>
+                                    <FormLink To="@PublicUrl("/.well-known/host-meta.json")" External="true">host-meta.json</FormLink>
+                                    <FormLink To="@PublicUrl("/.well-known/nodeinfo")" External="true">nodeinfo</FormLink>
+                                    <FormLink To="@PublicUrl("/robots.txt")" External="true">robots.txt</FormLink>
+                                    <FormLink To="@PublicUrl("/manifest.json")" External="true">manifest.json</FormLink>
+                                </div>
+                            </ChildContent>
+                        </FormSection>
+                    </div>
+                }
+            </MkSpacer>
+        }
+        else
+        {
+            <MkSpacer ContentMax="1000" MarginMin="20">
+                <AboutFederation />
+            </MkSpacer>
+        }
+    </ChildContent>
+</MkStickyContainer>
+
+@code {
+    private InstanceSummaryViewModel? instance;
+    private string tab = "overview";
+    private bool instanceLoadFailed;
+    private bool disposed;
+
+    private MkPageHeaderMetadata HeaderMetadata => new(
+        Localizer.Translate("instanceInfo"),
+        Icon: "fas fa-info-circle");
+
+    private static IReadOnlyList<MkPageHeaderAction> HeaderActions => [];
+
+    private IReadOnlyList<MkPageHeaderTab> HeaderTabs =>
+    [
+        new("overview", Localizer.Translate("overview")),
+        new("federation", Localizer.Translate("federation"), "fas fa-globe")
+    ];
+
+    private string InstanceIconUrl =>
+        SameOriginMediaUrl.Normalize(instance?.IconUrl) ?? "/static-assets/favicon.ico";
+
+    // The upstream page supplies a background image, but a failed or absent image must
+    // never make the instance panel transparent while the rest of the page is hydrated.
+    // Keep the image as an optional same-origin enhancement over the opaque panel token.
+    private string BannerStyle => $"background-color: var(--panel); {SameOriginMediaUrl.CssBackgroundImage(instance?.BackgroundImageUrl)}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        tab = TabFromUri(Navigation.Uri);
+        Navigation.LocationChanged += OnLocationChanged;
+        await LoadInstanceAsync();
+    }
+
+    private async Task LoadInstanceAsync()
+    {
+        instanceLoadFailed = false;
+        try
+        {
+            instance = await InstanceService.GetAsync(CancellationToken.None);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            instance = null;
+            instanceLoadFailed = true;
+            Logger.LogWarning(
+                "The about instance projection is unavailable. FailureType={FailureType}",
+                exception.GetType().Name);
+        }
+    }
+
+    private Task ChangeTabAsync(string key)
+    {
+        string next = key == "federation" ? "federation" : "overview";
+        string destination = next == "federation" ? "/about#federation" : "/about";
+        if (!string.Equals(tab, next, StringComparison.Ordinal) ||
+            !string.Equals(TabFromUri(Navigation.Uri), next, StringComparison.Ordinal))
+        {
+            tab = next;
+            Navigation.NavigateTo(destination);
+        }
+        return Task.CompletedTask;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        string next = TabFromUri(args.Location);
+        _ = InvokeAsync(() =>
+        {
+            if (!disposed && !string.Equals(tab, next, StringComparison.Ordinal))
+            {
+                tab = next;
+                StateHasChanged();
+            }
+        });
+    }
+
+    private string PublicUrl(string path)
+    {
+        Uri publicBase = RuntimeConfiguration.PublicBaseUri ??
+            throw new InvalidOperationException("The Misskey frontend PublicBaseUri is required for instance resources.");
+        return new Uri(publicBase, path).AbsoluteUri;
+    }
+
+    private string FormatNumber(long value) => value.ToString("N0", Localizer.Culture);
+
+    private static string TabFromUri(string value) =>
+        string.Equals(new Uri(value, UriKind.Absolute).Fragment, "#federation", StringComparison.Ordinal)
+            ? "federation"
+            : "overview";
+
+    public void Dispose()
+    {
+        disposed = true;
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}

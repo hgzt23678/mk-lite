@@ -1,0 +1,61 @@
+.mk-dialog {
+    position: relative;
+    padding: 32px;
+    min-width: 320px;
+    max-width: 480px;
+    box-sizing: border-box;
+    text-align: center;
+    background: var(--panel);
+    border-radius: var(--radius);
+}
+
+.mk-dialog > .icon {
+    font-size: 32px;
+}
+
+.mk-dialog > .icon.info {
+    color: #55c4dd;
+}
+
+.mk-dialog > .icon.success {
+    color: var(--success);
+}
+
+.mk-dialog > .icon.error {
+    color: var(--error);
+}
+
+.mk-dialog > .icon.warning {
+    color: var(--warn);
+}
+
+.mk-dialog > .icon > * {
+    display: block;
+    margin: 0 auto;
+}
+
+.mk-dialog > .icon + header {
+    margin-top: 16px;
+}
+
+.mk-dialog > header {
+    margin: 0 0 8px 0;
+    font-weight: bold;
+    font-size: 20px;
+}
+
+.mk-dialog > header + .body {
+    margin-top: 8px;
+}
+
+.mk-dialog > .body {
+    margin: 16px 0 0 0;
+}
+
+.mk-dialog > .buttons {
+    margin-top: 16px;
+}
+
+.mk-dialog > .buttons > * {
+    margin: 0 8px;
+}

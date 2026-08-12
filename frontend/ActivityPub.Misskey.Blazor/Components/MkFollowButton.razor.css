@@ -1,0 +1,63 @@
+.kpoogebi {
+    position: relative;
+    display: inline-block;
+    font-weight: bold;
+    color: var(--accent);
+    background: #fff;
+    border: solid 1px var(--accent);
+    padding: 0;
+    height: 31px;
+    font-size: 16px;
+    border-radius: 32px;
+}
+
+.kpoogebi.full {
+    padding: 0 8px 0 12px;
+    font-size: 14px;
+}
+
+.kpoogebi.large {
+    font-size: 16px;
+    height: 38px;
+    padding: 0 12px 0 16px;
+}
+
+.kpoogebi:not(.full) {
+    width: 31px;
+}
+
+.kpoogebi:focus-visible::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    bottom: -5px;
+    left: -5px;
+    border: 2px solid var(--focus);
+    border-radius: 32px;
+}
+
+.kpoogebi.active {
+    color: #fff;
+    background: var(--accent);
+}
+
+.kpoogebi.active:hover {
+    background: var(--accentLighten);
+    border-color: var(--accentLighten);
+}
+
+.kpoogebi.active:active {
+    background: var(--accentDarken);
+    border-color: var(--accentDarken);
+}
+
+.kpoogebi.wait {
+    cursor: wait !important;
+    opacity: 0.7;
+}
+
+.kpoogebi > span {
+    margin-right: 6px;
+}

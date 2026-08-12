@@ -1,0 +1,81 @@
+<MkContainer Naked="@Transparent" ShowHeader="false" class="@RootClass">
+    <div class="@ClockBodyClass">
+        @if (Label is "tz" or "timeAndTz")
+        {
+            <div class="_monospace label a abbrev">@TimezoneAbbreviation</div>
+        }
+        <MkAnalogClock class="clock"
+                       Thickness="@Thickness"
+                       OffsetMinutes="@OffsetMinutes"
+                       Graduations="@Graduations"
+                       FadeGraduations="@FadeGraduations"
+                       TwentyFourHour="@TwentyFour"
+                       SecondHandAnimation="@SecondHandAnimation" />
+        @if (Label is "time" or "timeAndTz")
+        {
+            <MkDigitalClock class="_monospace label c time"
+                            ShowSeconds="false"
+                            OffsetMinutes="@OffsetMinutes" />
+        }
+        @if (Label is "tz" or "timeAndTz")
+        {
+            <div class="_monospace label d offset">@OffsetLabel</div>
+        }
+    </div>
+</MkContainer>
+
+@code {
+    [Parameter, EditorRequired]
+    public MisskeyWidgetModel Widget { get; set; } = null!;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    private bool Transparent => MisskeyWidgetData.Boolean(Widget, "transparent", false);
+    private string Size
+    {
+        get
+        {
+            string? value = MisskeyWidgetData.String(Widget, "size", "medium");
+            return value is "small" or "large" ? value : "medium";
+        }
+    }
+    private double Thickness => Math.Clamp(MisskeyWidgetData.Number(Widget, "thickness", 0.2), 0.05, 1);
+    private bool FadeGraduations => MisskeyWidgetData.Boolean(Widget, "fadeGraduations", true);
+    private bool TwentyFour => MisskeyWidgetData.Boolean(Widget, "twentyFour", false);
+    private string Label
+    {
+        get
+        {
+            string? value = MisskeyWidgetData.String(Widget, "label", "none");
+            return value is "time" or "tz" or "timeAndTz" ? value : "none";
+        }
+    }
+    private string? Timezone => MisskeyWidgetData.String(Widget, "timezone", null);
+    private MisskeyWidgetTimezone? ResolvedTimezone => MisskeyWidgetTimezone.Find(Timezone);
+    private int? OffsetMinutes => Timezone is null ? null : ResolvedTimezone?.OffsetMinutes ?? 0;
+    private string TimezoneAbbreviation => ResolvedTimezone?.Abbreviation ?? "?";
+    private string RootClass => string.Join(' ', new[] { "mkw-clock", CssClass }.Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string ClockBodyClass => $"vubelbmv {Size}";
+    private string OffsetLabel
+    {
+        get
+        {
+            int offset = OffsetMinutes ?? ResolvedTimezone?.OffsetMinutes ?? 0;
+            int absolute = Math.Abs(offset);
+            return $"{(offset >= 0 ? '+' : '-')}{absolute / 60:00}:{absolute % 60:00}";
+        }
+    }
+    private AnalogClockGraduations Graduations => MisskeyWidgetData.String(Widget, "graduations", "numbers") switch
+    {
+        "none" => AnalogClockGraduations.None,
+        "dots" => AnalogClockGraduations.Dots,
+        _ => AnalogClockGraduations.Numbers
+    };
+    private AnalogClockSecondHandAnimation SecondHandAnimation => MisskeyWidgetData.String(Widget, "sAnimation", "elastic") switch
+    {
+        "none" => AnalogClockSecondHandAnimation.None,
+        "easeOut" => AnalogClockSecondHandAnimation.EaseOut,
+        _ => AnalogClockSecondHandAnimation.Elastic
+    };
+}

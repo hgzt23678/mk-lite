@@ -1,0 +1,64 @@
+@namespace ActivityPub.Misskey.Blazor.TestHost
+@page "/__test/components/user-preview"
+@attribute [AllowAnonymous]
+
+<PageTitle>MkUserPreview contract</PageTitle>
+
+<main data-contract="mk-user-preview">
+    <div class="fixture-preview-controls">
+        <button type="button" data-action="move" @onclick="Move">move</button>
+        <button type="button" data-action="remove" @onclick="RemoveAlice">remove alice</button>
+        <button type="button" data-action="restore" @onclick="RestoreAlice">restore alice</button>
+    </div>
+    <div class="fixture-preview-sources" style="position: relative; min-height: 420px; padding: 80px;">
+        @if (showAlice)
+        {
+            <MkAvatar User="alice"
+                      DisableLink="true"
+                      CssClass="preview-source"
+                      style="@AliceStyle"
+                      tabindex="0"
+                      data-preview-source="alice" />
+        }
+        <MkAvatar User="bob"
+                  DisableLink="true"
+                  CssClass="preview-source"
+                  style="position: absolute; left: 500px; top: 220px; width: 64px; height: 64px;"
+                  tabindex="0"
+                  data-preview-source="bob" />
+    </div>
+</main>
+
+@code {
+    private bool showAlice = true;
+    private bool moved;
+    private readonly NoteAuthorViewModel alice = new(
+        "alice-id",
+        "alice",
+        "alice@xn--bcher-kva.example",
+        "Alice :wave:",
+        "/static-assets/favicon.png",
+        IsBot: false,
+        IsCat: true,
+        AvatarBlurhash: "LEHV6nWB2yk8pyo0adR*.7kCMdnj",
+        OnlineStatus: "active",
+        Emojis: new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["wave"] = "/static-assets/favicon.png"
+        });
+    private readonly NoteAuthorViewModel bob = new(
+        "bob-id",
+        "bob",
+        "bob@remote.example",
+        "Bob",
+        "/static-assets/favicon.png",
+        IsBot: false);
+
+    private string AliceStyle => moved
+        ? "position: absolute; left: 340px; top: 80px; width: 64px; height: 64px;"
+        : "position: absolute; left: 100px; top: 80px; width: 64px; height: 64px;";
+
+    private void Move() => moved = !moved;
+    private void RemoveAlice() => showAlice = false;
+    private void RestoreAlice() => showAlice = true;
+}

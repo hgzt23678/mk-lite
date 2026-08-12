@@ -1,0 +1,41 @@
+.pxhvhrfw {
+    display: flex;
+    font-size: 90%;
+}
+
+.pxhvhrfw > button {
+    flex: 1;
+    padding: 10px 8px;
+    border-radius: var(--radius);
+}
+
+.pxhvhrfw > button:disabled {
+    opacity: 1 !important;
+    cursor: default;
+}
+
+.pxhvhrfw > button.active {
+    color: var(--accent);
+    background: var(--accentedBg);
+}
+
+.pxhvhrfw > button:not(.active):hover {
+    color: var(--fgHighlighted);
+    background: var(--panelHighlight);
+}
+
+.pxhvhrfw > button:not(:first-child) {
+    margin-left: 8px;
+}
+
+.pxhvhrfw > button > .icon {
+    margin-right: 6px;
+}
+
+.pxhvhrfw.max-width_500px {
+    font-size: 80%;
+}
+
+.pxhvhrfw.max-width_500px > button {
+    padding: 11px 8px;
+}

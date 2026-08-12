@@ -1,0 +1,7 @@
+@page "/registry/keys/system/{*Path}"
+<V12RoutePage Route="/registry/keys/system/:path(*)?" />
+
+@code {
+    [Parameter]
+    public string? Path { get; set; }
+}

@@ -1,0 +1,36 @@
+<MkTooltip Target="Target"
+           Showing="Showing"
+           MaxWidth="340"
+           Id="@TooltipId"
+           Closed="Closed">
+    <div class="beeadbfb">
+        <MkReactionIcon Reaction="@Reaction"
+                        CustomEmojis="CustomEmojis"
+                        class="icon"
+                        NoStyle="true" />
+        <div class="name">@DisplayReaction</div>
+    </div>
+</MkTooltip>
+
+@code {
+    private readonly string tooltipId = $"mk-reaction-tooltip-{Guid.NewGuid():N}";
+
+    [Parameter, EditorRequired]
+    public string Reaction { get; set; } = string.Empty;
+
+    [Parameter]
+    public IReadOnlyList<EmojiPickerCustomEmoji>? CustomEmojis { get; set; }
+
+    [Parameter, EditorRequired]
+    public ElementReference Target { get; set; }
+
+    [Parameter]
+    public bool Showing { get; set; } = true;
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    private string TooltipId => tooltipId;
+
+    private string DisplayReaction => Reaction.Replace("@.", string.Empty, StringComparison.Ordinal);
+}

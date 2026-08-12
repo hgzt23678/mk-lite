@@ -1,0 +1,285 @@
+@typeparam TItem
+@implements IAsyncDisposable
+@inject IDateSeparatedListInterop Browser
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyLocalizer Localizer
+
+@if (Items.Count > 0)
+{
+    <div @ref="root"
+         class="@RootClass"
+         data-direction="@(animation == false ? null : Direction)"
+         data-reversed="@(animation == false ? null : Reversed.ToString().ToLowerInvariant())"
+         @attributes="AttributesWithoutClass">
+        @for (int index = 0; index < Items.Count; index++)
+        {
+            TItem item = Items[index];
+            if (HasSeparatorAfter(index))
+            {
+                <KeyedRenderFragment @key="GetId(item)">
+                    @ChildContent(item)
+                </KeyedRenderFragment>
+                <div @key="SeparatorKey(item)" class="separator">
+                    <p class="date">
+                        <span><i class="fas fa-angle-up icon"></i>@DateText(CalendarPartAt(index))</span>
+                        <span>@DateText(CalendarPartAt(index + 1))<i class="fas fa-angle-down icon"></i></span>
+                    </p>
+                </div>
+            }
+            else
+            {
+                if (Ad && ShouldInsertAdvertisement(item))
+                {
+                    <KeyedRenderFragment @key="AdvertisementKey(item)">
+                        @RequiredAdvertisementContent(item)
+                    </KeyedRenderFragment>
+                }
+                <KeyedRenderFragment @key="GetId(item)">
+                    @ChildContent(item)
+                </KeyedRenderFragment>
+            }
+        }
+    </div>
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference root;
+    private IJSObjectReference? attachment;
+    private DateSeparatedCalendarPart[]? browserCalendarParts;
+    private string observedCalendarSignature = string.Empty;
+    private bool calendarResolved;
+    private bool? animation;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<TItem> Items { get; set; } = Array.Empty<TItem>();
+
+    [Parameter, EditorRequired]
+    public Func<TItem, string> GetId { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public Func<TItem, DateTimeOffset> GetCreatedAt { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public Func<TItem, bool> ShouldInsertAdvertisement { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public RenderFragment<TItem> ChildContent { get; set; } = default!;
+
+    [Parameter]
+    public RenderFragment<TItem>? AdvertisementContent { get; set; }
+
+    [Parameter]
+    public string Direction { get; set; } = "down";
+
+    [Parameter]
+    public bool Reversed { get; set; }
+
+    [Parameter]
+    public bool NoGap { get; set; }
+
+    [Parameter]
+    public bool Ad { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    [CascadingParameter(Name = "MisskeyLocaleRevision")]
+    private long LocaleRevision { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "sqadhkmv",
+        NoGap ? "noGap" : null,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        ArgumentNullException.ThrowIfNull(Items);
+        ArgumentNullException.ThrowIfNull(GetId);
+        ArgumentNullException.ThrowIfNull(GetCreatedAt);
+        ArgumentNullException.ThrowIfNull(ShouldInsertAdvertisement);
+        ArgumentNullException.ThrowIfNull(ChildContent);
+
+        string signature = string.Join(
+            '\u001f',
+            Items.Select(item => $"{GetId(item)}\u001e{GetCreatedAt(item).ToUnixTimeMilliseconds()}"));
+        if (!string.Equals(observedCalendarSignature, signature, StringComparison.Ordinal))
+        {
+            observedCalendarSignature = signature;
+            browserCalendarParts = null;
+            calendarResolved = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        if (Items.Count == 0)
+        {
+            await DisposeAttachmentAsync();
+            return;
+        }
+
+        if (!calendarResolved)
+        {
+            string requestedSignature = observedCalendarSignature;
+            try
+            {
+                DateSeparatedCalendarPart[] resolved = await Browser.GetCalendarPartsAsync(
+                    Items.Select(item => GetCreatedAt(item).ToUnixTimeMilliseconds()).ToArray(),
+                    lifetime.Token);
+                if (resolved.Length == Items.Count &&
+                    string.Equals(requestedSignature, observedCalendarSignature, StringComparison.Ordinal))
+                {
+                    browserCalendarParts = resolved;
+                }
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+
+            calendarResolved = true;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (animation is null)
+        {
+            try
+            {
+                animation = await DeviceState.ReadAsync("animation", true, lifetime.Token);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (JSDisconnectedException)
+            {
+                animation = true;
+            }
+
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (!animation.Value)
+        {
+            await DisposeAttachmentAsync();
+            return;
+        }
+
+        if (attachment is null)
+        {
+            try
+            {
+                IJSObjectReference created = await Browser.AttachAsync(root, lifetime.Token);
+                if (disposed)
+                {
+                    await DisposeAttachmentAsync(created);
+                }
+                else
+                {
+                    attachment = created;
+                }
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+
+    private bool HasSeparatorAfter(int index) => index < Items.Count - 1 &&
+        CalendarPartAt(index).Day != CalendarPartAt(index + 1).Day;
+
+    private DateSeparatedCalendarPart CalendarPartAt(int index)
+    {
+        if (browserCalendarParts is { } values && values.Length == Items.Count)
+        {
+            return values[index];
+        }
+
+        DateTimeOffset local = GetCreatedAt(Items[index]).ToLocalTime();
+        return new(local.Month, local.Day);
+    }
+
+    private string DateText(DateSeparatedCalendarPart part) => Localizer.Translate(
+        "monthAndDay",
+        new Dictionary<string, object?>(StringComparer.Ordinal)
+        {
+            ["month"] = part.Month.ToString(CultureInfo.InvariantCulture),
+            ["day"] = part.Day.ToString(CultureInfo.InvariantCulture)
+        });
+
+    private RenderFragment RequiredAdvertisementContent(TItem item) =>
+        AdvertisementContent?.Invoke(item) ??
+        throw new InvalidOperationException(
+            "MkDateSeparatedList requires AdvertisementContent when an advertisement is requested.");
+
+    private string SeparatorKey(TItem item) => GetId(item) + ":separator";
+
+    private string AdvertisementKey(TItem item) => GetId(item) + ":ad";
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        lifetime.Cancel();
+        await DisposeAttachmentAsync();
+        lifetime.Dispose();
+    }
+
+    private async ValueTask DisposeAttachmentAsync()
+    {
+        IJSObjectReference? current = attachment;
+        attachment = null;
+        if (current is not null)
+        {
+            await DisposeAttachmentAsync(current);
+        }
+    }
+
+    private static async ValueTask DisposeAttachmentAsync(IJSObjectReference current)
+    {
+        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try
+        {
+            await current.InvokeVoidAsync("dispose", cleanup.Token);
+            await current.DisposeAsync().AsTask().WaitAsync(cleanup.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

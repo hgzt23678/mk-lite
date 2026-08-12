@@ -1,0 +1,42 @@
+@page "/__test/components/mini-cards"
+@rendermode InteractiveServer
+@inject IInstancePresentationService Instances
+@inject IUserPreviewPresentationService Users
+
+@if (instance is not null && user is not null)
+{
+    <main data-contract="mini-cards">
+        <MkInstanceCardMini Instance="instance" data-contract="instance-card-mini" />
+        <MkUserCardMini User="user" data-contract="user-card-mini" />
+    </main>
+}
+else
+{
+    <MkLoading />
+}
+
+@code {
+    private FederationInstanceViewModel? instance;
+    private UserPreviewViewModel? user;
+
+    protected override async Task OnInitializedAsync()
+    {
+        IReadOnlyList<FederationInstanceViewModel> values =
+            await Instances.ReadFederationInstancesAsync(CancellationToken.None);
+        instance = values[0] with
+        {
+            IconUrl = "/static-assets/favicon.png",
+            IsNotResponding = true,
+            IsBlocked = false,
+            IsSuspended = false,
+            SoftwareName = "Mastodon",
+            SoftwareVersion = "4.6.2",
+            Name = "Mastodon test instance"
+        };
+        user = (await Users.ReadAsync("alice-id", CancellationToken.None)) with
+        {
+            IsSilenced = true,
+            IsSuspended = true
+        };
+    }
+}

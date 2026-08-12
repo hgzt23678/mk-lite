@@ -1,0 +1,131 @@
+@implements IAsyncDisposable
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyLocalizer Localizer
+
+<div class="@RootClass">
+    <MkContainer ShowHeader="@showHeader">
+        <Header><i class="fas fa-sticky-note"></i>@Localizer.Translate("_widgets.memo")</Header>
+        <ChildContent>
+            <div class="otgbylcu">
+                <textarea value="@text"
+                          placeholder="@Localizer.Translate("placeholder")"
+                          aria-label="@Localizer.Translate("_widgets.memo")"
+                          @oninput="OnInputAsync"></textarea>
+                <button type="button"
+                        class="_buttonPrimary"
+                        disabled="@(!changed)"
+                        @onclick="SaveAsync">@Localizer.Translate("save")</button>
+            </div>
+        </ChildContent>
+    </MkContainer>
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private string text = string.Empty;
+    private bool changed;
+    private bool loaded;
+    private bool showHeader = true;
+    private long saveGeneration;
+
+    [Parameter, EditorRequired]
+    public MisskeyWidgetModel Widget { get; set; } = null!;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "mkw-memo",
+        CssClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || loaded)
+        {
+            return;
+        }
+
+        loaded = true;
+        showHeader = MisskeyWidgetData.Boolean(Widget, "showHeader", true);
+        try
+        {
+            text = await DeviceState.ReadAsync("memo", string.Empty, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private Task OnInputAsync(ChangeEventArgs args)
+    {
+        text = args.Value?.ToString() ?? string.Empty;
+        changed = true;
+        _ = AutoSaveAsync();
+        return Task.CompletedTask;
+    }
+
+    private async Task AutoSaveAsync()
+    {
+        long generation = ++saveGeneration;
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), lifetime.Token);
+            if (generation != saveGeneration)
+            {
+                return;
+            }
+
+            await SaveCoreAsync();
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private async Task SaveAsync(MouseEventArgs? args = null)
+    {
+        _ = args;
+        ++saveGeneration;
+        await SaveCoreAsync();
+    }
+
+    private async Task SaveCoreAsync()
+    {
+        if (!loaded)
+        {
+            return;
+        }
+
+        try
+        {
+            await DeviceState.WriteAsync("memo", text, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (JSDisconnectedException)
+        {
+            return;
+        }
+
+        changed = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

@@ -1,0 +1,92 @@
+@inject ISettingsPresentationService Settings
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+@inject ActivityPub.Misskey.Blazor.Identity.IAuthenticatedActorContext Auth
+
+<div class="_formRoot">
+    <div class="llvierxe" style="@BannerStyle">
+        <div class="avatar">
+            <img class="avatar" src="@AvatarUrl" alt="@name" loading="lazy" referrerpolicy="no-referrer" />
+        </div>
+    </div>
+
+    <MkFormInput CssClassAdditional="_formBlock"
+                 Value="@name"
+                 ValueChanged="@(value => { name = value; })"
+                 Max="30">
+        <Label>@Localizer.Translate("_profile.name")</Label>
+    </MkFormInput>
+
+    <MkFormTextarea CssClassAdditional="_formBlock"
+                    Value="@description"
+                    ValueChanged="@(value => { description = value; })"
+                    Max="500">
+        <Label>@Localizer.Translate("_profile.description")</Label>
+    </MkFormTextarea>
+
+    <div class="_formBlock" style="display: flex; gap: 8px;">
+        <MkButton Primary="true" Disabled="@saving" OnClick="SaveAsync">@Localizer.Translate("save")</MkButton>
+        @if (saved)
+        {
+            <span style="align-self: center;">@Localizer.Translate("saved")</span>
+        }
+    </div>
+</div>
+
+@code {
+    private string name = string.Empty;
+    private string description = string.Empty;
+    private string avatarUrl = "/static-assets/user-unknown.png";
+    private string headerUrl = string.Empty;
+    private bool isLocked;
+    private bool discoverable = true;
+    private bool saving;
+    private bool saved;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            SettingsProfileViewModel profile = await Settings.ReadProfileAsync(CancellationToken.None);
+            name = profile.Name;
+            description = profile.Description;
+            avatarUrl = SameOriginMediaUrl.Normalize(profile.AvatarUrl) ?? "/static-assets/user-unknown.png";
+            headerUrl = SameOriginMediaUrl.Normalize(profile.HeaderUrl) ?? string.Empty;
+            isLocked = profile.IsLocked;
+            discoverable = profile.Discoverable;
+            saved = false;
+        }
+        catch (ActivityPub.Misskey.Blazor.Identity.FrontendAuthenticationException exception)
+        {
+            Overlays.ShowSignIn("/settings/profile", exception.ErrorCode);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (saving)
+        {
+            return;
+        }
+
+        saving = true;
+        try
+        {
+            await Settings.UpdateProfileAsync(
+                name,
+                description,
+                null,
+                null,
+                CancellationToken.None);
+            saved = true;
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private string AvatarUrl => avatarUrl;
+
+    private string BannerStyle => $"background-color: var(--panel); {SameOriginMediaUrl.CssBackgroundImage(headerUrl)}";
+}

@@ -1,0 +1,25 @@
+.novjtcto > .label {
+    font-size: 0.85em;
+    padding: 0 0 8px 0;
+    user-select: none;
+}
+
+.novjtcto > .label:empty {
+    display: none;
+}
+
+.novjtcto > .body {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.novjtcto > .caption {
+    font-size: 0.85em;
+    padding: 8px 0 0 0;
+    color: var(--fgTransparentWeak);
+}
+
+.novjtcto > .caption:empty {
+    display: none;
+}

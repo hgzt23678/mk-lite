@@ -1,0 +1,86 @@
+@using System.Collections.ObjectModel
+
+<span class="@RootClass" @attributes="AttributesWithoutClass">@Before@(IsPlus ? "+" : string.Empty)@FormattedValue@After</span>
+
+@code {
+    private IReadOnlyDictionary<string, object>? attributesWithoutClass;
+
+    [Parameter, EditorRequired]
+    public double Value { get; set; }
+
+    [Parameter]
+    public RenderFragment? Before { get; set; }
+
+    [Parameter]
+    public RenderFragment? After { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private bool IsPlus => Value > 0;
+
+    private bool IsMinus => Value < 0;
+
+    private bool IsZero => Value == 0;
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "ceaaebcd",
+        IsPlus ? "isPlus" : null,
+        IsMinus ? "isMinus" : null,
+        IsZero ? "isZero" : null,
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string FormattedValue => FormatNumber(Value, CultureInfo.CurrentCulture);
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass
+    {
+        get
+        {
+            if (AdditionalAttributes is null || !AdditionalAttributes.ContainsKey("class"))
+            {
+                return AdditionalAttributes;
+            }
+
+            return attributesWithoutClass ??= new ReadOnlyDictionary<string, object>(
+                AdditionalAttributes
+                    .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.Ordinal))
+                    .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.Ordinal));
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        attributesWithoutClass = null;
+    }
+
+    private static string FormatNumber(double value, CultureInfo culture)
+    {
+        ArgumentNullException.ThrowIfNull(culture);
+        if (double.IsNaN(value) || double.IsInfinity(value))
+        {
+            return value.ToString(culture);
+        }
+
+        bool negativeZero = value == 0 && BitConverter.DoubleToInt64Bits(value) < 0;
+        double rounded = Math.Round(value, 3, MidpointRounding.AwayFromZero);
+        string formatted = rounded.ToString("N3", culture);
+        string separator = culture.NumberFormat.NumberDecimalSeparator;
+        int separatorIndex = formatted.LastIndexOf(separator, StringComparison.Ordinal);
+        if (separatorIndex >= 0)
+        {
+            formatted = formatted.TrimEnd('0');
+            if (formatted.EndsWith(separator, StringComparison.Ordinal))
+            {
+                formatted = formatted[..^separator.Length];
+            }
+        }
+
+        return negativeZero && !formatted.StartsWith(culture.NumberFormat.NegativeSign, StringComparison.Ordinal)
+            ? culture.NumberFormat.NegativeSign + formatted
+            : formatted;
+    }
+}

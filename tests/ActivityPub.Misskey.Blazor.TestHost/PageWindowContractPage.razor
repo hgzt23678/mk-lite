@@ -1,0 +1,46 @@
+@page "/__test/components/page-window"
+@rendermode InteractiveServer
+
+<main data-contract="page-window">
+    <MkPageWindow InitialPath="/first"
+                  MetadataResolver="ResolveMetadata"
+                  ChildContent="RenderPage"
+                  Closed="OnClosed" />
+    <output data-contract="state" data-closed="@closedCount"></output>
+</main>
+
+@code {
+    private int closedCount;
+
+    private static MkModalPageWindowMetadata? ResolveMetadata(string path) =>
+        path switch
+        {
+            "/first" => new MkModalPageWindowMetadata(new MkPageHeaderMetadata("First page", Icon: "fas fa-home")),
+            "/second" => new MkModalPageWindowMetadata(new MkPageHeaderMetadata("Second page", Icon: "fas fa-stream")),
+            _ => null
+        };
+
+    private RenderFragment<MkModalPageWindowContext> RenderPage => context => builder =>
+    {
+        builder.OpenElement(0, "section");
+        builder.AddAttribute(1, "data-page", context.Path);
+        builder.AddContent(2, context.Path == "/first" ? "First body" : "Second body");
+        if (context.Path == "/first")
+        {
+            builder.OpenElement(3, "button");
+            builder.AddAttribute(4, "type", "button");
+            builder.AddAttribute(5, "data-navigate", true);
+            builder.AddAttribute(6, "onclick", EventCallback.Factory.Create(this, () => context.NavigateAsync("/second")));
+            builder.AddContent(7, "Next");
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+    };
+
+    private Task OnClosed()
+    {
+        closedCount++;
+        return Task.CompletedTask;
+    }
+}

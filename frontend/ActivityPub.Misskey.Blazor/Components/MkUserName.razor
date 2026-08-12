@@ -1,0 +1,21 @@
+<MfmView Text="@DisplayName"
+         Plain="true"
+         NoWrap="NoWrap"
+         CssClass="@CssClass"
+         CustomEmojis="@CustomEmojis" />
+
+@code {
+    [Parameter, EditorRequired]
+    public NoteAuthorViewModel User { get; set; } = null!;
+
+    [Parameter]
+    public bool NoWrap { get; set; } = true;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    private string DisplayName => string.IsNullOrWhiteSpace(User.DisplayName) ? User.Username : User.DisplayName;
+
+    private IReadOnlyDictionary<string, string> CustomEmojis =>
+        User.Emojis ?? new Dictionary<string, string>(StringComparer.Ordinal);
+}

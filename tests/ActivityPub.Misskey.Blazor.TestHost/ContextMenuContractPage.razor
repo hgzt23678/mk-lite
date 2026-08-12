@@ -1,0 +1,44 @@
+@page "/__test/components/context-menu"
+@rendermode InteractiveServer
+@inject IMisskeyOverlayService Overlays
+
+<main data-contract="context-menu">
+    <button @ref="source"
+            type="button"
+            data-contract="source"
+            style="position: fixed; left: 96px; top: 96px; width: 120px; height: 40px;"
+            @oncontextmenu="OpenAsync"
+            @oncontextmenu:preventDefault="true">open</button>
+    <output data-contract="state" data-action-count="@actionCount" data-closed-count="@closedCount"></output>
+</main>
+
+@code {
+    private ElementReference source;
+    private int actionCount;
+    private int closedCount;
+
+    private void OpenAsync(MouseEventArgs args)
+    {
+        Overlays.ShowContextMenu(
+            args.PageX,
+            args.PageY,
+            [new MisskeyMenuItem(
+                MisskeyMenuItemKind.Action,
+                "Action",
+                "fas fa-check",
+                Action: ActionAsync)],
+            ClosedAsync);
+    }
+
+    private Task ActionAsync()
+    {
+        actionCount++;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task ClosedAsync()
+    {
+        closedCount++;
+        return InvokeAsync(StateHasChanged);
+    }
+}

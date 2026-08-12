@@ -1,0 +1,450 @@
+@implements IAsyncDisposable
+@inject IFormInputInterop InputInterop
+@inject IMisskeyLocalizer Localizer
+
+<div class="@RootClass" style="@RootStyle" @attributes="AttributesWithoutClassAndStyle">
+    <div class="label" @onclick="FocusAsync">@Label</div>
+    <div class="@InputContainerClass">
+        <div @ref="prefixElement" class="prefix">@Prefix</div>
+        @if (ServerBound)
+        {
+            <input @ref="inputElement"
+                   name="@Name"
+                   value="@currentValue"
+                   type="@Type"
+                   disabled="@Disabled"
+                   required="@Required"
+                   readonly="@ReadOnly"
+                   placeholder="@Placeholder"
+                   pattern="@Pattern"
+                   autocomplete="@Autocomplete"
+                   spellcheck="@SpellcheckText"
+                   step="@Step"
+                   maxlength="@MaxLength"
+                   inputmode="@InputMode"
+                   data-mk-autofocus="@(Autofocus ? "true" : null)"
+                   list="@dataListId"
+                   @onfocus="OnFocus"
+                   @onblur="OnBlur"
+                   @onkeydown="OnKeyDownAsync"
+                   @oninput="OnInputAsync" />
+        }
+        else
+        {
+            <input @ref="inputElement"
+                   name="@Name"
+                   value="@currentValue"
+                   type="@Type"
+                   disabled="@Disabled"
+                   required="@Required"
+                   readonly="@ReadOnly"
+                   placeholder="@Placeholder"
+                   pattern="@Pattern"
+                   autocomplete="@Autocomplete"
+                   spellcheck="@SpellcheckText"
+                   step="@Step"
+                   maxlength="@MaxLength"
+                   inputmode="@InputMode"
+                   data-mk-autofocus="@(Autofocus ? "true" : null)"
+                   list="@dataListId" />
+        }
+        @if (DataList is { Count: > 0 })
+        {
+            <datalist id="@dataListId">
+                @foreach (string item in DataList)
+                {
+                    <option @key="item" value="@item"></option>
+                }
+            </datalist>
+        }
+        <div @ref="suffixElement" class="suffix">@Suffix</div>
+    </div>
+    <div class="caption">@Caption</div>
+
+    @if (ManualSave && changed)
+    {
+        <MkButton Primary="true" CssClassAdditional="save" OnClick="SaveAsync">
+            <i class="fas fa-check"></i> @Localizer.Translate("save")
+        </MkButton>
+    }
+</div>
+
+@code {
+    private static readonly HashSet<string> SupportedTypes = new(StringComparer.Ordinal)
+    {
+        "text", "number", "password", "email", "url", "date", "time", "search"
+    };
+
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference inputElement;
+    private ElementReference prefixElement;
+    private ElementReference suffixElement;
+    private IJSObjectReference? attachment;
+    private Task? attachmentTask;
+    private CancellationTokenSource? debounce;
+    private string currentValue = string.Empty;
+    private string? lastIncomingValue;
+    private bool focused;
+    private bool changed;
+    private bool disposed;
+    private readonly string dataListId = $"mk-input-{Guid.NewGuid():N}";
+
+    [Parameter]
+    public string Value { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> ValueChanged { get; set; }
+
+    [Parameter]
+    public double? NumberValue { get; set; }
+
+    [Parameter]
+    public EventCallback<double> NumberValueChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<ChangeEventArgs> Changed { get; set; }
+
+    [Parameter]
+    public EventCallback<KeyboardEventArgs> KeyDown { get; set; }
+
+    [Parameter]
+    public EventCallback Entered { get; set; }
+
+    [Parameter]
+    public RenderFragment? Label { get; set; }
+
+    [Parameter]
+    public RenderFragment? Prefix { get; set; }
+
+    [Parameter]
+    public RenderFragment? Suffix { get; set; }
+
+    [Parameter]
+    public RenderFragment? Caption { get; set; }
+
+    [Parameter]
+    public string Type { get; set; } = "text";
+
+    [Parameter]
+    public string? Name { get; set; }
+
+    [Parameter]
+    public bool Required { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public string? Pattern { get; set; }
+
+    [Parameter]
+    public string? Placeholder { get; set; }
+
+    [Parameter]
+    public bool Autofocus { get; set; }
+
+    [Parameter]
+    public string? Autocomplete { get; set; }
+
+    [Parameter]
+    public bool? Spellcheck { get; set; }
+
+    [Parameter]
+    public string? Step { get; set; }
+
+    [Parameter]
+    public int? MaxLength { get; set; }
+
+    [Parameter]
+    public string? InputMode { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<string>? DataList { get; set; }
+
+    [Parameter]
+    public bool Inline { get; set; }
+
+    [Parameter]
+    public bool Debounce { get; set; }
+
+    [Parameter]
+    public bool ManualSave { get; set; }
+
+    [Parameter]
+    public bool Small { get; set; }
+
+    [Parameter]
+    public bool Large { get; set; }
+
+    [Parameter]
+    public bool ServerBound { get; set; } = true;
+
+    [Parameter]
+    public string? CssClassAdditional { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    public ElementReference InputReference => inputElement;
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "matxzzsk",
+        CssClassAdditional,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string RootStyle => string.Join(' ', new[]
+    {
+        $"--mk-form-input-height: {HeightPx};",
+        AdditionalStyle
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string InputContainerClass => string.Join(' ', new[]
+    {
+        "input",
+        Inline ? "inline" : null,
+        Disabled ? "disabled" : null,
+        focused ? "focused" : null
+    }.Where(value => value is not null));
+
+    private string HeightPx => Small ? "36px" : Large ? "40px" : "38px";
+
+    private string? SpellcheckText => Spellcheck switch
+    {
+        true => "true",
+        false => "false",
+        null => null
+    };
+
+    private string? AdditionalClass => ReadAdditionalAttribute("class");
+
+    private string? AdditionalStyle => ReadAdditionalAttribute("style");
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        if (!SupportedTypes.Contains(Type))
+        {
+            throw new ArgumentOutOfRangeException(nameof(Type), Type, "The input type is not supported by Misskey 12.119.2.");
+        }
+
+        string incomingValue = string.Equals(Type, "number", StringComparison.Ordinal) && NumberValue.HasValue
+            ? NumberValue.Value.ToString("R", CultureInfo.InvariantCulture)
+            : Value;
+        if (!string.Equals(lastIncomingValue, incomingValue, StringComparison.Ordinal))
+        {
+            currentValue = incomingValue;
+            lastIncomingValue = incomingValue;
+            changed = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        attachmentTask = AttachAsync();
+        await attachmentTask;
+    }
+
+    private async Task AttachAsync()
+    {
+        try
+        {
+            IJSObjectReference result = await InputInterop.AttachAsync(
+                inputElement,
+                prefixElement,
+                suffixElement,
+                Autofocus,
+                lifetime.Token);
+            if (disposed)
+            {
+                await DisposeAttachmentAsync(result);
+                return;
+            }
+
+            attachment = result;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private Task OnFocus(FocusEventArgs args)
+    {
+        focused = true;
+        return Task.CompletedTask;
+    }
+
+    private Task OnBlur(FocusEventArgs args)
+    {
+        focused = false;
+        return Task.CompletedTask;
+    }
+
+    private async Task OnInputAsync(ChangeEventArgs args)
+    {
+        currentValue = args.Value?.ToString() ?? string.Empty;
+        changed = true;
+        await Changed.InvokeAsync(args);
+
+        if (ManualSave)
+        {
+            return;
+        }
+
+        if (!Debounce)
+        {
+            await PublishAsync();
+            return;
+        }
+
+        debounce?.Cancel();
+        debounce?.Dispose();
+        debounce = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        CancellationToken token = debounce.Token;
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), token);
+            await PublishAsync();
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs args)
+    {
+        await KeyDown.InvokeAsync(args);
+        if (string.Equals(args.Code, "Enter", StringComparison.Ordinal))
+        {
+            await Entered.InvokeAsync();
+        }
+    }
+
+    private Task SaveAsync(MouseEventArgs args) => PublishAsync();
+
+    private async Task PublishAsync()
+    {
+        changed = false;
+        lastIncomingValue = currentValue;
+        if (string.Equals(Type, "number", StringComparison.Ordinal) && NumberValueChanged.HasDelegate)
+        {
+            double value = double.TryParse(
+                currentValue,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out double parsed)
+                ? parsed
+                : double.NaN;
+            await NumberValueChanged.InvokeAsync(value);
+            return;
+        }
+
+        await ValueChanged.InvokeAsync(currentValue);
+    }
+
+    private async Task FocusAsync(MouseEventArgs args)
+    {
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("focus", lifetime.Token);
+                return;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (JSDisconnectedException)
+            {
+                return;
+            }
+        }
+
+        try
+        {
+            await inputElement.FocusAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        debounce?.Cancel();
+        debounce?.Dispose();
+        await lifetime.CancelAsync();
+        try
+        {
+            if (attachmentTask is not null)
+            {
+                try
+                {
+                    await attachmentTask;
+                }
+                catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+                {
+                }
+                catch (JSDisconnectedException)
+                {
+                }
+            }
+
+            if (attachment is not null)
+            {
+                await DisposeAttachmentAsync(attachment);
+            }
+        }
+        finally
+        {
+            lifetime.Dispose();
+        }
+    }
+
+    private async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try
+        {
+            await handle.InvokeVoidAsync("dispose", cleanup.Token);
+            await handle.DisposeAsync().AsTask().WaitAsync(cleanup.Token);
+        }
+        catch (OperationCanceledException) when (
+            disposed && (lifetime.IsCancellationRequested || cleanup.IsCancellationRequested))
+        {
+        }
+        catch (JSDisconnectedException) when (disposed)
+        {
+        }
+    }
+
+    private string? ReadAdditionalAttribute(string key) =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue(key, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+}

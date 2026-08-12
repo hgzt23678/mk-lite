@@ -1,0 +1,48 @@
+@page "/__test/components/media-caption"
+@rendermode InteractiveServer
+
+<main data-contract="media-caption-page">
+    @if (open)
+    {
+        <MkMediaCaption Image="image"
+                        Title="画像の説明"
+                        Input="input"
+                        Done="OnDone"
+                        Closed="OnClosed"
+                        data-contract="media-caption" />
+    }
+    <output data-contract="canceled">@canceled</output>
+    <output data-contract="result">@result</output>
+    <output data-contract="closed">@closed</output>
+</main>
+
+@code {
+    private readonly ComposerMediaViewModel image = new(
+        Guid.Parse("20000000-0000-0000-0000-000000000001"),
+        "fixture.png",
+        "image/png",
+        "/static-assets/favicon.png",
+        "/static-assets/favicon.png",
+        Sensitive: false,
+        Description: "fixture description",
+        Width: 1920,
+        Height: 1080,
+        Size: 2560);
+    private readonly MisskeyMediaCaptionInput input = new("新しい説明を入力", "既存の説明");
+    private bool open = true;
+    private string canceled = "pending";
+    private string result = "pending";
+    private int closed;
+
+    private void OnDone(MisskeyMediaCaptionResult value)
+    {
+        canceled = value.Canceled.ToString().ToLowerInvariant();
+        result = value.Result ?? "<null>";
+    }
+
+    private void OnClosed()
+    {
+        closed++;
+        open = false;
+    }
+}

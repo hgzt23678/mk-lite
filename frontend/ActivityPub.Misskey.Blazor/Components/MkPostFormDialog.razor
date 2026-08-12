@@ -1,0 +1,72 @@
+@implements IDisposable
+@inject IMisskeyOverlayService Overlays
+
+<MkModal @ref="modal"
+         PreferType="MkModalType.DialogTop"
+         Clicked="CloseAsync"
+         Escape="CloseAsync"
+         Closed="OnClosedAsync">
+    <ChildContent Context="_">
+        <MkPostForm Modal="true"
+                    InitialText="@InitialText"
+                    Reply="@Reply"
+                    Renote="@Renote"
+                    Instant="Instant"
+                    Posted="OnPostedAsync"
+                    Cancelled="CloseAsync"
+                    Escape="CloseAsync" />
+    </ChildContent>
+</MkModal>
+
+@code {
+    private MkModal? modal;
+    private bool closed;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public Guid Id { get; set; }
+
+    [Parameter]
+    public string? InitialText { get; set; }
+
+    [Parameter]
+    public NoteViewModel? Reply { get; set; }
+
+    [Parameter]
+    public NoteViewModel? Renote { get; set; }
+
+    [Parameter]
+    public bool Instant { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    protected override void OnInitialized() => Overlays.RegisterCloseHandler(Id, CloseAsync);
+
+    private Task OnPostedAsync(NoteViewModel _) => CloseAsync();
+
+    public Task CloseAsync() => modal?.CloseAsync() ?? Task.CompletedTask;
+
+    private async Task OnClosedAsync()
+    {
+        if (closed || disposed)
+        {
+            return;
+        }
+
+        closed = true;
+        await Closed.InvokeAsync();
+        Overlays.Close(Id);
+    }
+
+    public void Dispose()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        Overlays.UnregisterCloseHandler(Id);
+    }
+}

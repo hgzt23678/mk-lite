@@ -1,0 +1,15 @@
+.mk-sparkle {
+    position: relative;
+    display: inline-block;
+}
+
+.mk-sparkle > span {
+    display: inline-block;
+}
+
+.mk-sparkle > svg {
+    position: absolute;
+    top: -32px;
+    left: -32px;
+    pointer-events: none;
+}

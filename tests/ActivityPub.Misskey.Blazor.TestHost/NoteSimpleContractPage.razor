@@ -1,0 +1,104 @@
+@page "/__test/components/note-simple"
+@rendermode InteractiveServer
+
+<main data-contract="note-simple-slice">
+    <section data-contract="sub-note-host">
+        <MkSubNoteContent Note="subNote"
+                          class="contract-sub-note"
+                          data-fallthrough="sub-note" />
+    </section>
+    <section data-contract="simple-note-host" style="width: 540px;">
+        <MkNoteSimple Note="simpleNote"
+                      Pinned="true"
+                      class="contract-simple-note"
+                      data-fallthrough="note-simple" />
+    </section>
+</main>
+
+@code {
+    private static readonly NoteAuthorViewModel author = new(
+        "alice-id",
+        "alice",
+        "alice",
+        "Alice",
+        "/static-assets/user-unknown.png",
+        IsBot: false,
+        Emojis: new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["party"] = "/static-assets/favicon.png"
+        });
+
+    private static readonly NoteMediaViewModel document = new(
+        "document-id",
+        "application/pdf",
+        "/static-assets/favicon.png",
+        "/static-assets/favicon.png",
+        "document.pdf",
+        null,
+        null,
+        null,
+        Sensitive: false);
+
+    private static readonly NotePollViewModel poll = new(
+        "poll-id",
+        null,
+        Expired: false,
+        Multiple: false,
+        VotedByViewer: false,
+        OwnVotes: [],
+        Options:
+        [
+            new NotePollOptionViewModel("はい", 1),
+            new NotePollOptionViewModel("いいえ", 0)
+        ]);
+
+    private static readonly NoteViewModel subNote = CreateNote(
+        "sub-note-id",
+        string.Join('\n', Enumerable.Range(1, 10).Select(index => $"line {index}")),
+        contentWarning: null,
+        isHidden: true,
+        deletedAt: new DateTimeOffset(2026, 8, 4, 1, 0, 0, TimeSpan.Zero),
+        replyId: "reply-note-id",
+        renoteId: "renote-note-id");
+
+    private static readonly NoteViewModel simpleNote = CreateNote(
+        "simple-note-id",
+        ":party: " + new string('x', 501),
+        contentWarning: "閲覧注意 :party:",
+        isHidden: false,
+        deletedAt: null,
+        replyId: null,
+        renoteId: null);
+
+    private static NoteViewModel CreateNote(
+        string id,
+        string text,
+        string? contentWarning,
+        bool isHidden,
+        DateTimeOffset? deletedAt,
+        string? replyId,
+        string? renoteId) => new(
+            Guid.NewGuid(),
+            id,
+            new DateTimeOffset(2026, 8, 4, 0, 0, 0, TimeSpan.Zero),
+            author,
+            text,
+            contentWarning,
+            ActivityPub.Domain.Visibility.Public,
+            replyId,
+            0,
+            0,
+            0,
+            false,
+            new Dictionary<string, long>(StringComparer.Ordinal),
+            null,
+            [document],
+            [],
+            [],
+            author.Emojis ?? new Dictionary<string, string>(StringComparer.Ordinal),
+            poll,
+            null,
+            IsHidden: isHidden,
+            DeletedAt: deletedAt,
+            RenoteId: renoteId);
+}

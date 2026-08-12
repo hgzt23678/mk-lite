@@ -1,0 +1,106 @@
+@implements IDisposable
+@inject IMisskeyOverlayService Overlays
+@inject IMisskeyLocalizer Localizer
+
+<div @ref="root"
+     class="file"
+     @onclick="ShowFileMenu"
+     @oncontextmenu="ShowFileMenu"
+     @oncontextmenu:preventDefault="true">
+    <MkDriveFileThumbnail File="File" />
+    @if (File.Sensitive)
+    {
+        <div class="sensitive"><i class="fas fa-exclamation-triangle icon"></i></div>
+    }
+</div>
+
+@code {
+    private ElementReference root;
+    private Guid? menuId;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public ComposerMediaViewModel File { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback<Guid> Detach { get; set; }
+
+    [Parameter]
+    public EventCallback<(Guid Id, bool Sensitive)> SensitiveChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<(Guid Id, string Name)> NameChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<ComposerMediaViewModel> DescribeRequested { get; set; }
+
+    private void ShowFileMenu(MouseEventArgs _)
+    {
+        if (menuId is not null || disposed)
+        {
+            return;
+        }
+
+        menuId = Overlays.ShowPopupMenu(
+            root,
+            [
+                new MisskeyMenuItem(
+                    MisskeyMenuItemKind.Action,
+                    Localizer.Translate("renameFile"),
+                    "fas fa-i-cursor",
+                    Action: Rename),
+                new MisskeyMenuItem(
+                    MisskeyMenuItemKind.Action,
+                    File.Sensitive
+                        ? Localizer.Translate("unmarkAsSensitive")
+                        : Localizer.Translate("markAsSensitive"),
+                    File.Sensitive ? "fas fa-eye-slash" : "fas fa-eye",
+                    Action: () => SensitiveChanged.InvokeAsync((File.Id, !File.Sensitive))),
+                new MisskeyMenuItem(
+                    MisskeyMenuItemKind.Action,
+                    Localizer.Translate("describeFile"),
+                    "fas fa-i-cursor",
+                    Action: () => DescribeRequested.InvokeAsync(File)),
+                new MisskeyMenuItem(
+                    MisskeyMenuItemKind.Action,
+                    Localizer.Translate("attachCancel"),
+                    "fas fa-times-circle",
+                    Action: () => Detach.InvokeAsync(File.Id))
+            ],
+            closed: MenuClosed);
+    }
+
+    private Task Rename()
+    {
+        Overlays.ShowDialog(new MisskeyDialogOptions(
+            "info",
+            Localizer.Translate("enterFileName"),
+            Input: new MisskeyDialogInput("text", Default: File.Name),
+            Done: RenameDone));
+        return Task.CompletedTask;
+    }
+
+    private Task RenameDone(MisskeyDialogResult result)
+    {
+        string? name = result.Result?.ToString();
+        return result.Canceled || string.IsNullOrWhiteSpace(name)
+            ? Task.CompletedTask
+            : NameChanged.InvokeAsync((File.Id, name));
+    }
+
+    private Task MenuClosed()
+    {
+        menuId = null;
+        return Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        disposed = true;
+        if (menuId is Guid id)
+        {
+            Overlays.Close(id);
+            menuId = null;
+        }
+    }
+}

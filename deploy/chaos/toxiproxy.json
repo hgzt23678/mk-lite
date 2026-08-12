@@ -1,0 +1,26 @@
+[
+  {
+    "name": "postgres",
+    "listen": "[::]:15432",
+    "upstream": "postgres:5432",
+    "enabled": true
+  },
+  {
+    "name": "s3",
+    "listen": "[::]:19000",
+    "upstream": "minio:9000",
+    "enabled": true
+  },
+  {
+    "name": "clamav",
+    "listen": "[::]:13310",
+    "upstream": "clamav:3310",
+    "enabled": true
+  },
+  {
+    "name": "vault",
+    "listen": "[::]:18200",
+    "upstream": "vault:8200",
+    "enabled": true
+  }
+]

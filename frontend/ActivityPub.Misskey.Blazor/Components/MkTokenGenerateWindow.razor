@@ -1,0 +1,131 @@
+@inject IMisskeyLocalizer Localizer
+
+<MkModalWindow @ref="dialog"
+               Width="400"
+               Height="450"
+               WithOkButton="true"
+               OkButtonDisabled="false"
+               Ok="OkAsync"
+               Closed="Closed"
+               CloseRequested="() => Task.CompletedTask"
+               AccessibleLabel="@Localizer.Translate("generateAccessToken")">
+    <Header>@(Title ?? Localizer.Translate("generateAccessToken"))</Header>
+    <ChildContent>
+        @if (Information is not null)
+        {
+            <div class="_section">
+                <MkInfo Warn="true">@Information</MkInfo>
+            </div>
+        }
+        <div class="_section">
+            <MkFormInput Value="@name" ValueChanged="OnNameChanged">
+                <Label>@Localizer.Translate("name")</Label>
+            </MkFormInput>
+        </div>
+        <div class="_section">
+            <div style="margin-bottom: 16px;"><b>@Localizer.Translate("permission")</b></div>
+            <MkButton Inline="true" OnClick="DisableAll">@Localizer.Translate("disableAll")</MkButton>
+            <MkButton Inline="true" OnClick="EnableAll">@Localizer.Translate("enableAll")</MkButton>
+            @foreach (string kind in PermissionKinds)
+            {
+                <MkFormSwitch Value="@PermissionValue(kind)"
+                              ValueChanged="value => OnPermissionChangedAsync(kind, value)">
+                    @Localizer.Translate("_permissions." + kind)
+                </MkFormSwitch>
+            }
+        </div>
+    </ChildContent>
+</MkModalWindow>
+
+@code {
+    private MkModalWindow? dialog;
+    private string? name;
+    private Dictionary<string, bool> permissions = new(StringComparer.Ordinal);
+    private bool initialized;
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public string? Information { get; set; }
+
+    [Parameter]
+    public string? InitialName { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<string>? InitialPermissions { get; set; }
+
+    [Parameter]
+    public EventCallback<MkTokenGenerateWindowResult> Done { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (initialized)
+        {
+            return;
+        }
+
+        initialized = true;
+        name = InitialName;
+
+        IReadOnlyList<string> permissionKinds = InitialPermissions ?? MisskeyPermissions.All;
+        foreach (string permission in permissionKinds)
+        {
+            permissions[permission] = InitialPermissions is not null;
+        }
+    }
+
+    private bool PermissionValue(string kind) => permissions.GetValueOrDefault(kind);
+
+    private IReadOnlyList<string> PermissionKinds => InitialPermissions ?? MisskeyPermissions.All;
+
+    private Task OnNameChanged(string value)
+    {
+        name = value;
+        return Task.CompletedTask;
+    }
+
+    private Task OnPermissionChangedAsync(string kind, bool value)
+    {
+        permissions[kind] = value;
+        return Task.CompletedTask;
+    }
+
+    private Task DisableAll(MouseEventArgs args)
+    {
+        _ = args;
+        foreach (string kind in permissions.Keys.ToArray())
+        {
+            permissions[kind] = false;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task EnableAll(MouseEventArgs args)
+    {
+        _ = args;
+        foreach (string kind in permissions.Keys.ToArray())
+        {
+            permissions[kind] = true;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task OkAsync()
+    {
+        IReadOnlyList<string> granted = permissions
+            .Where(pair => pair.Value)
+            .Select(pair => pair.Key)
+            .ToArray();
+        await Done.InvokeAsync(new MkTokenGenerateWindowResult(name, granted));
+        if (dialog is not null)
+        {
+            await dialog.BeginCloseAsync();
+        }
+    }
+}

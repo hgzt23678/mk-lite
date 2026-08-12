@@ -1,0 +1,73 @@
+@implements IAsyncDisposable
+@inject IMenuInterop MenuInterop
+
+<div @ref="element" class="sfhdhdhr">
+    <MkMenu Items="Items"
+            Align="left"
+            Width="Width"
+            AsDrawer="false"
+            Close="OnChildClosedAsync" />
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference element;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<MisskeyMenuItem> Items { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public ElementReference TargetElement { get; set; }
+
+    [Parameter, EditorRequired]
+    public ElementReference RootElement { get; set; }
+
+    [Parameter]
+    public double? Width { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    [Parameter]
+    public EventCallback Actioned { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            await MenuInterop.PositionChildAsync(element, TargetElement, RootElement, lifetime.Token);
+            await Task.Yield();
+            if (!disposed)
+            {
+                await MenuInterop.PositionChildAsync(element, TargetElement, RootElement, lifetime.Token);
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private Task OnChildClosedAsync(bool actioned) =>
+        actioned ? Actioned.InvokeAsync() : Closed.InvokeAsync();
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}
