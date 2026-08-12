@@ -1,0 +1,88 @@
+@inject IMisskeyLocalizer Localizer
+
+<div class="@RootClass" @attributes="AttributesWithoutClass">
+    <div class="body">
+        @if (Note.IsHidden)
+        {
+            <span style="opacity: 0.5">(@Localizer.Translate("private"))</span>
+        }
+        @if (Note.DeletedAt is not null)
+        {
+            <span style="opacity: 0.5">(@Localizer.Translate("deleted"))</span>
+        }
+        @if (Note.ReplyId is not null)
+        {
+            <a class="reply" href="@NoteHref(Note.ReplyId)"><i class="fas fa-reply"></i></a>
+        }
+        @if (!string.IsNullOrEmpty(Note.Text))
+        {
+            <MfmView Text="@Note.Text" CustomEmojis="Note.Emojis" />
+        }
+        @if (Note.RenoteId is not null)
+        {
+            <a class="rp" href="@NoteHref(Note.RenoteId)">RN: ...</a>
+        }
+    </div>
+    @if (Note.Media.Count > 0)
+    {
+        <details>
+            <summary>(@Localizer.Translate(
+                "withNFiles",
+                new Dictionary<string, object?> { ["n"] = Note.Media.Count }))</summary>
+            <MkMediaList Media="Note.Media" />
+        </details>
+    }
+    @if (Note.Poll is not null)
+    {
+        <details>
+            <summary>@Localizer.Translate("poll")</summary>
+            <MkPoll NoteId="@Note.Id"
+                    Poll="Note.Poll"
+                    CustomEmojis="Note.Emojis" />
+        </details>
+    }
+    @if (collapsed)
+    {
+        <button class="fade _button" @onclick="ShowMore">
+            <span>@Localizer.Translate("showMore")</span>
+        </button>
+    }
+</div>
+
+@code {
+    private bool collapsed;
+
+    [Parameter, EditorRequired]
+    public NoteViewModel Note { get; set; } = null!;
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "wrmlmaau",
+        collapsed ? "collapsed" : null,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnInitialized()
+    {
+        collapsed = Note.ContentWarning is null &&
+            (Note.Text.Split('\n').Length > 9 || Note.Text.Length > 500);
+    }
+
+    private static string NoteHref(string id) => $"/notes/{Uri.EscapeDataString(id)}";
+
+    private void ShowMore() => collapsed = false;
+}

@@ -1,0 +1,46 @@
+@page "/__test/components/waiting-dialog"
+@rendermode InteractiveServer
+
+<main data-contract="mk-waiting-dialog">
+    <button id="show-waiting" type="button" @onclick="ShowWaiting">Waiting</button>
+    <button id="mark-success" type="button" @onclick="MarkSuccess">Success</button>
+    <button id="hide-waiting" type="button" @onclick="HideWaiting">Hide</button>
+    <output id="waiting-done-count">@doneCount</output>
+    <output id="waiting-closed-count">@closedCount</output>
+    @if (renderDialog)
+    {
+        <MkWaitingDialog Success="success"
+                         Showing="showing"
+                         Text="同期しています"
+                         AccessibleLabel="同期状態"
+                         Done="OnDone"
+                         Closed="OnClosed" />
+    }
+</main>
+
+@code {
+    private bool renderDialog;
+    private bool success;
+    private bool showing;
+    private int doneCount;
+    private int closedCount;
+
+    private void ShowWaiting()
+    {
+        success = false;
+        showing = true;
+        renderDialog = true;
+    }
+
+    private void MarkSuccess() => success = true;
+
+    private void HideWaiting() => showing = false;
+
+    private void OnDone() => doneCount++;
+
+    private void OnClosed()
+    {
+        closedCount++;
+        renderDialog = false;
+    }
+}

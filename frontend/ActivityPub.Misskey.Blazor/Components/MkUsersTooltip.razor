@@ -1,0 +1,158 @@
+@implements IDisposable
+@inject IMisskeyOverlayService Overlays
+@inject IVisibleUsersPresentationService VisibleUsers
+@inject ILogger<MkUsersTooltip> Logger
+
+<MkTooltip Target="Target"
+           Showing="Showing"
+           MaxWidth="250"
+           Id="@TooltipId"
+           Closed="Close">
+    <div class="beaffaef" data-tooltip-load-state="@LoadState">
+        @if (loading)
+        {
+            <div class="loading" role="status">
+                <MkLoading Mini="true" AccessibleLabel="指定公開のユーザーを読み込んでいます" />
+            </div>
+        }
+        else if (errorCode is not null)
+        {
+            <div class="error" role="alert" data-error-code="@errorCode">ユーザー情報を取得できませんでした</div>
+        }
+        else
+        {
+            @foreach (NoteAuthorViewModel user in loadedUsers)
+            {
+                <div @key="user.Id" class="user">
+                    <MkAvatar CssClass="avatar" User="user" />
+                    <MfmView CssClass="name" Text="@user.DisplayName" Plain="true" NoWrap="true" />
+                </div>
+            }
+            @if (loadedUsers.Count < Count)
+            {
+                <div class="omitted">+@(Count - loadedUsers.Count)</div>
+            }
+        }
+    </div>
+</MkTooltip>
+
+@code {
+    private CancellationTokenSource? loadingSource;
+    private IReadOnlyList<NoteAuthorViewModel> loadedUsers = [];
+    private string? errorCode;
+    private bool loading = true;
+    private string? loadedKey;
+
+    [Parameter, EditorRequired]
+    public Guid Id { get; set; }
+
+    [Parameter, EditorRequired]
+    public ElementReference Target { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<string> UserIds { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyList<NoteAuthorViewModel>? Users { get; set; }
+
+    [Parameter]
+    public long Count { get; set; }
+
+    [Parameter]
+    public bool Showing { get; set; }
+
+    private string TooltipId => $"mk-users-tooltip-{Id:N}";
+    private string LoadState => loading ? "loading" : errorCode is null ? "loaded" : "error";
+
+    protected override void OnParametersSet()
+    {
+        string key = Users is null
+            ? "ids\u001f" + string.Join('\u001f', UserIds)
+            : "users\u001f" + string.Join('\u001f', Users.Select(user => user.Id));
+        if (!string.Equals(key, loadedKey, StringComparison.Ordinal))
+        {
+            loadedKey = key;
+            if (Users is not null)
+            {
+                loadingSource?.Cancel();
+                loadingSource?.Dispose();
+                loadingSource = null;
+                loadedUsers = Users;
+                errorCode = null;
+                loading = false;
+            }
+            else
+            {
+                StartLoading();
+            }
+        }
+    }
+
+    private void StartLoading()
+    {
+        loadingSource?.Cancel();
+        loadingSource?.Dispose();
+        loadingSource = new CancellationTokenSource();
+        loadedUsers = [];
+        errorCode = null;
+        loading = true;
+        _ = LoadAsync(loadingSource.Token);
+    }
+
+    private async Task LoadAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            IReadOnlyList<NoteAuthorViewModel> values = await VisibleUsers.ReadAsync(UserIds, cancellationToken)
+                .ConfigureAwait(false);
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                await InvokeAsync(() =>
+                {
+                    loadedUsers = values;
+                    loading = false;
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (VisibleUsersPresentationException exception)
+        {
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                await InvokeAsync(() =>
+                {
+                    errorCode = exception.ErrorCode;
+                    loading = false;
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (Exception exception)
+        {
+            Logger.LogWarning(
+                exception,
+                "Misskey visibility tooltip user lookup failed with {ErrorCode}.",
+                "VISIBILITY_USER_LOOKUP_FAILED");
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                await InvokeAsync(() =>
+                {
+                    errorCode = "VISIBILITY_USER_LOOKUP_FAILED";
+                    loading = false;
+                    StateHasChanged();
+                });
+            }
+        }
+    }
+
+    private void Close() => Overlays.Close(Id);
+
+    public void Dispose()
+    {
+        loadingSource?.Cancel();
+        loadingSource?.Dispose();
+    }
+}

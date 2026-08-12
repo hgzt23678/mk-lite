@@ -1,0 +1,11 @@
+# データ削除、Actor削除、Tombstone
+
+## 利用者からの削除要求
+
+本人確認、法的保全、backup retention、連合先へ既送信済みのデータを消去できない制約を説明し、対象Actor/Object/Media/Token/session/audit識別子を確定する。globalまたはActor配送を必要に応じ停止し、公開ObjectをTombstone化して署名付きDeleteを既知recipientへtransactional outboxで作成する。
+
+Delivery結果を保持期間監視した後、ObjectRevision/raw JSON/private recipient、media attachmentをアクセス制御下で削除する。未参照mediaはGCがS3から削除し`purged_at`を記録する。法令上必要な最小auditとTombstone以外をretention policyでpurgeする。backupは通常rotationで期限切れにし、復元時の再削除手順へrequest IDを登録する。
+
+## Actor削除
+
+新規write/login/followを停止し、各Actor keyでDeleteを生成する。followers/shared inboxをdeduplicateして配送し、404/410を含むterminal outcomeを記録する。Actor documentはTombstoneまたは410へ移行し、秘密鍵をrevokeする。直接SQLでActor行を消して先にIRIを404へしない。

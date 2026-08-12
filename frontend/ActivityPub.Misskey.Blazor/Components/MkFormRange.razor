@@ -1,0 +1,257 @@
+@implements IAsyncDisposable
+@inject IFormRangeInterop RangeInterop
+
+<div class="@RootClass" @attributes="AttributesWithoutClass">
+    <div class="label">@Label</div>
+    <div class="body">
+        <div @ref="containerElement" class="container">
+            <div class="track">
+                <div @ref="highlightElement" class="highlight" style="width: @SteppedPercentage;"></div>
+            </div>
+            @if (ShowTicks && Steps > 0)
+            {
+                <div class="ticks">
+                    @for (int index = 0; index < TickCount; index++)
+                    {
+                        <div @key="index" class="tick" style="left: @TickPercentage(index);"></div>
+                    }
+                </div>
+            }
+            <div @ref="thumbElement" class="thumb"></div>
+            @if (tooltipShowing)
+            {
+                <MkTooltip Target="thumbElement"
+                           Showing="true"
+                           Text="@ConvertText(FinalValue)" />
+            }
+        </div>
+    </div>
+    <div class="caption">@Caption</div>
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference containerElement;
+    private ElementReference thumbElement;
+    private ElementReference highlightElement;
+    private DotNetObjectReference<MkFormRange>? receiver;
+    private IJSObjectReference? attachment;
+    private double rawValue;
+    private double lastProjectedRawValue = double.NaN;
+    private bool tooltipShowing;
+    private bool disposed;
+
+    [Parameter]
+    public double Value { get; set; }
+
+    [Parameter]
+    public EventCallback<double> ValueChanged { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter, EditorRequired]
+    public double Min { get; set; }
+
+    [Parameter, EditorRequired]
+    public double Max { get; set; }
+
+    [Parameter]
+    public double Step { get; set; } = 1;
+
+    [Parameter]
+    public Func<double, string>? TextConverter { get; set; }
+
+    [Parameter]
+    public bool ShowTicks { get; set; }
+
+    [Parameter]
+    public bool Easing { get; set; }
+
+    [Parameter]
+    public RenderFragment? Label { get; set; }
+
+    [Parameter]
+    public RenderFragment? Caption { get; set; }
+
+    [Parameter]
+    public string? CssClassAdditional { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "timctyfi",
+        Disabled ? "disabled" : null,
+        Easing ? "easing" : null,
+        CssClassAdditional,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private double Steps => Step > 0 ? (Max - Min) / Step : 0;
+
+    private int TickCount => checked((int)Math.Floor(Steps) + 1);
+
+    private double SteppedRawValue
+    {
+        get
+        {
+            if (Step <= 0)
+            {
+                return rawValue;
+            }
+
+            double normalizedStep = Step / (Max - Min);
+            return normalizedStep * Math.Round(rawValue / normalizedStep, MidpointRounding.AwayFromZero);
+        }
+    }
+
+    private double FinalValue
+    {
+        get
+        {
+            double value = (SteppedRawValue * (Max - Min)) + Min;
+            return Step == Math.Truncate(Step)
+                ? Math.Round(value, MidpointRounding.AwayFromZero)
+                : value;
+        }
+    }
+
+    private string SteppedPercentage =>
+        $"{(SteppedRawValue * 100).ToString("0.###############", CultureInfo.InvariantCulture)}%";
+
+    protected override void OnParametersSet()
+    {
+        if (!double.IsFinite(Min) || !double.IsFinite(Max) || Max <= Min ||
+            !double.IsFinite(Step) || Step < 0 ||
+            Step > 0 && (Max - Min) / Step > 10_000)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Max), "The range bounds or step are invalid.");
+        }
+
+        double projected = Math.Clamp((Value - Min) / (Max - Min), 0, 1);
+        if (!double.Equals(projected, lastProjectedRawValue))
+        {
+            rawValue = projected;
+            lastProjectedRawValue = projected;
+            if (attachment is not null && !tooltipShowing)
+            {
+                _ = UpdateAttachmentAsync(projected);
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            attachment = await RangeInterop.AttachAsync(
+                containerElement,
+                thumbElement,
+                highlightElement,
+                rawValue,
+                receiver,
+                lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task NotifyDragStarted()
+    {
+        tooltipShowing = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task NotifyRawValue(double value)
+    {
+        rawValue = Math.Clamp(value, 0, 1);
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task NotifyDragEnded(double value, bool changed)
+    {
+        rawValue = Math.Clamp(value, 0, 1);
+        tooltipShowing = false;
+        if (changed && !double.Equals(Value, FinalValue))
+        {
+            lastProjectedRawValue = rawValue;
+            await ValueChanged.InvokeAsync(FinalValue);
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string ConvertText(double value) => TextConverter?.Invoke(value) ??
+        value.ToString(CultureInfo.InvariantCulture);
+
+    private string TickPercentage(int index) =>
+        $"{((index / Steps) * 100).ToString("0.###############", CultureInfo.InvariantCulture)}%";
+
+    private async Task UpdateAttachmentAsync(double value)
+    {
+        try
+        {
+            await attachment!.InvokeVoidAsync("setValue", lifetime.Token, value);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+}

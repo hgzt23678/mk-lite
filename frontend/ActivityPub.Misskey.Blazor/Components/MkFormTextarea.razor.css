@@ -1,0 +1,75 @@
+.adhpbeos > .label {
+    font-size: 0.85em;
+    padding: 0 0 8px 0;
+    user-select: none;
+}
+
+.adhpbeos > .label:empty {
+    display: none;
+}
+
+.adhpbeos > .caption {
+    font-size: 0.85em;
+    padding: 8px 0 0 0;
+    color: var(--fgTransparentWeak);
+}
+
+.adhpbeos > .caption:empty {
+    display: none;
+}
+
+.adhpbeos > .input {
+    position: relative;
+}
+
+.adhpbeos > .input > textarea {
+    appearance: none;
+    -webkit-appearance: none;
+    display: block;
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+    min-height: 130px;
+    margin: 0;
+    padding: 12px;
+    font: inherit;
+    font-weight: normal;
+    font-size: 1em;
+    color: var(--fg);
+    background: var(--panel);
+    border: solid 1px var(--panel);
+    border-radius: 6px;
+    outline: none;
+    box-shadow: none;
+    box-sizing: border-box;
+    transition: border-color 0.1s ease-out;
+}
+
+.adhpbeos > .input > textarea:hover {
+    border-color: var(--inputBorderHover) !important;
+}
+
+.adhpbeos > .input.focused > textarea {
+    border-color: var(--accent) !important;
+}
+
+.adhpbeos > .input.disabled {
+    opacity: 0.7;
+}
+
+.adhpbeos > .input.disabled,
+.adhpbeos > .input.disabled * {
+    cursor: not-allowed !important;
+}
+
+.adhpbeos > .input.tall > textarea {
+    min-height: 200px;
+}
+
+.adhpbeos > .input.pre > textarea {
+    white-space: pre;
+}
+
+.adhpbeos > .save {
+    margin: 8px 0 0 0;
+}

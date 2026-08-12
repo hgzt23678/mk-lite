@@ -1,0 +1,604 @@
+@implements IAsyncDisposable
+@inject IMfmParserInterop Parser
+@inject IServiceProvider Services
+
+@if (!string.IsNullOrEmpty(Text))
+{
+    <span class="@RootClass" @attributes="AttributesWithoutClass">@RenderedContent</span>
+}
+
+@code {
+    private static readonly System.Text.RegularExpressions.Regex SafeDuration =
+        new("^[0-9.]+s$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    private static readonly System.Text.RegularExpressions.Regex IntegerPrefix =
+        new("^[+-]?[0-9]+", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    private readonly CancellationTokenSource lifetime = new();
+    private readonly CancellationToken lifetimeToken;
+    private IReadOnlyList<MfmNode>? nodes;
+    private CancellationTokenSource? parseRequest;
+    private string? parsedText;
+    private bool parsedPlain;
+    private bool animatedMfm = true;
+    private bool settingsLoaded;
+    private bool disposed;
+    private long parseGeneration;
+
+    public MfmView() => lifetimeToken = lifetime.Token;
+
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool Plain { get; set; }
+
+    [Parameter]
+    public bool NoWrap { get; set; }
+
+    [Parameter]
+    public NoteAuthorViewModel? Author { get; set; }
+
+    [Parameter]
+    public bool IsNote { get; set; } = true;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter]
+    public IReadOnlyDictionary<string, string> CustomEmojis { get; set; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "havbbuyv",
+        NoWrap ? "nowrap" : null,
+        CssClass,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private RenderFragment RenderedContent => builder =>
+    {
+        int sequence = 0;
+        if (nodes is null)
+        {
+            builder.AddContent(sequence, Plain ? Text.ReplaceLineEndings(" ") : Text);
+            return;
+        }
+
+        RenderNodes(builder, nodes, ref sequence);
+    };
+
+    protected override void OnParametersSet()
+    {
+        if (parsedText != Text || parsedPlain != Plain)
+        {
+            nodes = null;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        bool rerender = await ReadSettingsAsync();
+        if (string.IsNullOrEmpty(Text))
+        {
+            CancelPendingParse();
+            nodes = null;
+            parsedText = Text;
+            parsedPlain = Plain;
+            return;
+        }
+
+        if (parsedText != Text || parsedPlain != Plain)
+        {
+            rerender |= await ParseCurrentTextAsync();
+        }
+
+        if (rerender && !disposed)
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task<bool> ReadSettingsAsync()
+    {
+        if (settingsLoaded)
+        {
+            return false;
+        }
+
+        settingsLoaded = true;
+        if (Services.GetService(typeof(IPizzaxDeviceState)) is not IPizzaxDeviceState deviceState)
+        {
+            return false;
+        }
+
+        try
+        {
+            bool next = await deviceState.ReadAsync("animatedMfm", true, lifetimeToken);
+            if (!disposed && next != animatedMfm)
+            {
+                animatedMfm = next;
+                return true;
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        return false;
+    }
+
+    private async Task<bool> ParseCurrentTextAsync()
+    {
+        CancelPendingParse();
+        var request = CancellationTokenSource.CreateLinkedTokenSource(lifetimeToken);
+        parseRequest = request;
+        long generation = checked(++parseGeneration);
+        string requestedText = Text;
+        bool requestedPlain = Plain;
+
+        try
+        {
+            IReadOnlyList<MfmNode> parsed = await Parser.ParseAsync(
+                requestedText,
+                requestedPlain,
+                request.Token);
+            if (disposed || request.IsCancellationRequested || generation != parseGeneration ||
+                requestedText != Text || requestedPlain != Plain)
+            {
+                return false;
+            }
+
+            nodes = parsed;
+            parsedText = requestedText;
+            parsedPlain = requestedPlain;
+            return true;
+        }
+        catch (OperationCanceledException) when (request.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        finally
+        {
+            if (ReferenceEquals(parseRequest, request))
+            {
+                parseRequest = null;
+            }
+            request.Dispose();
+        }
+
+        return false;
+    }
+
+    private void RenderNodes(RenderTreeBuilder builder, IReadOnlyList<MfmNode> values, ref int sequence)
+    {
+        foreach (MfmNode node in values)
+        {
+            RenderNode(builder, node, ref sequence);
+        }
+    }
+
+    private void RenderNode(RenderTreeBuilder builder, MfmNode node, ref int sequence)
+    {
+        switch (node.Type)
+        {
+            case "text":
+                RenderText(builder, ReadString(node.Props, "text") ?? string.Empty, ref sequence);
+                break;
+            case "bold":
+                RenderContainer(builder, "b", null, null, node.Children, ref sequence);
+                break;
+            case "strike":
+                RenderContainer(builder, "del", null, null, node.Children, ref sequence);
+                break;
+            case "italic":
+                RenderContainer(builder, "i", null, "font-style: oblique", node.Children, ref sequence);
+                break;
+            case "small":
+                RenderContainer(builder, "small", null, "opacity: 0.7", node.Children, ref sequence);
+                break;
+            case "center":
+                RenderContainer(builder, "div", null, "text-align: center", node.Children, ref sequence);
+                break;
+            case "quote":
+                RenderContainer(builder, NoWrap ? "span" : "div", "quote", null, node.Children, ref sequence);
+                break;
+            case "plain":
+                RenderContainer(builder, "span", null, null, node.Children, ref sequence);
+                break;
+            case "inlineCode":
+                RenderCode(builder, node.Props, inline: true, ref sequence);
+                break;
+            case "blockCode":
+                RenderCode(builder, node.Props, inline: false, ref sequence);
+                break;
+            case "url":
+                RenderUrl(builder, ReadString(node.Props, "url"), ref sequence);
+                break;
+            case "link":
+                RenderLink(builder, ReadString(node.Props, "url"), node.Children, ref sequence);
+                break;
+            case "mention":
+                RenderMention(builder, node.Props, ref sequence);
+                break;
+            case "hashtag":
+                RenderHashtag(builder, ReadString(node.Props, "hashtag"), ref sequence);
+                break;
+            case "emojiCode":
+                RenderEmoji(builder, $":{ReadString(node.Props, "name") ?? string.Empty}:", ref sequence);
+                break;
+            case "unicodeEmoji":
+                RenderEmoji(builder, ReadString(node.Props, "emoji") ?? string.Empty, ref sequence);
+                break;
+            case "fn":
+                RenderFunction(builder, node, ref sequence);
+                break;
+            case "mathInline":
+                RenderFormula(builder, ReadString(node.Props, "formula") ?? string.Empty, block: false, ref sequence);
+                break;
+            case "mathBlock":
+                RenderFormula(builder, ReadString(node.Props, "formula") ?? string.Empty, block: true, ref sequence);
+                break;
+            case "search":
+                RenderSearch(builder, ReadString(node.Props, "query") ?? string.Empty, ref sequence);
+                break;
+        }
+    }
+
+    private void RenderText(RenderTreeBuilder builder, string text, ref int sequence)
+    {
+        string normalized = text.ReplaceLineEndings("\n");
+        if (Plain)
+        {
+            builder.AddContent(sequence++, normalized.Replace('\n', ' '));
+            return;
+        }
+
+        string[] lines = normalized.Split('\n');
+        for (int index = 0; index < lines.Length; index++)
+        {
+            if (index > 0)
+            {
+                builder.OpenElement(sequence++, "br");
+                builder.CloseElement();
+            }
+            builder.AddContent(sequence++, lines[index]);
+        }
+    }
+
+    private void RenderContainer(
+        RenderTreeBuilder builder,
+        string element,
+        string? cssClass,
+        string? style,
+        IReadOnlyList<MfmNode>? children,
+        ref int sequence)
+    {
+        builder.OpenElement(sequence++, element);
+        if (cssClass is not null)
+        {
+            builder.AddAttribute(sequence++, "class", cssClass);
+        }
+        if (style is not null)
+        {
+            builder.AddAttribute(sequence++, "style", style);
+        }
+        if (children is not null)
+        {
+            RenderNodes(builder, children, ref sequence);
+        }
+        builder.CloseElement();
+    }
+
+    private void RenderCode(RenderTreeBuilder builder, JsonElement props, bool inline, ref int sequence)
+    {
+        builder.OpenComponent<MkCode>(sequence++);
+        builder.AddAttribute(sequence++, nameof(MkCode.Code), ReadString(props, "code") ?? string.Empty);
+        builder.AddAttribute(sequence++, nameof(MkCode.Inline), inline);
+        if (!inline)
+        {
+            builder.AddAttribute(sequence++, nameof(MkCode.Lang), ReadString(props, "lang"));
+        }
+        builder.CloseComponent();
+    }
+
+    private static void RenderFormula(
+        RenderTreeBuilder builder,
+        string formula,
+        bool block,
+        ref int sequence)
+    {
+        builder.OpenComponent<MkFormula>(sequence++);
+        builder.AddAttribute(sequence++, nameof(MkFormula.Formula), formula);
+        builder.AddAttribute(sequence++, nameof(MkFormula.Block), block);
+        builder.CloseComponent();
+    }
+
+    private static void RenderSearch(RenderTreeBuilder builder, string query, ref int sequence)
+    {
+        builder.OpenComponent<MkGoogle>(sequence++);
+        builder.AddAttribute(sequence++, nameof(MkGoogle.Q), query);
+        builder.CloseComponent();
+    }
+
+    private static void RenderUrl(RenderTreeBuilder builder, string? rawUrl, ref int sequence)
+    {
+        if (!TrySafeWebUrl(rawUrl, out Uri? uri))
+        {
+            builder.AddContent(sequence++, rawUrl);
+            return;
+        }
+
+        builder.OpenComponent<MkUrl>(sequence++);
+        builder.AddAttribute(sequence++, nameof(MkUrl.Url), uri!.AbsoluteUri);
+        builder.AddAttribute(sequence++, nameof(MkUrl.Relationship), "nofollow noopener");
+        builder.CloseComponent();
+    }
+
+    private void RenderLink(
+        RenderTreeBuilder builder,
+        string? rawUrl,
+        IReadOnlyList<MfmNode>? children,
+        ref int sequence)
+    {
+        if (!TrySafeWebUrl(rawUrl, out Uri? uri))
+        {
+            if (children is not null)
+            {
+                RenderNodes(builder, children, ref sequence);
+            }
+            return;
+        }
+
+        builder.OpenComponent<MkLink>(sequence++);
+        builder.AddAttribute(sequence++, nameof(MkLink.Url), uri!.AbsoluteUri);
+        builder.AddAttribute(sequence++, nameof(MkLink.Relationship), "nofollow noopener");
+        builder.AddAttribute(sequence++, nameof(MkLink.ChildContent), ChildContent(children));
+        builder.CloseComponent();
+    }
+
+    private void RenderMention(RenderTreeBuilder builder, JsonElement props, ref int sequence)
+    {
+        string username = ReadString(props, "username") ?? string.Empty;
+        string? parsedHost = ReadString(props, "host");
+        string host = string.IsNullOrWhiteSpace(parsedHost)
+            ? AuthorHost ?? RuntimeHost
+            : parsedHost;
+        builder.OpenComponent<MkMention>(sequence++);
+        builder.AddAttribute(sequence++, nameof(MkMention.Username), username);
+        builder.AddAttribute(sequence++, nameof(MkMention.Host), host);
+        builder.CloseComponent();
+    }
+
+    private string RuntimeHost =>
+        (Services.GetService(typeof(MisskeyFrontendRuntimeConfiguration)) as MisskeyFrontendRuntimeConfiguration)?
+            .PublicBaseUri?.IdnHost ?? string.Empty;
+
+    private string? AuthorHost
+    {
+        get
+        {
+            if (Author is null)
+            {
+                return null;
+            }
+            int separator = Author.Acct.LastIndexOf('@');
+            return separator > 0 && separator < Author.Acct.Length - 1
+                ? Author.Acct[(separator + 1)..]
+                : null;
+        }
+    }
+
+    private void RenderHashtag(RenderTreeBuilder builder, string? hashtag, ref int sequence)
+    {
+        string value = hashtag ?? string.Empty;
+        string route = IsNote ? "tags" : "explore/tags";
+        builder.OpenElement(sequence++, "a");
+        builder.AddAttribute(sequence++, "href", $"/{route}/{Uri.EscapeDataString(value)}");
+        builder.AddAttribute(sequence++, "style", "color: var(--hashtag)");
+        builder.AddContent(sequence++, $"#{value}");
+        builder.CloseElement();
+    }
+
+    private void RenderEmoji(RenderTreeBuilder builder, string emoji, ref int sequence)
+    {
+        builder.OpenComponent<MkEmoji>(sequence++);
+        builder.AddAttribute(sequence++, nameof(MkEmoji.Emoji), emoji);
+        builder.AddAttribute(sequence++, nameof(MkEmoji.Normal), Plain);
+        if (emoji.Length > 2 && emoji[0] == ':' && emoji[^1] == ':' &&
+            CustomEmojis.TryGetValue(emoji[1..^1], out string? url))
+        {
+            builder.AddAttribute(sequence++, nameof(MkEmoji.CustomUrl), url);
+        }
+        builder.CloseComponent();
+    }
+
+    private void RenderFunction(RenderTreeBuilder builder, MfmNode node, ref int sequence)
+    {
+        string name = ReadString(node.Props, "name") ?? string.Empty;
+        JsonElement args = node.Props.TryGetProperty("args", out JsonElement value) ? value : default;
+        if (name == "sparkle")
+        {
+            if (animatedMfm)
+            {
+                builder.OpenComponent<MkSparkle>(sequence++);
+                builder.AddAttribute(sequence++, nameof(MkSparkle.ChildContent), ChildContent(node.Children));
+                builder.CloseComponent();
+            }
+            else if (node.Children is not null)
+            {
+                RenderNodes(builder, node.Children, ref sequence);
+            }
+            return;
+        }
+
+        string? cssClass = name switch
+        {
+            "x2" => "mfm-x2",
+            "x3" => "mfm-x3",
+            "x4" => "mfm-x4",
+            "blur" => "_mfm_blur_",
+            _ => null
+        };
+        if (cssClass is not null)
+        {
+            RenderContainer(builder, "span", cssClass, null, node.Children, ref sequence);
+            return;
+        }
+
+        string? style = name switch
+        {
+            "tada" => "font-size: 150%;" + Animation($"tada {Duration(args, "1s")} linear infinite both"),
+            "jelly" => Animation($"mfm-rubberBand {Duration(args, "1s")} linear infinite both"),
+            "twitch" => Animation($"mfm-twitch {Duration(args, "0.5s")} ease infinite"),
+            "shake" => Animation($"mfm-shake {Duration(args, "0.5s")} ease infinite"),
+            "jump" => Animation($"mfm-jump {Duration(args, "0.75s")} linear infinite"),
+            "bounce" => Animation($"mfm-bounce {Duration(args, "0.75s")} linear infinite; transform-origin: center bottom"),
+            "rainbow" => Animation($"mfm-rainbow {Duration(args, "1s")} linear infinite"),
+            "spin" => SpinStyle(args),
+            "flip" => FlipStyle(args),
+            "rotate" => RotateStyle(args),
+            "font" => FontStyle(args),
+            _ => null
+        };
+        if (style is not null)
+        {
+            RenderContainer(builder, "span", null, "display: inline-block;" + style, node.Children, ref sequence);
+            return;
+        }
+
+        builder.OpenElement(sequence++, "span");
+        builder.AddContent(sequence++, $"$[{name} ");
+        if (node.Children is not null)
+        {
+            RenderNodes(builder, node.Children, ref sequence);
+        }
+        builder.AddContent(sequence++, "]");
+        builder.CloseElement();
+    }
+
+    private RenderFragment ChildContent(IReadOnlyList<MfmNode>? children) => childBuilder =>
+    {
+        if (children is null)
+        {
+            return;
+        }
+        int childSequence = 0;
+        RenderNodes(childBuilder, children, ref childSequence);
+    };
+
+    private string Animation(string declaration) => animatedMfm ? $"animation: {declaration};" : string.Empty;
+
+    private static string Duration(JsonElement args, string fallback)
+    {
+        string? duration = ReadString(args, "speed");
+        return duration is not null && SafeDuration.IsMatch(duration) ? duration : fallback;
+    }
+
+    private string SpinStyle(JsonElement args)
+    {
+        string animation = ReadBoolean(args, "x") ? "mfm-spinX" : ReadBoolean(args, "y") ? "mfm-spinY" : "mfm-spin";
+        string direction = ReadBoolean(args, "left") ? "reverse" : ReadBoolean(args, "alternate") ? "alternate" : "normal";
+        return animatedMfm
+            ? $"animation: {animation} {Duration(args, "1.5s")} linear infinite; animation-direction: {direction};"
+            : string.Empty;
+    }
+
+    private static string FlipStyle(JsonElement args)
+    {
+        string transform = ReadBoolean(args, "h") && ReadBoolean(args, "v")
+            ? "scale(-1, -1)"
+            : ReadBoolean(args, "v") ? "scaleY(-1)" : "scaleX(-1)";
+        return $"transform: {transform};";
+    }
+
+    private static string RotateStyle(JsonElement args)
+    {
+        string? raw = ReadString(args, "deg");
+        string degrees = "90";
+        System.Text.RegularExpressions.Match prefix = IntegerPrefix.Match(raw ?? string.Empty);
+        if (prefix.Success && long.TryParse(prefix.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long parsed) && parsed != 0)
+        {
+            degrees = parsed.ToString(CultureInfo.InvariantCulture);
+        }
+        return $"transform: rotate({degrees}deg); transform-origin: center center;";
+    }
+
+    private static string? FontStyle(JsonElement args)
+    {
+        string? family = ReadBoolean(args, "serif") ? "serif" :
+            ReadBoolean(args, "monospace") ? "monospace" :
+            ReadBoolean(args, "cursive") ? "cursive" :
+            ReadBoolean(args, "fantasy") ? "fantasy" :
+            ReadBoolean(args, "emoji") ? "emoji" :
+            ReadBoolean(args, "math") ? "math" : null;
+        return family is null ? null : $"font-family: {family};";
+    }
+
+    private static bool TrySafeWebUrl(string? rawUrl, out Uri? uri)
+    {
+        bool valid = Uri.TryCreate(rawUrl, UriKind.Absolute, out uri) &&
+            (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) &&
+            string.IsNullOrEmpty(uri.UserInfo);
+        if (!valid)
+        {
+            uri = null;
+        }
+        return valid;
+    }
+
+    private static string? ReadString(JsonElement element, string property) =>
+        element.ValueKind == JsonValueKind.Object &&
+        element.TryGetProperty(property, out JsonElement value) &&
+        value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
+    private static bool ReadBoolean(JsonElement element, string property) =>
+        element.ValueKind == JsonValueKind.Object &&
+        element.TryGetProperty(property, out JsonElement value) &&
+        value.ValueKind == JsonValueKind.True;
+
+    private void CancelPendingParse()
+    {
+        parseGeneration++;
+        parseRequest?.Cancel();
+        parseRequest = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+        disposed = true;
+        CancelPendingParse();
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

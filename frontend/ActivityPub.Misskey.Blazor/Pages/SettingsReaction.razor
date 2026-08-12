@@ -1,0 +1,254 @@
+@implements IAsyncDisposable
+@using ActivityPub.Misskey.Blazor.Overlays
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyOverlayService Overlays
+@inject IMisskeyLocalizer Localizer
+
+<div class="_formRoot settings-local-page">
+    @if (!loaded)
+    {
+        <MkLoading />
+    }
+    else
+    {
+        <MkFormSlot CssClassAdditional="_formBlock">
+            <Label>@Localizer.Translate("reactionSettingDescription")</Label>
+            <ChildContent>
+                <div class="zoaiodol _panel" @ondragover:preventDefault="true" @ondrop:preventDefault="true">
+                    @for (int index = 0; index < reactions.Count; index++)
+                    {
+                        int currentIndex = index;
+                        string reaction = reactions[index];
+                        <button @key="reaction"
+                                class="_button item"
+                                draggable="true"
+                                type="button"
+                                title="@reaction"
+                                @ondragstart="() => BeginDrag(currentIndex)"
+                                @ondragover:preventDefault="true"
+                                @ondrop="() => Drop(currentIndex)"
+                                @onclick="eventArgs => OpenReactionMenuAsync(reaction, currentIndex, eventArgs)">
+                            <MkEmoji Emoji="@reaction" Normal="true" />
+                        </button>
+                    }
+                    <button @ref="addButton"
+                            class="_button add"
+                            type="button"
+                            aria-label="@Localizer.Translate("addItem")"
+                            @onclick="ChooseEmojiAsync">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+            </ChildContent>
+            <Caption>
+                @Localizer.Translate("reactionSettingDescription2")
+                <button type="button" class="_textButton" @onclick="PreviewAsync">@Localizer.Translate("preview")</button>
+            </Caption>
+        </MkFormSlot>
+
+        <MkFormRadios TValue="int" Value="@reactionPickerSize" ValueChanged="SaveSizeAsync" CssClassAdditional="_formBlock">
+            <Label>@Localizer.Translate("size")</Label>
+            <ChildContent>
+                @foreach (int value in new[] { 1, 2, 3 })
+                {
+                    <MkFormRadio TValue="int" ModelValue="@reactionPickerSize" ModelValueChanged="SaveSizeAsync" Value="@value">
+                        @value
+                    </MkFormRadio>
+                }
+            </ChildContent>
+        </MkFormRadios>
+
+        <MkFormRadios TValue="int" Value="@reactionPickerWidth" ValueChanged="SaveWidthAsync" CssClassAdditional="_formBlock">
+            <Label>@Localizer.Translate("numberOfColumn")</Label>
+            <ChildContent>
+                @foreach (int value in new[] { 1, 2, 3, 4, 5 })
+                {
+                    <MkFormRadio TValue="int" ModelValue="@reactionPickerWidth" ModelValueChanged="SaveWidthAsync" Value="@value">
+                        @(value + 4)
+                    </MkFormRadio>
+                }
+            </ChildContent>
+        </MkFormRadios>
+
+        <MkFormRadios TValue="int" Value="@reactionPickerHeight" ValueChanged="SaveHeightAsync" CssClassAdditional="_formBlock">
+            <Label>@Localizer.Translate("height")</Label>
+            <ChildContent>
+                @foreach (int value in new[] { 1, 2, 3, 4 })
+                {
+                    <MkFormRadio TValue="int" ModelValue="@reactionPickerHeight" ModelValueChanged="SaveHeightAsync" Value="@value">
+                        @value
+                    </MkFormRadio>
+                }
+            </ChildContent>
+        </MkFormRadios>
+
+        <MkFormSwitch Value="@reactionPickerUseDrawerForMobile" ValueChanged="SaveDrawerAsync" CssClassAdditional="_formBlock">
+            <ChildContent>@Localizer.Translate("useDrawerReactionPickerForMobile")</ChildContent>
+            <Caption>@Localizer.Translate("needReloadToApply")</Caption>
+        </MkFormSwitch>
+
+        <FormSection>
+            <MkButton Inline="true" OnClick="PreviewAsync"><i class="fas fa-eye"></i> @Localizer.Translate("preview")</MkButton>
+            <MkButton Inline="true" Danger="true" OnClick="ResetAsync"><i class="fas fa-undo"></i> @Localizer.Translate("default")</MkButton>
+        </FormSection>
+
+        @if (!string.IsNullOrWhiteSpace(status))
+        {
+            <MkInfo class="_formBlock">@status</MkInfo>
+        }
+    }
+</div>
+
+@code {
+    private static readonly string[] DefaultReactions = ["👍", "❤️", "😆", "🤔", "😮", "🎉", "💢", "😥", "😇", "🍮"];
+    private readonly CancellationTokenSource lifetime = new();
+    private readonly List<string> reactions = [];
+    private ElementReference addButton;
+    private int reactionPickerSize = 1;
+    private int reactionPickerWidth = 3;
+    private int reactionPickerHeight = 2;
+    private bool reactionPickerUseDrawerForMobile = true;
+    private int? draggedIndex;
+    private string? status;
+    private bool loaded;
+    private bool disposed;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            reactions.AddRange((await DeviceState.ReadAsync("reactions", DefaultReactions, lifetime.Token))
+                .Where(static value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.Ordinal).Take(32));
+            reactionPickerSize = Normalize(await DeviceState.ReadAsync("reactionPickerSize", 1, lifetime.Token), 1, 3, 1);
+            reactionPickerWidth = Normalize(await DeviceState.ReadAsync("reactionPickerWidth", 3, lifetime.Token), 1, 5, 3);
+            reactionPickerHeight = Normalize(await DeviceState.ReadAsync("reactionPickerHeight", 2, lifetime.Token), 1, 4, 2);
+            reactionPickerUseDrawerForMobile = await DeviceState.ReadAsync("reactionPickerUseDrawerForMobile", true, lifetime.Token);
+            loaded = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+    }
+
+    private static int Normalize(int value, int min, int max, int fallback) => value is >= 1 and <= 5 ? Math.Clamp(value, min, max) : fallback;
+
+    private void BeginDrag(int index) => draggedIndex = index;
+
+    private async Task Drop(int index)
+    {
+        if (draggedIndex is not int source || source == index || source < 0 || source >= reactions.Count)
+        {
+            draggedIndex = null;
+            return;
+        }
+
+        string value = reactions[source];
+        reactions.RemoveAt(source);
+        reactions.Insert(Math.Clamp(index, 0, reactions.Count), value);
+        draggedIndex = null;
+        await PersistReactionsAsync();
+    }
+
+    private Task OpenReactionMenuAsync(string reaction, int index, MouseEventArgs args)
+    {
+        _ = args;
+        Overlays.ShowPopupMenu(
+            addButton,
+            [new MisskeyMenuItem(
+                MisskeyMenuItemKind.Action,
+                Localizer.Translate("remove"),
+                "fas fa-trash-alt",
+                Action: async () =>
+                {
+                    if (index >= 0 && index < reactions.Count && string.Equals(reactions[index], reaction, StringComparison.Ordinal))
+                    {
+                        reactions.RemoveAt(index);
+                        await PersistReactionsAsync();
+                    }
+                },
+                Danger: true)]);
+        return Task.CompletedTask;
+    }
+
+    private Task ChooseEmojiAsync(MouseEventArgs args)
+    {
+        _ = args;
+        Overlays.ShowEmojiPicker(addButton, async value =>
+        {
+            if (!reactions.Contains(value, StringComparer.Ordinal) && reactions.Count < 32)
+            {
+                reactions.Add(value);
+                await PersistReactionsAsync();
+            }
+        }, asReactionPicker: true);
+        return Task.CompletedTask;
+    }
+
+    private Task PreviewAsync(MouseEventArgs args)
+    {
+        _ = args;
+        Overlays.ShowEmojiPicker(addButton, _ => Task.CompletedTask, asReactionPicker: true);
+        return Task.CompletedTask;
+    }
+
+    private async Task ResetAsync(MouseEventArgs args)
+    {
+        _ = args;
+        reactions.Clear();
+        reactions.AddRange(DefaultReactions);
+        await PersistReactionsAsync();
+    }
+
+    private async Task SaveSizeAsync(int value)
+    {
+        reactionPickerSize = Normalize(value, 1, 3, 1);
+        await DeviceState.WriteAsync("reactionPickerSize", reactionPickerSize, lifetime.Token);
+        status = Localizer.Translate("saved");
+    }
+
+    private async Task SaveWidthAsync(int value)
+    {
+        reactionPickerWidth = Normalize(value, 1, 5, 3);
+        await DeviceState.WriteAsync("reactionPickerWidth", reactionPickerWidth, lifetime.Token);
+        status = Localizer.Translate("saved");
+    }
+
+    private async Task SaveHeightAsync(int value)
+    {
+        reactionPickerHeight = Normalize(value, 1, 4, 2);
+        await DeviceState.WriteAsync("reactionPickerHeight", reactionPickerHeight, lifetime.Token);
+        status = Localizer.Translate("saved");
+    }
+
+    private async Task SaveDrawerAsync(bool value)
+    {
+        reactionPickerUseDrawerForMobile = value;
+        await DeviceState.WriteAsync("reactionPickerUseDrawerForMobile", value, lifetime.Token);
+        status = Localizer.Translate("saved");
+    }
+
+    private async Task PersistReactionsAsync()
+    {
+        await DeviceState.WriteAsync("reactions", reactions.ToArray(), lifetime.Token);
+        status = Localizer.Translate("saved");
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

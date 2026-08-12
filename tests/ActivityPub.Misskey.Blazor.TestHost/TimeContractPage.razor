@@ -1,0 +1,19 @@
+@page "/__test/components/time"
+@rendermode InteractiveServer
+
+<main data-contract="mk-time">
+    <div id="relative"><MkTime Time="@RelativeValue" data-mode="relative" /></div>
+    <div id="absolute"><MkTime Time="@FixedValue" Mode="absolute" data-mode="absolute" /></div>
+    <div id="detail"><MkTime Time="@RelativeValue" Mode="detail" data-mode="detail" /></div>
+    @if (showing)
+    {
+        <div id="disposable"><MkTime Time="@RelativeValue" /></div>
+    }
+    <button id="remove-time" type="button" @onclick="() => showing = false">Remove</button>
+</main>
+
+@code {
+    private static readonly DateTimeOffset FixedValue = new(2026, 8, 4, 12, 34, 56, TimeSpan.Zero);
+    private readonly DateTimeOffset RelativeValue = DateTimeOffset.UtcNow.AddSeconds(-70);
+    private bool showing = true;
+}

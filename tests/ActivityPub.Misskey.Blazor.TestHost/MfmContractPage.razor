@@ -1,0 +1,30 @@
+@page "/__test/components/mfm"
+
+<main data-contract="mfm">
+    <div data-mfm="structure">
+        <MfmView Text="@StructureText"
+                 Author="RemoteAuthor"
+                 IsNote="false"
+                 CustomEmojis="CustomEmojis"
+                 data-fallthrough="preserved" />
+    </div>
+    <div data-mfm="motion"><MfmView Text="$[jelly.speed=2s motion]" /></div>
+    <div data-mfm="nowrap"><MfmView Text="one&#10;two" Plain="true" NoWrap="true" /></div>
+</main>
+
+@code {
+    private const string StructureText =
+        "first\nsecond https://xn--bcher-kva.example:8443/a%20b?q=x%20y#z%20z @bob #topic :party: 👍";
+    private static readonly NoteAuthorViewModel RemoteAuthor = new(
+        "remote-author",
+        "author",
+        "author@remote.example",
+        "Author",
+        "/static-assets/favicon.png",
+        IsBot: false);
+    private static readonly IReadOnlyDictionary<string, string> CustomEmojis =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["party"] = "/static-assets/favicon.png"
+        };
+}

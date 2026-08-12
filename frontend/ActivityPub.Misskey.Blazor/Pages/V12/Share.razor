@@ -1,0 +1,69 @@
+@page "/share"
+@inject IMisskeyLocalizer Localizer
+@inject NavigationManager Navigation
+
+<PageTitle>@Localizer.Translate("share")</PageTitle>
+<MkStickyContainer>
+    <Header><MkPageHeader Metadata="@HeaderMetadata" /></Header>
+    <ChildContent>
+        @if (posted)
+        {
+            <MkButton Primary="true" CssClassAdditional="close" OnClick="CloseAsync">@Localizer.Translate("close")</MkButton>
+        }
+        else
+        {
+            <MkPostForm Fixed="true"
+                        Instant="true"
+                        InitialText="@InitialText"
+                        InitialVisibility="@InitialVisibility"
+                        InitialLocalOnly="@InitialLocalOnly"
+                        Posted="PostedAsync"
+                        CssClass="_panel" />
+        }
+    </ChildContent>
+</MkStickyContainer>
+
+@code {
+    [SupplyParameterFromQuery(Name = "title")]
+    public string? Title { get; set; }
+
+    [SupplyParameterFromQuery(Name = "text")]
+    public string? Text { get; set; }
+
+    [SupplyParameterFromQuery(Name = "url")]
+    public string? Url { get; set; }
+
+    [SupplyParameterFromQuery(Name = "visibility")]
+    public string? VisibilityQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "localOnly")]
+    public string? LocalOnlyQuery { get; set; }
+
+    private bool posted;
+
+    private MkPageHeaderMetadata HeaderMetadata => new(Localizer.Translate("share"), Icon: "fas fa-share-alt");
+
+    private string InitialText
+    {
+        get
+        {
+            return ActivityPub.Misskey.Blazor.Client.MisskeyShareUtilities.ComposeText(Title, Text, Url);
+        }
+    }
+
+    private Visibility InitialVisibility => ActivityPub.Misskey.Blazor.Client.MisskeyShareUtilities.ParseVisibility(VisibilityQuery);
+
+    private bool InitialLocalOnly => ActivityPub.Misskey.Blazor.Client.MisskeyShareUtilities.ParseLocalOnly(LocalOnlyQuery);
+
+    private Task PostedAsync(NoteViewModel _)
+    {
+        posted = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task CloseAsync(MouseEventArgs _)
+    {
+        Navigation.NavigateTo("/", forceLoad: false);
+        return Task.CompletedTask;
+    }
+}

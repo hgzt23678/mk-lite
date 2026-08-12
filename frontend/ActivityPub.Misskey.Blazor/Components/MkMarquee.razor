@@ -1,0 +1,106 @@
+@implements IAsyncDisposable
+@inject IMarqueeInterop MarqueeInterop
+
+<div class="@RootClass" @attributes="AttributesWithoutClass">
+    <span @ref="content" class="@ContentClass">
+        @for (int index = 0; index < Repeat; index++)
+        {
+            <span class="_text_1hc4p_15"
+                  style="@TextStyle"
+                  aria-hidden="@(index == 0 ? null : "true")">@ChildContent</span>
+        }
+    </span>
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference content;
+    private double measuredDuration = double.NaN;
+    private int measuredRepeat;
+    private bool measurementPending = true;
+
+    [Parameter]
+    public double Duration { get; set; } = 15;
+
+    [Parameter]
+    public int Repeat { get; set; } = 2;
+
+    [Parameter]
+    public bool Paused { get; set; }
+
+    [Parameter]
+    public bool Reverse { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "_wrap_1hc4p_1",
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private string ContentClass => Paused
+        ? "_paused_1hc4p_24 _content_1hc4p_9"
+        : "_content_1hc4p_9";
+
+    private string? TextStyle => Reverse ? "animation-direction: reverse" : null;
+
+    protected override void OnParametersSet()
+    {
+        if (Duration < 0 || !double.IsFinite(Duration))
+        {
+            throw new ArgumentOutOfRangeException(nameof(Duration));
+        }
+
+        if (Repeat < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(Repeat));
+        }
+
+        measurementPending = measurementPending || measuredDuration != Duration || measuredRepeat != Repeat;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!measurementPending)
+        {
+            return;
+        }
+
+        measurementPending = false;
+        measuredDuration = Duration;
+        measuredRepeat = Repeat;
+        try
+        {
+            _ = await MarqueeInterop.SetDurationAsync(content, Repeat, Duration, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        lifetime.Cancel();
+        lifetime.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

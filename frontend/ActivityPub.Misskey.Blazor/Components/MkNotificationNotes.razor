@@ -1,0 +1,65 @@
+@inject INotificationPresentationService Notifications
+@inject IMisskeyLocalizer Localizer
+
+<MkPagination TItem="MentionNoteListItem"
+              Source="@source"
+              RefreshKey="@DirectOnly"
+              @attributes="AdditionalAttributes">
+    <EmptyContent>
+        <div class="_fullinfo">
+            <img src="/client-assets/about-icon.png" class="_ghost" />
+            <div>@Localizer.Translate("noNotes")</div>
+        </div>
+    </EmptyContent>
+    <ChildContent Context="noteItems">
+        <div class="@RootClass">
+            <MkDateSeparatedList TItem="MentionNoteListItem"
+                                 Items="@noteItems"
+                                 GetId="GetNotificationId"
+                                 GetCreatedAt="GetNoteCreatedAt"
+                                 ShouldInsertAdvertisement="NeverInsertAdvertisement"
+                                 Direction="down"
+                                 Reversed="false"
+                                 NoGap="@NoGap"
+                                 Ad="true"
+                                 class="notes">
+                <ChildContent Context="item">
+                    <NoteView @key="item.Note.Id" Note="@item.Note" class="qtqtichx" />
+                </ChildContent>
+            </MkDateSeparatedList>
+        </div>
+    </ChildContent>
+</MkPagination>
+
+@code {
+    private MentionNotePaginationSource source = default!;
+    private bool? observedDirectOnly;
+
+    [Parameter]
+    public bool DirectOnly { get; set; }
+
+    [Parameter]
+    public bool NoGap { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => NoGap ? "giivymft noGap" : "giivymft";
+
+    protected override void OnParametersSet()
+    {
+        if (source is not null && observedDirectOnly == DirectOnly)
+        {
+            return;
+        }
+
+        observedDirectOnly = DirectOnly;
+        source = new MentionNotePaginationSource(Notifications, DirectOnly);
+    }
+
+    private static string GetNotificationId(MentionNoteListItem item) => item.NotificationId;
+
+    private static DateTimeOffset GetNoteCreatedAt(MentionNoteListItem item) => item.Note.CreatedAt;
+
+    private static bool NeverInsertAdvertisement(MentionNoteListItem item) => false;
+}

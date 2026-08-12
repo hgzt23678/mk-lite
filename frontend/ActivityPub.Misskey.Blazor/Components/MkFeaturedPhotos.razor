@@ -1,0 +1,48 @@
+@inject IInstancePresentationService InstanceService
+
+@if (meta is not null)
+{
+    <div @attributes="AttributesWithoutClassAndStyle" class="@RootClass" style="@RootStyle"></div>
+}
+
+@code {
+    private InstanceSummaryViewModel? meta;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "xfbouadm",
+        CssClass,
+        ReadAdditional("class")
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? BackgroundStyle => SameOriginMediaUrl.CssBackgroundImage(meta?.BackgroundImageUrl);
+
+    private string? RootStyle => string.Join("; ", new[]
+    {
+        BackgroundStyle,
+        ReadAdditional("style")
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        meta = await InstanceService.GetAsync(CancellationToken.None);
+    }
+
+    private string? ReadAdditional(string name) => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue(name, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+}

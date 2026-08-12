@@ -1,0 +1,39 @@
+<div class="@RootClass" style="@RootStyle" @attributes="AttributesWithoutClassAndStyle">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter]
+    public int MinWidth { get; set; } = 210;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[] { "terlnhxf", "_formBlock", AdditionalClass }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string RootStyle => string.Join(' ', new[]
+    {
+        FormattableString.Invariant($"--mk-form-split-min-width: {MinWidth}px;"),
+        AdditionalStyle
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass => ReadAttribute("class");
+
+    private string? AdditionalStyle => ReadAttribute("style");
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private string? ReadAttribute(string key) =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue(key, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+}

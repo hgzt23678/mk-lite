@@ -1,0 +1,374 @@
+@typeparam TResult
+@implements IAsyncDisposable
+@inject IFormSuspenseInterop Browser
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyLocalizer Localizer
+
+@if (displayedState == FormSuspenseState.Pending)
+{
+    <div @key="FormSuspenseState.Pending"
+         @ref="transitionElement"
+         class="@AdditionalClass"
+         @attributes="AttributesWithoutClass">
+        <MkLoading />
+    </div>
+}
+else if (displayedState == FormSuspenseState.Resolved)
+{
+    <div @key="FormSuspenseState.Resolved"
+         @ref="transitionElement"
+         class="@AdditionalClass"
+         @attributes="AttributesWithoutClass">
+        @ChildContent(result!)
+    </div>
+}
+else
+{
+    <div @key="FormSuspenseState.Rejected"
+         @ref="transitionElement"
+         class="@AdditionalClass"
+         @attributes="AttributesWithoutClass">
+        <div class="wszdbhzo">
+            <div><i class="fas fa-exclamation-triangle"></i> @Localizer.Translate("somethingHappened")</div>
+            <MkButton Inline="true" class="retry" OnClick="RetryAsync"><i class="fas fa-redo-alt"></i> @Localizer.Translate("retry")</MkButton>
+        </div>
+    </div>
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference transitionElement;
+    private CancellationTokenSource? processCancellation;
+    private Func<CancellationToken, Task<TResult>>? observedProcess;
+    private FormSuspenseTransitionReceiver? transitionReceiver;
+    private DotNetObjectReference<FormSuspenseTransitionReceiver>? receiverReference;
+    private IJSObjectReference? transitionAttachment;
+    private TResult? result;
+    private FormSuspenseState displayedState = FormSuspenseState.Pending;
+    private FormSuspenseState desiredState = FormSuspenseState.Pending;
+    private FormSuspenseTransitionPhase transitionPhase;
+    private bool enterPending;
+    private bool? animation;
+    private long processGeneration;
+    private long transitionGeneration;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public Func<CancellationToken, Task<TResult>> P { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public RenderFragment<TResult> ChildContent { get; set; } = default!;
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        ArgumentNullException.ThrowIfNull(P);
+        ArgumentNullException.ThrowIfNull(ChildContent);
+        if (!Equals(observedProcess, P))
+        {
+            observedProcess = P;
+            StartProcess(P);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (disposed || transitionPhase != FormSuspenseTransitionPhase.None)
+        {
+            return;
+        }
+
+        if (animation is null)
+        {
+            try
+            {
+                animation = await DeviceState.ReadAsync("animation", true, lifetime.Token);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (JSDisconnectedException)
+            {
+                animation = true;
+            }
+
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (enterPending)
+        {
+            enterPending = false;
+            if (animation.Value)
+            {
+                await StartTransitionAsync(FormSuspenseTransitionPhase.Entering);
+            }
+            return;
+        }
+
+        if (desiredState == displayedState)
+        {
+            return;
+        }
+
+        if (!animation.Value)
+        {
+            displayedState = desiredState;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        await StartTransitionAsync(FormSuspenseTransitionPhase.Leaving);
+    }
+
+    private Task RetryAsync()
+    {
+        StartProcess(P);
+        return Task.CompletedTask;
+    }
+
+    private void StartProcess(Func<CancellationToken, Task<TResult>> process)
+    {
+        long generation = checked(++processGeneration);
+        CancellationTokenSource? previous = processCancellation;
+        processCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        if (previous is not null)
+        {
+            previous.Cancel();
+            previous.Dispose();
+        }
+
+        RequestState(FormSuspenseState.Pending);
+        _ = CompleteProcessAsync(process, generation, processCancellation.Token);
+    }
+
+    private async Task CompleteProcessAsync(
+        Func<CancellationToken, Task<TResult>> process,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            Task<TResult> pending = process(cancellationToken) ??
+                throw new InvalidOperationException("MkFormSuspense process returned a null task.");
+            TResult completed = await pending.ConfigureAwait(false);
+            if (disposed || generation != processGeneration)
+            {
+                return;
+            }
+            await InvokeAsync(() =>
+            {
+                if (disposed || generation != processGeneration)
+                {
+                    return;
+                }
+
+                result = completed;
+                RequestState(FormSuspenseState.Resolved);
+                StateHasChanged();
+            });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception)
+        {
+            if (disposed || generation != processGeneration)
+            {
+                return;
+            }
+            await InvokeAsync(() =>
+            {
+                if (disposed || generation != processGeneration)
+                {
+                    return;
+                }
+
+                RequestState(FormSuspenseState.Rejected);
+                StateHasChanged();
+            });
+        }
+    }
+
+    private void RequestState(FormSuspenseState state)
+    {
+        desiredState = state;
+        if (transitionPhase == FormSuspenseTransitionPhase.None)
+        {
+            return;
+        }
+
+        transitionGeneration++;
+        transitionPhase = FormSuspenseTransitionPhase.None;
+        enterPending = false;
+        IJSObjectReference? current = transitionAttachment;
+        transitionAttachment = null;
+        if (current is not null)
+        {
+            _ = DisposeTransitionAttachmentAsync(current);
+        }
+    }
+
+    private async Task StartTransitionAsync(FormSuspenseTransitionPhase phase)
+    {
+        transitionPhase = phase;
+        long generation = checked(++transitionGeneration);
+        transitionReceiver ??= new FormSuspenseTransitionReceiver(NotifyTransitionCompleted);
+        receiverReference ??= DotNetObjectReference.Create(transitionReceiver);
+        try
+        {
+            IJSObjectReference created = await Browser.AttachAsync(
+                transitionElement,
+                receiverReference,
+                generation,
+                PhaseName(phase),
+                lifetime.Token);
+            if (disposed || generation != transitionGeneration || transitionPhase != phase)
+            {
+                await DisposeTransitionAttachmentAsync(created);
+            }
+            else
+            {
+                transitionAttachment = created;
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            CompleteTransitionWithoutBrowser(generation, phase);
+        }
+    }
+
+    private Task NotifyTransitionCompleted(long generation, string phaseName) => InvokeAsync(() =>
+    {
+        FormSuspenseTransitionPhase completedPhase = ParsePhase(phaseName);
+        if (disposed || generation != transitionGeneration || completedPhase != transitionPhase)
+        {
+            return;
+        }
+
+        IJSObjectReference? completed = transitionAttachment;
+        transitionAttachment = null;
+        transitionPhase = FormSuspenseTransitionPhase.None;
+        if (completed is not null)
+        {
+            _ = DisposeTransitionAttachmentAsync(completed);
+        }
+
+        if (completedPhase == FormSuspenseTransitionPhase.Leaving)
+        {
+            displayedState = desiredState;
+            enterPending = true;
+        }
+        else
+        {
+            enterPending = false;
+        }
+
+        StateHasChanged();
+    });
+
+    private void CompleteTransitionWithoutBrowser(
+        long generation,
+        FormSuspenseTransitionPhase phase)
+    {
+        if (disposed || generation != transitionGeneration || phase != transitionPhase)
+        {
+            return;
+        }
+
+        transitionAttachment = null;
+        transitionPhase = FormSuspenseTransitionPhase.None;
+        enterPending = false;
+        if (phase == FormSuspenseTransitionPhase.Leaving)
+        {
+            displayedState = desiredState;
+        }
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        processGeneration++;
+        transitionGeneration++;
+        lifetime.Cancel();
+        if (processCancellation is not null)
+        {
+            processCancellation.Cancel();
+            processCancellation.Dispose();
+        }
+        if (transitionAttachment is not null)
+        {
+            await DisposeTransitionAttachmentAsync(transitionAttachment);
+        }
+
+        receiverReference?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static async Task DisposeTransitionAttachmentAsync(IJSObjectReference current)
+    {
+        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try
+        {
+            await current.InvokeVoidAsync("dispose", cleanup.Token);
+            await current.DisposeAsync().AsTask().WaitAsync(cleanup.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private static string PhaseName(FormSuspenseTransitionPhase phase) => phase switch
+    {
+        FormSuspenseTransitionPhase.Entering => "enter",
+        FormSuspenseTransitionPhase.Leaving => "leave",
+        _ => throw new ArgumentOutOfRangeException(nameof(phase))
+    };
+
+    private static FormSuspenseTransitionPhase ParsePhase(string phase) => phase switch
+    {
+        "enter" => FormSuspenseTransitionPhase.Entering,
+        "leave" => FormSuspenseTransitionPhase.Leaving,
+        _ => throw new ArgumentOutOfRangeException(nameof(phase))
+    };
+
+    private enum FormSuspenseState
+    {
+        Pending,
+        Resolved,
+        Rejected
+    }
+
+    private enum FormSuspenseTransitionPhase
+    {
+        None,
+        Entering,
+        Leaving
+    }
+}

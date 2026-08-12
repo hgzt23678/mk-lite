@@ -1,0 +1,28 @@
+@page "/__test/components/image-viewer"
+@inject IMisskeyOverlayService Overlays
+
+<main data-contract="image-viewer">
+    <button data-contract="open-image-viewer" type="button" @onclick="OpenImageViewer">Open image viewer</button>
+    <section data-contract="launcher" style="display: grid; width: 320px; height: 180px;">
+        <MkMediaList Media="media" />
+    </section>
+</main>
+
+@code {
+    private static readonly IReadOnlyList<NoteMediaViewModel> media =
+    [
+        new(
+            "viewer-image",
+            "image/png",
+            "/static-assets/icons/512.png",
+            "/static-assets/user-unknown.png",
+            "viewer image description",
+            "LEHV6nWB2yk8pyo0adR*.7kCMdnj",
+            1920,
+            1080,
+            Sensitive: false,
+            Size: 1536)
+    ];
+
+    private void OpenImageViewer() => Overlays.ShowImageViewer(media[0]);
+}

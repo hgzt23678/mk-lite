@@ -1,0 +1,73 @@
+@page "/__test/components/window"
+@rendermode InteractiveServer
+
+<main data-contract="mk-window">
+    <button type="button" data-contract="open" @onclick="Open">open</button>
+    @if (showWindow)
+    {
+        <MkWindow @key="generation"
+                  @ref="window"
+                  InitialWidth="500"
+                  InitialHeight="360"
+                  CanResize="true"
+                  CloseButton="true"
+                  Mini="true"
+                  ButtonsLeft="leftButtons"
+                  ButtonsRight="rightButtons"
+                  Closed="OnClosed"
+                  class="contract-window"
+                  data-fallthrough="window">
+            <HeaderContent><span data-contract="title">Pinned window</span></HeaderContent>
+            <ChildContent>
+                <section data-contract="surface">
+                    <button type="button" data-contract="focus">focus target</button>
+                </section>
+            </ChildContent>
+        </MkWindow>
+    }
+    <output data-contract="events"
+            data-left="@leftClicks"
+            data-right="@rightClicks"
+            data-closed="@closed"></output>
+</main>
+
+@code {
+    private readonly IReadOnlyList<MkWindowButton> leftButtons;
+    private readonly IReadOnlyList<MkWindowButton> rightButtons;
+    private MkWindow? window;
+    private int generation = 1;
+    private bool showWindow = true;
+    private int leftClicks;
+    private int rightClicks;
+    private int closed;
+
+    public WindowContractPage()
+    {
+        leftButtons = [new("fas fa-arrow-left", OnLeft, "Back", Highlighted: true)];
+        rightButtons = [new("fas fa-expand-alt", OnRight, "Expand")];
+    }
+
+    private Task OnLeft()
+    {
+        leftClicks++;
+        return Task.CompletedTask;
+    }
+
+    private Task OnRight()
+    {
+        rightClicks++;
+        return Task.CompletedTask;
+    }
+
+    private void Open()
+    {
+        generation++;
+        showWindow = true;
+    }
+
+    private void OnClosed()
+    {
+        closed++;
+        showWindow = false;
+    }
+}

@@ -1,0 +1,83 @@
+@page "/announcements"
+@attribute [Authorize]
+@inject IAnnouncementPagePresentationService Announcements
+@inject IMisskeyLocalizer Localizer
+
+<PageTitle>@Localizer.Translate("announcements")</PageTitle>
+
+<MkStickyContainer>
+    <Header>
+        <MkPageHeader Metadata="HeaderMetadata" Actions="HeaderActions" Tabs="HeaderTabs" />
+    </Header>
+    <ChildContent>
+        <MkSpacer ContentMax="800">
+            <MkPagination TItem="AnnouncementPageViewModel"
+                          Source="source"
+                          class="ruryvtyk _content">
+                <ChildContent Context="items">
+                    @foreach (AnnouncementPageViewModel announcement in items)
+                    {
+                        <section @key="announcement.Id" class="_card announcement">
+                            <div class="_title">
+                                @if (IsUnread(announcement))
+                                {
+                                    <span>🆕 </span>
+                                }
+                                @announcement.Title
+                            </div>
+                            <div class="_content">
+                                <MfmView Text="@announcement.Text" />
+                                @if (SafeImageUrl(announcement.ImageUrl) is { } imageUrl)
+                                {
+                                    <img src="@imageUrl" alt="" />
+                                }
+                            </div>
+                            @if (IsUnread(announcement))
+                            {
+                                <div class="_footer">
+                                    <MkButton Primary="true" OnClick="_ => MarkReadAsync(announcement)">
+                                        <i class="fas fa-check"></i> @Localizer.Translate("gotIt")
+                                    </MkButton>
+                                </div>
+                            }
+                        </section>
+                    }
+                </ChildContent>
+            </MkPagination>
+        </MkSpacer>
+    </ChildContent>
+</MkStickyContainer>
+
+@code {
+    private readonly HashSet<string> locallyRead = new(StringComparer.Ordinal);
+    private AnnouncementPaginationSource source = default!;
+
+    private MkPageHeaderMetadata HeaderMetadata => new(
+        Localizer.Translate("announcements"),
+        Icon: "fas fa-broadcast-tower");
+
+    private static IReadOnlyList<MkPageHeaderAction> HeaderActions => [];
+    private static IReadOnlyList<MkPageHeaderTab> HeaderTabs => [];
+
+    protected override void OnInitialized() => source = new AnnouncementPaginationSource(Announcements);
+
+    private bool IsUnread(AnnouncementPageViewModel announcement) =>
+        !announcement.IsRead && !locallyRead.Contains(announcement.Id);
+
+    private static string? SafeImageUrl(string? value) => SameOriginMediaUrl.Normalize(value);
+
+    private async Task MarkReadAsync(AnnouncementPageViewModel announcement)
+    {
+        if (!IsUnread(announcement))
+        {
+            return;
+        }
+
+        if (!await Announcements.MarkReadAsync(announcement.Id, CancellationToken.None))
+        {
+            throw new AnnouncementPresentationException("ANNOUNCEMENT_READ_FAILED");
+        }
+
+        locallyRead.Add(announcement.Id);
+    }
+}

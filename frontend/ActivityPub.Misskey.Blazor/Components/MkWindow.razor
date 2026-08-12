@@ -1,0 +1,383 @@
+@implements IAsyncDisposable
+@inject IMkWindowInterop Browser
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyOverlayService Overlays
+
+@if (renderRoot)
+{
+    <div @ref="root"
+         class="@RootClass"
+         @attributes="AttributesWithoutClassAndStyle"
+         style="@AdditionalStyle">
+        <div @ref="body" class="body _shadow _narrow_">
+            <div @ref="header"
+                 class="@HeaderClass"
+                 @oncontextmenu="ShowContextMenu"
+                 @oncontextmenu:preventDefault="true"
+                 @oncontextmenu:stopPropagation="true">
+                <span class="left">
+                    @foreach (MkWindowButton button in ButtonsLeft)
+                    {
+                        <button class="@ButtonClass(button)"
+                                title="@button.Title"
+                                @onclick="button.OnClick"><i class="@button.Icon"></i></button>
+                    }
+                </span>
+                <span @ref="title" class="title">
+                    @HeaderContent
+                </span>
+                <span class="right">
+                    @foreach (MkWindowButton button in ButtonsRight)
+                    {
+                        <button class="@ButtonClass(button)"
+                                title="@button.Title"
+                                @onclick="button.OnClick"><i class="@button.Icon"></i></button>
+                    }
+                    @if (CanResize && maximized)
+                    {
+                        <button class="button _button" @onclick="RestoreAsync"><i class="fas fa-window-restore"></i></button>
+                    }
+                    else if (CanResize)
+                    {
+                        <button class="button _button" @onclick="MaximizeAsync"><i class="fas fa-window-maximize"></i></button>
+                    }
+                    @if (CloseButton)
+                    {
+                        <button class="button _button" @onclick="CloseAsync"><i class="fas fa-times"></i></button>
+                    }
+                </span>
+            </div>
+            <div class="body">
+                @ChildContent
+            </div>
+        </div>
+        @if (CanResize)
+        {
+            <div class="handle top"></div>
+            <div class="handle right"></div>
+            <div class="handle bottom"></div>
+            <div class="handle left"></div>
+            <div class="handle top-left"></div>
+            <div class="handle top-right"></div>
+            <div class="handle bottom-right"></div>
+            <div class="handle bottom-left"></div>
+        }
+    </div>
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference root;
+    private ElementReference body;
+    private ElementReference header;
+    private ElementReference title;
+    private DotNetObjectReference<MkWindow>? receiver;
+    private IJSObjectReference? attachment;
+    private bool? animation;
+    private bool attaching;
+    private bool maximized;
+    private bool closing;
+    private bool renderRoot = true;
+    private bool disposed;
+    private WindowMotionState motionState = WindowMotionState.Entering;
+
+    [Parameter]
+    public double? InitialWidth { get; set; } = 400;
+
+    [Parameter]
+    public double? InitialHeight { get; set; }
+
+    [Parameter]
+    public bool CanResize { get; set; }
+
+    [Parameter]
+    public bool CloseButton { get; set; } = true;
+
+    [Parameter]
+    public bool Mini { get; set; }
+
+    [Parameter]
+    public bool Front { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<MisskeyMenuItem>? ContextMenu { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<MkWindowButton> ButtonsLeft { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyList<MkWindowButton> ButtonsRight { get; set; } = [];
+
+    [Parameter]
+    public RenderFragment? HeaderContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "ebkgocck",
+        maximized ? "maximized" : null,
+        MotionClass,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string HeaderClass => Mini ? "header mini" : "header";
+
+    private string? MotionClass => animation == true
+        ? motionState switch
+        {
+            WindowMotionState.Entering => "window-enter-active window-enter-from",
+            WindowMotionState.Leaving => "window-leave-active window-leave-to",
+            _ => null
+        }
+        : null;
+
+    private string? AdditionalClass => ReadAdditionalAttribute("class");
+
+    private string? AdditionalStyle => ReadAdditionalAttribute("style");
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        ValidateDimension(InitialWidth, nameof(InitialWidth));
+        ValidateDimension(InitialHeight, nameof(InitialHeight));
+        ArgumentNullException.ThrowIfNull(ButtonsLeft);
+        ArgumentNullException.ThrowIfNull(ButtonsRight);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (disposed || !renderRoot)
+        {
+            return;
+        }
+
+        if (animation is null)
+        {
+            try
+            {
+                animation = await DeviceState.ReadAsync("animation", true, lifetime.Token);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (JSDisconnectedException)
+            {
+                animation = true;
+            }
+
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (attachment is null && !attaching)
+        {
+            await AttachAsync();
+        }
+    }
+
+    private async Task AttachAsync()
+    {
+        attaching = true;
+        receiver ??= DotNetObjectReference.Create(this);
+        try
+        {
+            MkWindowAttachment created = await Browser.AttachAsync(
+                root,
+                body,
+                title,
+                receiver,
+                new(InitialWidth, InitialHeight, CanResize, Front, animation!.Value),
+                lifetime.Token);
+            if (disposed)
+            {
+                await DisposeAttachmentAsync(created.Handle);
+                return;
+            }
+
+            attachment = created.Handle;
+            ApplyState(created.State);
+            if (closing)
+            {
+                await InvokeAttachmentAsync("close");
+            }
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        finally
+        {
+            attaching = false;
+        }
+    }
+
+    public async Task CloseAsync()
+    {
+        if (disposed || closing || !renderRoot)
+        {
+            return;
+        }
+
+        closing = true;
+        motionState = WindowMotionState.Leaving;
+        await InvokeAsync(StateHasChanged);
+        if (attachment is not null)
+        {
+            await InvokeAttachmentAsync("close");
+        }
+    }
+
+    public Task MaximizeAsync() => InvokeAttachmentAsync("maximize");
+
+    public Task RestoreAsync() => InvokeAttachmentAsync("restore");
+
+    public Task BringToFrontAsync() => InvokeAttachmentAsync("bringToFront");
+
+    [JSInvokable]
+    public async Task NotifyOpened()
+    {
+        if (disposed || closing)
+        {
+            return;
+        }
+
+        motionState = WindowMotionState.Opened;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task NotifyEscape() => CloseAsync();
+
+    [JSInvokable]
+    public async Task NotifyClosed()
+    {
+        if (disposed || !renderRoot)
+        {
+            return;
+        }
+
+        motionState = WindowMotionState.Hidden;
+        renderRoot = false;
+        if (attachment is not null)
+        {
+            IJSObjectReference closedAttachment = attachment;
+            attachment = null;
+            await DisposeAttachmentAsync(closedAttachment);
+        }
+        await Closed.InvokeAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task NotifyWindowState(MkWindowBrowserState state)
+    {
+        if (disposed)
+        {
+            return Task.CompletedTask;
+        }
+
+        ApplyState(state);
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private void ApplyState(MkWindowBrowserState state) => maximized = state.Maximized;
+
+    private void ShowContextMenu(MouseEventArgs args)
+    {
+        if (ContextMenu is { Count: > 0 })
+        {
+            Overlays.ShowContextMenu(args.PageX, args.PageY, ContextMenu);
+        }
+    }
+
+    private async Task InvokeAttachmentAsync(string method)
+    {
+        if (attachment is null || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            await attachment.InvokeVoidAsync(method, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            await DisposeAttachmentAsync(attachment);
+        }
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        try
+        {
+            await handle.InvokeVoidAsync("dispose");
+            await handle.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private static string ButtonClass(MkWindowButton button) => button.Highlighted
+        ? "button _button highlighted"
+        : "button _button";
+
+    private static void ValidateDimension(double? value, string parameterName)
+    {
+        if (value is double dimension && (!double.IsFinite(dimension) || dimension <= 0))
+        {
+            throw new ArgumentOutOfRangeException(parameterName);
+        }
+    }
+
+    private string? ReadAdditionalAttribute(string name) =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue(name, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private enum WindowMotionState
+    {
+        Hidden,
+        Entering,
+        Opened,
+        Leaving
+    }
+}

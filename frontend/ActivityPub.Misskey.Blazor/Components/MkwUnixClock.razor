@@ -1,0 +1,98 @@
+@implements IAsyncDisposable
+@inject IUnixClockInterop Browser
+
+<div @ref="root" class="@RootClass" style="@FontStyle">
+    @if (ShowLabel)
+    {
+        <div class="label">UNIX Epoch</div>
+    }
+    <div class="time">
+        <span>@initialSeconds</span>
+        @if (ShowMilliseconds)
+        {
+            <span class="colon">:</span>
+            <span>@initialMilliseconds</span>
+        }
+    </div>
+    @if (ShowLabel)
+    {
+        <div class="label">UTC</div>
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference root;
+    private IJSObjectReference? attachment;
+    private string initialSeconds = string.Empty;
+    private string initialMilliseconds = string.Empty;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public MisskeyWidgetModel Widget { get; set; } = null!;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    private bool Transparent => MisskeyWidgetData.Boolean(Widget, "transparent", false);
+    private double FontSize => Math.Clamp(MisskeyWidgetData.Number(Widget, "fontSize", 1.5), 0.5, 10);
+    private bool ShowMilliseconds => MisskeyWidgetData.Boolean(Widget, "showMs", true);
+    private bool ShowLabel => MisskeyWidgetData.Boolean(Widget, "showLabel", true);
+    private string RootClass => string.Join(' ', new[]
+    {
+        "mkw-unixClock _monospace",
+        Transparent ? null : "_panel",
+        CssClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string FontStyle => $"font-size: {FontSize.ToString("0.################", CultureInfo.InvariantCulture)}em;";
+
+    protected override void OnInitialized()
+    {
+        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        initialSeconds = (now / 1000).ToString(CultureInfo.InvariantCulture);
+        initialMilliseconds = ((now % 1000) / 10).ToString("D2", CultureInfo.InvariantCulture);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            attachment = await Browser.AttachAsync(root, ShowMilliseconds, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        lifetime.Dispose();
+    }
+}

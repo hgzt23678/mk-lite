@@ -1,0 +1,158 @@
+.window-enter-active,
+.window-leave-active {
+    transition: opacity 0.2s, transform 0.2s !important;
+}
+
+.window-enter-from,
+.window-leave-to {
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(0.9);
+}
+
+.ebkgocck {
+    position: fixed;
+    top: 0;
+    left: 0;
+}
+
+.ebkgocck > .body {
+    overflow: clip;
+    display: flex;
+    flex-direction: column;
+    contain: content;
+    width: 100%;
+    height: 100%;
+    border-radius: var(--radius);
+}
+
+.ebkgocck > .body > .header {
+    --height: 42px;
+    display: flex;
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+    user-select: none;
+    height: var(--height);
+    background: var(--windowHeader);
+    -webkit-backdrop-filter: var(--blur, blur(15px));
+    backdrop-filter: var(--blur, blur(15px));
+    font-size: 95%;
+    font-weight: bold;
+}
+
+.ebkgocck > .body > .header.mini {
+    --height: 38px;
+}
+
+.ebkgocck > .body > .header > .left > .button,
+.ebkgocck > .body > .header > .right > .button {
+    height: var(--height);
+    width: var(--height);
+}
+
+.ebkgocck > .body > .header > .left > .button:hover,
+.ebkgocck > .body > .header > .right > .button:hover {
+    color: var(--fgHighlighted);
+}
+
+.ebkgocck > .body > .header > .left > .button.highlighted,
+.ebkgocck > .body > .header > .right > .button.highlighted {
+    color: var(--accent);
+}
+
+.ebkgocck > .body > .header > .left {
+    margin-right: 16px;
+}
+
+.ebkgocck > .body > .header > .right {
+    min-width: 16px;
+}
+
+.ebkgocck > .body > .header > .title {
+    flex: 1;
+    position: relative;
+    line-height: var(--height);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: move;
+}
+
+.ebkgocck > .body > .body {
+    flex: 1;
+    overflow: auto;
+    background: var(--panel);
+}
+
+.ebkgocck > .handle {
+    position: absolute;
+}
+
+.ebkgocck > .handle.top {
+    top: -8px;
+    left: 0;
+    width: 100%;
+    height: 8px;
+    cursor: ns-resize;
+}
+
+.ebkgocck > .handle.right {
+    top: 0;
+    right: -8px;
+    width: 8px;
+    height: 100%;
+    cursor: ew-resize;
+}
+
+.ebkgocck > .handle.bottom {
+    bottom: -8px;
+    left: 0;
+    width: 100%;
+    height: 8px;
+    cursor: ns-resize;
+}
+
+.ebkgocck > .handle.left {
+    top: 0;
+    left: -8px;
+    width: 8px;
+    height: 100%;
+    cursor: ew-resize;
+}
+
+.ebkgocck > .handle.top-left {
+    top: -8px;
+    left: -8px;
+    width: 16px;
+    height: 16px;
+    cursor: nwse-resize;
+}
+
+.ebkgocck > .handle.top-right {
+    top: -8px;
+    right: -8px;
+    width: 16px;
+    height: 16px;
+    cursor: nesw-resize;
+}
+
+.ebkgocck > .handle.bottom-right {
+    right: -8px;
+    bottom: -8px;
+    width: 16px;
+    height: 16px;
+    cursor: nwse-resize;
+}
+
+.ebkgocck > .handle.bottom-left {
+    bottom: -8px;
+    left: -8px;
+    width: 16px;
+    height: 16px;
+    cursor: nesw-resize;
+}
+
+.ebkgocck.maximized > .body {
+    border-radius: 0;
+}

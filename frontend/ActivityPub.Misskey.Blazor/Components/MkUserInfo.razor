@@ -1,0 +1,72 @@
+@inject IMisskeyLocalizer Localizer
+
+<div class="@RootClass"
+     style="@RootStyle"
+     @attributes="AttributesWithoutClassAndStyle">
+    <div class="banner" style="@BannerStyle"></div>
+    <MkAvatar CssClass="avatar"
+              User="@User.User"
+              DisablePreview="true"
+              ShowIndicator="true" />
+    <div class="title">
+        <a class="name" href="@UserPage"><MkUserName User="@User.User" NoWrap="false" /></a>
+        <p class="username"><MkAcct User="@User.User" /></p>
+    </div>
+    <div class="description">
+        @if (!string.IsNullOrEmpty(User.Description))
+        {
+            <div class="mfm">
+                <MfmView Text="@User.Description" CustomEmojis="@CustomEmojis" />
+            </div>
+        }
+        else
+        {
+            <span style="opacity: 0.7;">@Localizer.Translate("noAccountDescription")</span>
+        }
+    </div>
+    <div class="status">
+        <div><p>@Localizer.Translate("notes")</p><span>@FormatCount(User.NotesCount)</span></div>
+        <div><p>@Localizer.Translate("following")</p><span>@FormatCount(User.FollowingCount)</span></div>
+        <div><p>@Localizer.Translate("followers")</p><span>@FormatCount(User.FollowersCount)</span></div>
+    </div>
+    @if (User.CanFollow)
+    {
+        <MkFollowButton CssClass="koudoku-button" User="@User" Mini="true" />
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public UserPreviewViewModel User { get; set; } = null!;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "_panel vjnjpkug",
+        CssClass,
+        ReadAdditionalAttribute("class")
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string? RootStyle => ReadAdditionalAttribute("style");
+    private string? BannerStyle => SameOriginMediaUrl.CssBackgroundImage(User.BannerUrl);
+    private string UserPage => $"/@{User.User.Acct}";
+    private IReadOnlyDictionary<string, string> CustomEmojis =>
+        User.User.Emojis ?? new Dictionary<string, string>(StringComparer.Ordinal);
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private string? ReadAdditionalAttribute(string name) =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue(name, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private static string FormatCount(long count) => count.ToString(CultureInfo.InvariantCulture);
+}

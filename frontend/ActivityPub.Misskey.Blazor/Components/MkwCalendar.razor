@@ -1,0 +1,134 @@
+@implements IAsyncDisposable
+@inject ICalendarWidgetInterop Browser
+@inject IMisskeyLocalizer Localizer
+
+<div @ref="root" class="@RootClass">
+    <div class="@CalendarClass">
+        <p class="month-and-year">
+            <span class="year">@TranslateNumber("yearX", "year", snapshot.Year)</span><span class="month">@TranslateNumber("monthX", "month", snapshot.Month)</span>
+        </p>
+        @if (snapshot.Month == 1 && snapshot.Day == 1)
+        {
+            <p class="day">🎉@TranslateNumber("dayX", "day", snapshot.Day)<span style="display: inline-block; transform: scaleX(-1);">🎉</span></p>
+        }
+        else
+        {
+            <p class="day">@TranslateNumber("dayX", "day", snapshot.Day)</p>
+        }
+        <p class="week-day">@Localizer.Translate(WeekDayKey)</p>
+    </div>
+    <div class="info">
+        <div>
+            <p>@Localizer.Translate("today"): <b>@Percent(snapshot.DayProgress)</b></p>
+            <div class="meter"><div class="val" style="@Width(snapshot.DayProgress)"></div></div>
+        </div>
+        <div>
+            <p>@Localizer.Translate("thisMonth"): <b>@Percent(snapshot.MonthProgress)</b></p>
+            <div class="meter"><div class="val" style="@Width(snapshot.MonthProgress)"></div></div>
+        </div>
+        <div>
+            <p>@Localizer.Translate("thisYear"): <b>@Percent(snapshot.YearProgress)</b></p>
+            <div class="meter"><div class="val" style="@Width(snapshot.YearProgress)"></div></div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private static readonly string[] WeekDayKeys =
+    [
+        "_weekday.sunday",
+        "_weekday.monday",
+        "_weekday.tuesday",
+        "_weekday.wednesday",
+        "_weekday.thursday",
+        "_weekday.friday",
+        "_weekday.saturday"
+    ];
+
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference root;
+    private CalendarWidgetSnapshot snapshot = CalendarWidgetSnapshot.From(DateTimeOffset.Now);
+    private DotNetObjectReference<MkwCalendar>? receiver;
+    private IJSObjectReference? attachment;
+    private bool disposed;
+
+    [Parameter]
+    public bool Transparent { get; set; }
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "mkw-calendar",
+        Transparent ? null : "_panel",
+        CssClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string CalendarClass => snapshot.WeekDay is 0 or 6 ? "calendar isHoliday" : "calendar";
+    private string WeekDayKey => WeekDayKeys[snapshot.WeekDay];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            attachment = await Browser.AttachAsync(root, receiver, lifetime.Token).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is JSDisconnectedException or OperationCanceledException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task UpdateCalendar(CalendarWidgetSnapshot value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        value.Validate();
+        if (disposed)
+        {
+            return Task.CompletedTask;
+        }
+
+        snapshot = value;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private string TranslateNumber(string key, string argument, int value) => Localizer.Translate(
+        key,
+        new Dictionary<string, object?> { [argument] = value });
+
+    private static string Percent(double value) => $"{value.ToString("F1", CultureInfo.InvariantCulture)}%";
+
+    private static string Width(double value) =>
+        $"width: {Math.Clamp(value, 0, 100).ToString("0.################", CultureInfo.InvariantCulture)}%;";
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync().ConfigureAwait(false);
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose").ConfigureAwait(false);
+                await attachment.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+}

@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../ActivityPub.Domain/ActivityPub.Domain.csproj" />
+  </ItemGroup>
+</Project>

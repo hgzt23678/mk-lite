@@ -1,0 +1,388 @@
+@implements IAsyncDisposable
+@inject IAutocompletePresentationService Suggestions
+@inject IAutocompleteInterop Browser
+@inject IMisskeyLocalizer Localizer
+@using System.Globalization
+@using Microsoft.AspNetCore.Components.Web
+
+<div @ref="root"
+     class="swhvrteh _popup _shadow"
+     style="left: @X.ToString(CultureInfo.InvariantCulture)px; top: @Y.ToString(CultureInfo.InvariantCulture)px; z-index: 3000000;">
+    @if (Type == "user")
+    {
+        <ol @ref="suggests" class="users">
+            @for (int index = 0; index < users.Count; index++)
+            {
+                AutocompleteUserViewModel user = users[index];
+                <li tabindex="-1" class="user" data-selected="@(select == index ? "true" : null)" @onclick="() => CompleteUser(user)" @onkeydown="OnItemKeyDownAsync">
+                    <img class="avatar" src="@user.AvatarUrl" alt="" decoding="async" />
+                    <span class="name">@user.DisplayName</span>
+                    <span class="username">@($"@{user.Username}{(user.Host is null ? null : "@" + user.Host)}")</span>
+                </li>
+            }
+            <li tabindex="-1" class="choose" @onclick="ChooseUserAsync" @onkeydown="OnItemKeyDownAsync">@Localizer.Translate("selectUser")</li>
+        </ol>
+    }
+    else if (hashtags.Count > 0)
+    {
+        <ol @ref="suggests" class="hashtags">
+            @for (int index = 0; index < hashtags.Count; index++)
+            {
+                string hashtag = hashtags[index];
+                <li tabindex="-1" data-selected="@(select == index ? "true" : null)" @onclick="() => CompleteHashtag(hashtag)" @onkeydown="OnItemKeyDownAsync">
+                    <span class="name">@hashtag</span>
+                </li>
+            }
+        </ol>
+    }
+    else if (emojis.Count > 0)
+    {
+        <ol @ref="suggests" class="emojis">
+            @for (int index = 0; index < emojis.Count; index++)
+            {
+                AutocompleteEmojiViewModel emoji = emojis[index];
+                <li tabindex="-1" data-selected="@(select == index ? "true" : null)" @onclick="() => CompleteEmoji(emoji)" @onkeydown="OnItemKeyDownAsync">
+                    @if (emoji.IsCustomEmoji)
+                    {
+                        <span class="emoji"><img src="@emoji.Url" alt="@emoji.Emoji" decoding="async" /></span>
+                    }
+                    else
+                    {
+                        <span class="emoji"><img src="@TwemojiUrl(emoji.Emoji)" alt="@emoji.Emoji" decoding="async" /></span>
+                    }
+                    <span class="name">@HighlightName(emoji.Name)</span>
+                    @if (emoji.AliasOf is not null)
+                    {
+                        <span class="alias">(@emoji.AliasOf)</span>
+                    }
+                </li>
+            }
+        </ol>
+    }
+    else if (mfmTags.Count > 0)
+    {
+        <ol @ref="suggests" class="mfmTags">
+            @for (int index = 0; index < mfmTags.Count; index++)
+            {
+                string tag = mfmTags[index];
+                <li tabindex="-1" data-selected="@(select == index ? "true" : null)" @onclick="() => CompleteMfmTag(tag)" @onkeydown="OnItemKeyDownAsync">
+                    <span class="tag">@tag</span>
+                </li>
+            }
+        </ol>
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference root;
+    private ElementReference suggests;
+    private IJSObjectReference? attachment;
+    private DotNetObjectReference<MkAutocomplete>? receiver;
+    private IReadOnlyList<AutocompleteUserViewModel> users = [];
+    private IReadOnlyList<string> hashtags = [];
+    private IReadOnlyList<AutocompleteEmojiViewModel> emojis = [];
+    private IReadOnlyList<string> mfmTags = [];
+    private int select = -1;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public Guid Id { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Type { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Query { get; set; }
+
+    [Parameter, EditorRequired]
+    public double X { get; set; }
+
+    [Parameter, EditorRequired]
+    public double Y { get; set; }
+
+    [Parameter, EditorRequired]
+    public ElementReference Textarea { get; set; }
+
+    [Parameter, EditorRequired]
+    public Func<MisskeyAutocompleteChoice, Task> Chosen { get; set; } = _ => Task.CompletedTask;
+
+    [Parameter, EditorRequired]
+    public Func<Task>? Closed { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync(lifetime.Token).ConfigureAwait(false);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            receiver = DotNetObjectReference.Create(this);
+            attachment = await Browser.AttachAsync(Textarea, root, receiver, lifetime.Token).ConfigureAwait(false);
+            await FocusSelectedAsync(lifetime.Token).ConfigureAwait(false);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private Task OnItemKeyDownAsync(KeyboardEventArgs args) =>
+        HandleAutocompleteKey(args.Key);
+
+    [JSInvokable]
+    public async Task HandleAutocompleteKey(string key)
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        switch (key)
+        {
+            case "Enter":
+                if (select != -1 && CurrentItemCount > 0)
+                {
+                    await ActivateAsync(select, lifetime.Token).ConfigureAwait(false);
+                }
+                else
+                {
+                    await CloseAsync(lifetime.Token).ConfigureAwait(false);
+                }
+
+                break;
+            case "Escape":
+                await CloseAsync(lifetime.Token).ConfigureAwait(false);
+                break;
+            case "ArrowUp":
+                if (select != -1)
+                {
+                    SelectPrevious();
+                }
+                else
+                {
+                    await CloseAsync(lifetime.Token).ConfigureAwait(false);
+                }
+
+                break;
+            case "ArrowDown":
+            case "Tab":
+                SelectNext();
+                break;
+            default:
+                break;
+        }
+    }
+
+    [JSInvokable]
+    public Task HandleAutocompleteOutsideMousedown()
+    {
+        if (disposed)
+        {
+            return Task.CompletedTask;
+        }
+
+        return CloseAsync(lifetime.Token);
+    }
+
+    private int CurrentItemCount => Type switch
+    {
+        "user" => users.Count + 1,
+        "hashtag" => hashtags.Count,
+        "emoji" => emojis.Count,
+        "mfmTag" => mfmTags.Count,
+        _ => 0
+    };
+
+    private async Task LoadAsync(CancellationToken cancellationToken)
+    {
+        switch (Type)
+        {
+            case "user":
+                users = await Suggestions.SearchUsersAsync(Query ?? string.Empty, cancellationToken).ConfigureAwait(false);
+                select = -1;
+                break;
+            case "hashtag":
+                hashtags = await Suggestions.SearchHashtagsAsync(Query ?? string.Empty, cancellationToken).ConfigureAwait(false);
+                select = -1;
+                break;
+            case "emoji":
+                emojis = Suggestions.SearchEmojis(Query);
+                select = -1;
+                break;
+            case "mfmTag":
+                mfmTags = Suggestions.SearchMfmTags(Query);
+                select = -1;
+                break;
+            default:
+                break;
+        }
+    }
+
+    private async Task ActivateAsync(int index, CancellationToken cancellationToken)
+    {
+        if (Type == "user")
+        {
+            if (index >= users.Count)
+            {
+                await ChooseUserAsync(cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            AutocompleteUserViewModel user = users[index];
+            await CompleteAsync(new MisskeyAutocompleteChoice("user", AcctValue(user)), cancellationToken).ConfigureAwait(false);
+        }
+        else if (Type == "hashtag" && index < hashtags.Count)
+        {
+            await CompleteAsync(new MisskeyAutocompleteChoice("hashtag", hashtags[index]), cancellationToken).ConfigureAwait(false);
+        }
+        else if (Type == "emoji" && index < emojis.Count)
+        {
+            AutocompleteEmojiViewModel emoji = emojis[index];
+            await CompleteAsync(new MisskeyAutocompleteChoice("emoji", emoji.Emoji), cancellationToken).ConfigureAwait(false);
+        }
+        else if (Type == "mfmTag" && index < mfmTags.Count)
+        {
+            await CompleteAsync(new MisskeyAutocompleteChoice("mfmTag", mfmTags[index]), cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private Task CompleteUser(AutocompleteUserViewModel user) =>
+        CompleteAsync(new MisskeyAutocompleteChoice("user", AcctValue(user)), lifetime.Token);
+
+    private Task CompleteHashtag(string hashtag) =>
+        CompleteAsync(new MisskeyAutocompleteChoice("hashtag", hashtag), lifetime.Token);
+
+    private Task CompleteEmoji(AutocompleteEmojiViewModel emoji)
+    {
+        Suggestions.RememberEmoji(emoji.Emoji);
+        return CompleteAsync(new MisskeyAutocompleteChoice("emoji", emoji.Emoji), lifetime.Token);
+    }
+
+    private Task CompleteMfmTag(string tag) =>
+        CompleteAsync(new MisskeyAutocompleteChoice("mfmTag", tag), lifetime.Token);
+
+    private Task ChooseUserAsync() => ChooseUserAsync(lifetime.Token);
+
+    private async Task ChooseUserAsync(CancellationToken cancellationToken)
+    {
+        await CloseAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task CompleteAsync(MisskeyAutocompleteChoice choice, CancellationToken cancellationToken)
+    {
+        await Chosen.Invoke(choice).ConfigureAwait(false);
+        await CloseAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task CloseAsync(CancellationToken cancellationToken)
+    {
+        _ = cancellationToken;
+        if (Closed is not null)
+        {
+            await Closed.Invoke().ConfigureAwait(false);
+        }
+    }
+
+    private void SelectNext()
+    {
+        select += 1;
+        if (select >= CurrentItemCount)
+        {
+            select = 0;
+        }
+
+        if (CurrentItemCount == 0)
+        {
+            select = -1;
+        }
+
+        InvokeAsync(async () =>
+        {
+            StateHasChanged();
+            await FocusSelectedAsync(lifetime.Token).ConfigureAwait(false);
+        });
+    }
+
+    private void SelectPrevious()
+    {
+        select -= 1;
+        if (select < 0)
+        {
+            select = CurrentItemCount - 1;
+        }
+
+        InvokeAsync(async () =>
+        {
+            StateHasChanged();
+            await FocusSelectedAsync(lifetime.Token).ConfigureAwait(false);
+        });
+    }
+
+    private Task FocusSelectedAsync(CancellationToken cancellationToken)
+    {
+        if (select < 0 || disposed)
+        {
+            return Task.CompletedTask;
+        }
+
+        return Browser.FocusSuggestionAsync(suggests, select, cancellationToken).AsTask();
+    }
+
+    private static string AcctValue(AutocompleteUserViewModel user) =>
+        user.Host is null ? user.Username : $"{user.Username}@{user.Host}";
+
+    private static string TwemojiUrl(string emoji) =>
+        $"/_content/ActivityPub.Misskey.Blazor/twemoji/{MkEmoji.TwemojiFileName(emoji)}.svg";
+
+    private MarkupString HighlightName(string name)
+    {
+        string? query = Query;
+        if (string.IsNullOrEmpty(query) || !name.Contains(query, StringComparison.Ordinal))
+        {
+            return new MarkupString(System.Net.WebUtility.HtmlEncode(name));
+        }
+
+        string encoded = System.Net.WebUtility.HtmlEncode(name);
+        string encodedQuery = System.Net.WebUtility.HtmlEncode(query);
+        string highlighted = encoded.Replace(
+            encodedQuery,
+            $"<b>{encodedQuery}</b>",
+            StringComparison.Ordinal);
+        return new MarkupString(highlighted);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync().ConfigureAwait(false);
+        if (attachment is not null)
+        {
+            try
+            {
+                await Browser.DisposeAsync(attachment, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        receiver = null;
+        lifetime.Dispose();
+    }
+}

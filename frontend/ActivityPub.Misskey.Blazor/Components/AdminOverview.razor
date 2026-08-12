@@ -1,0 +1,113 @@
+@inject IAdminPresentationService Admin
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+
+<div class="_gaps">
+    <section class="_panel _block" style="padding: 16px; display: flex; align-items: center; gap: 12px;">
+        <h2 style="margin: 0; min-width: 0; flex: 1;">@Localizer.Translate("invite")</h2>
+        <MkButton Primary="true" Disabled="@issuingInvitation" OnClick="IssueInvitationAsync">
+            <i class="fas fa-user-plus" aria-hidden="true"></i> @Localizer.Translate("invite")
+        </MkButton>
+    </section>
+    @if (fetching)
+    {
+        <MkLoading />
+    }
+    else
+    {
+        <section class="_panel _block" style="padding: 16px;">
+            <h2 style="margin: 0 0 12px 0;">@Localizer.Translate("relays")</h2>
+            @if (overview.Relays.Count > 0)
+            {
+                @foreach (AdminRelayViewModel relay in overview.Relays)
+                {
+                    <div style="display: flex; gap: 8px; align-items: center; padding: 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis;">@relay.Inbox</span>
+                        <span style="margin-left: auto; opacity: 0.7;">@Localizer.Translate(RelayStatusKey(relay.Status))</span>
+                    </div>
+                }
+            }
+            else
+            {
+                <p style="opacity: 0.6;">@Localizer.Translate("none")</p>
+            }
+        </section>
+        <section class="_panel _block" style="padding: 16px;">
+            <h2 style="margin: 0 0 12px 0;">@Localizer.Translate("announcements")</h2>
+            @if (overview.Announcements.Count > 0)
+            {
+                @foreach (AdminAnnouncementViewModel announcement in overview.Announcements.Take(5))
+                {
+                    <div style="padding: 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">@announcement.Title</div>
+                }
+            }
+            else
+            {
+                <p style="opacity: 0.6;">@Localizer.Translate("none")</p>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private AdminOverviewViewModel overview = new([], []);
+    private bool fetching = true;
+    private bool issuingInvitation;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+        overview = await Admin.ReadOverviewAsync(CancellationToken.None);
+        fetching = false;
+        }
+        catch (ActivityPub.Misskey.Blazor.Identity.FrontendAuthenticationException exception)
+        {
+            Overlays.ShowSignIn("/admin", exception.ErrorCode);
+        }
+    }
+
+    private static string RelayStatusKey(string status) => status switch
+    {
+        "accepted" => "_relayStatus.accepted",
+        "rejected" => "_relayStatus.rejected",
+        _ => "_relayStatus.requesting"
+    };
+
+    private async Task IssueInvitationAsync()
+    {
+        if (issuingInvitation)
+        {
+            return;
+        }
+
+        issuingInvitation = true;
+        try
+        {
+            AdminInvitationViewModel invitation = await Admin.CreateInvitationAsync(CancellationToken.None);
+            Overlays.ShowAlert(new MisskeyAlertOptions(
+                "info",
+                Localizer.Translate("invite"),
+                invitation.Code,
+                Localizer.Translate("invite"),
+                Localizer.Translate("ok")));
+        }
+        catch (FrontendAuthenticationException exception)
+        {
+            Overlays.ShowSignIn("/admin", exception.ErrorCode);
+        }
+        catch (InvalidOperationException exception)
+        {
+            Overlays.ShowAlert(new MisskeyAlertOptions(
+                "error",
+                Localizer.Translate("invite"),
+                exception.Message,
+                Localizer.Translate("invite"),
+                Localizer.Translate("ok")));
+        }
+        finally
+        {
+            issuingInvitation = false;
+        }
+    }
+}

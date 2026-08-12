@@ -1,0 +1,460 @@
+@implements IAsyncDisposable
+@inject IAuthenticationFormInterop AuthenticationInterop
+@inject IInstancePresentationService InstanceService
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+@inject MisskeyFrontendRuntimeConfiguration Runtime
+
+@if (meta is not null)
+{
+    <form @ref="formElement"
+          class="qlvuhzng _formRoot"
+          autocomplete="new-password"
+          method="post"
+          action="/auth/register"
+          data-auto-set="@AutoSet.ToString().ToLowerInvariant()"
+          aria-busy="@submitting.ToString().ToLowerInvariant()">
+        <AntiforgeryToken />
+        <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+        @if (meta.DisableRegistration)
+        {
+            <MkFormInput CssClassAdditional="_formBlock"
+                         Name="invitationCode"
+                         Type="text"
+                         Spellcheck="false"
+                         Required="true"
+                         MaxLength="26"
+                         ServerBound="false">
+                <Label>@Localizer.Translate("invitationCode")</Label>
+                <Prefix><i class="fas fa-key"></i></Prefix>
+            </MkFormInput>
+        }
+        <MkFormInput CssClassAdditional="_formBlock"
+                     Name="username"
+                     Type="text"
+                     Pattern="^[a-zA-Z0-9_]{1,20}$"
+                     Spellcheck="false"
+                     Required="true"
+                     MaxLength="20"
+                     ServerBound="false"
+                     data-cy-signup-username="true">
+            <Label>
+                @Localizer.Translate("username") <div class="_button _help"
+                                                        role="button"
+                                                        tabindex="0"
+                                                        title="@Localizer.Translate("usernameInfo")"
+                                                        @onclick="ShowUsernameInformation"
+                                                        @onclick:preventDefault="true"
+                                                        @onclick:stopPropagation="true"
+                                                        @onkeydown="ShowUsernameInformationFromKeyboard"><i class="far fa-question-circle"></i></div>
+            </Label>
+            <Prefix>@@</Prefix>
+            <Suffix>@@@Host</Suffix>
+            <Caption>@UsernameCaption</Caption>
+        </MkFormInput>
+        @if (meta.EmailRequiredForSignup)
+        {
+            <MkFormInput CssClassAdditional="_formBlock"
+                         Name="email"
+                         Type="email"
+                         Spellcheck="false"
+                         Required="true"
+                         MaxLength="320"
+                         Debounce="true"
+                         ServerBound="false"
+                         data-cy-signup-email="true">
+                <Label>
+                    @Localizer.Translate("emailAddress") <div class="_button _help"
+                                                               role="button"
+                                                               tabindex="0"
+                                                               title="@Localizer.Translate("_signup.emailAddressInfo")"
+                                                               @onclick="ShowEmailInformation"
+                                                               @onclick:preventDefault="true"
+                                                               @onclick:stopPropagation="true"
+                                                               @onkeydown="ShowEmailInformationFromKeyboard"><i class="far fa-question-circle"></i></div>
+                </Label>
+                <Prefix><i class="fas fa-envelope"></i></Prefix>
+                <Caption>@EmailCaption</Caption>
+            </MkFormInput>
+        }
+        <MkFormInput CssClassAdditional="_formBlock"
+                     Name="password"
+                     Type="password"
+                     Autocomplete="new-password"
+                     Required="true"
+                     MaxLength="1024"
+                     ServerBound="false"
+                     data-cy-signup-password="true">
+            <Label>@Localizer.Translate("password")</Label>
+            <Prefix><i class="fas fa-lock"></i></Prefix>
+            <Caption>@PasswordStrengthCaption</Caption>
+        </MkFormInput>
+        <MkFormInput CssClassAdditional="_formBlock"
+                     Name="retypedPassword"
+                     Type="password"
+                     Autocomplete="new-password"
+                     Required="true"
+                     MaxLength="1024"
+                     ServerBound="false"
+                     data-cy-signup-password-retype="true">
+            <Label>@Localizer.Translate("password") (@Localizer.Translate("retype"))</Label>
+            <Prefix><i class="fas fa-lock"></i></Prefix>
+            <Caption>@PasswordRetypeCaption</Caption>
+        </MkFormInput>
+        @if (HasTermsOfService)
+        {
+            <MkFormSwitch CssClassAdditional="_formBlock tou" Value="tosAgreement" ValueChanged="SetTosAgreement">
+                @TosAgreement
+            </MkFormSwitch>
+        }
+        @if (meta.EnableHcaptcha && !string.IsNullOrWhiteSpace(meta.HcaptchaSiteKey))
+        {
+            <MkCaptcha class="_formBlock captcha"
+                       Provider="hcaptcha"
+                       SiteKey="@meta.HcaptchaSiteKey"
+                       ResponseChanged="SetHcaptchaResponse" />
+        }
+        @if (meta.EnableRecaptcha && !string.IsNullOrWhiteSpace(meta.RecaptchaSiteKey))
+        {
+            <MkCaptcha class="_formBlock captcha"
+                       Provider="recaptcha"
+                       SiteKey="@meta.RecaptchaSiteKey"
+                       ResponseChanged="SetRecaptchaResponse" />
+        }
+        <MkButton CssClassAdditional="_formBlock"
+                  Type="submit"
+                  Disabled="@ShouldDisableSubmitting"
+                  Gradate="true"
+                  data-auth-submit="true"
+                  data-cy-signup-submit="true">
+            @Localizer.Translate("start")
+        </MkButton>
+    </form>
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference formElement;
+    private DotNetObjectReference<MkSignup>? receiver;
+    private IJSObjectReference? attachment;
+    private InstanceSummaryViewModel? meta;
+    private string? usernameState;
+    private string? emailState;
+    private string passwordStrength = string.Empty;
+    private string? passwordRetypeState;
+    private string? pendingInitialFailureCode;
+    private bool tosAgreement;
+    private bool submitting;
+    private bool hasHcaptchaResponse;
+    private bool hasRecaptchaResponse;
+    private bool disposed;
+
+    [Parameter]
+    public string ReturnUrl { get; set; } = "/";
+
+    [Parameter]
+    public string? ErrorCode { get; set; }
+
+    [Parameter]
+    public bool AutoSet { get; set; }
+
+    [Parameter]
+    public EventCallback Succeeded { get; set; }
+
+    [Parameter]
+    public EventCallback EmailPending { get; set; }
+
+    [CascadingParameter(Name = "MisskeyLocaleRevision")]
+    private long LocaleRevision { get; set; }
+
+    private string Host => ToUnicode(Runtime.PublicBaseUri?.IdnHost);
+
+    private bool HasTermsOfService => !string.IsNullOrWhiteSpace(meta?.TosUrl);
+
+    private bool ShouldDisableSubmitting => submitting ||
+        HasTermsOfService && !tosAgreement ||
+        meta?.EnableHcaptcha == true && !hasHcaptchaResponse ||
+        meta?.EnableRecaptcha == true && !hasRecaptchaResponse ||
+        string.Equals(passwordRetypeState, "not-match", StringComparison.Ordinal);
+
+    private RenderFragment? UsernameCaption => usernameState switch
+    {
+        "wait" => Caption("#999", "fas fa-spinner fa-pulse fa-fw", Localizer.Translate("checking")),
+        "ok" => Caption("var(--success)", "fas fa-check fa-fw", Localizer.Translate("available")),
+        "unavailable" => Caption("var(--error)", "fas fa-exclamation-triangle fa-fw", Localizer.Translate("unavailable")),
+        "error" => Caption("var(--error)", "fas fa-exclamation-triangle fa-fw", Localizer.Translate("error")),
+        "invalid-format" => Caption("var(--error)", "fas fa-exclamation-triangle fa-fw", Localizer.Translate("usernameInvalidFormat")),
+        "min-range" => Caption("var(--error)", "fas fa-exclamation-triangle fa-fw", Localizer.Translate("tooShort")),
+        "max-range" => Caption("var(--error)", "fas fa-exclamation-triangle fa-fw", Localizer.Translate("tooLong")),
+        _ => null
+    };
+
+    private RenderFragment? EmailCaption => emailState switch
+    {
+        "unavailable:format" => Caption("var(--error)", "fas fa-exclamation-triangle fa-fw", Localizer.Translate("_emailUnavailable.format")),
+        _ => null
+    };
+
+    private RenderFragment? PasswordStrengthCaption => passwordStrength switch
+    {
+        "low" => Caption("var(--error)", "fas fa-exclamation-triangle fa-fw", Localizer.Translate("weakPassword")),
+        "medium" => Caption("var(--warn)", "fas fa-check fa-fw", Localizer.Translate("normalPassword")),
+        "high" => Caption("var(--success)", "fas fa-check fa-fw", Localizer.Translate("strongPassword")),
+        _ => null
+    };
+
+    private RenderFragment? PasswordRetypeCaption => passwordRetypeState switch
+    {
+        "match" => Caption("var(--success)", "fas fa-check fa-fw", Localizer.Translate("passwordMatched")),
+        "not-match" => Caption("var(--error)", "fas fa-exclamation-triangle fa-fw", Localizer.Translate("passwordNotMatched")),
+        _ => null
+    };
+
+    private RenderFragment TosAgreement => builder =>
+    {
+        const string placeholder = "__MISSKEY_TOS_LINK__";
+        string sentence = Localizer.Translate(
+            "agreeTo",
+            new Dictionary<string, object?> { ["0"] = placeholder });
+        int placeholderIndex = sentence.IndexOf(placeholder, StringComparison.Ordinal);
+        if (placeholderIndex < 0)
+        {
+            builder.AddContent(0, sentence);
+            return;
+        }
+
+        builder.AddContent(1, sentence[..placeholderIndex]);
+        builder.OpenElement(2, "a");
+        builder.AddAttribute(3, "href", meta?.TosUrl);
+        builder.AddAttribute(4, "class", "_link");
+        builder.AddAttribute(5, "target", "_blank");
+        builder.AddAttribute(6, "rel", "noopener noreferrer");
+        builder.AddContent(7, Localizer.Translate("tos"));
+        builder.CloseElement();
+        builder.AddContent(8, sentence[(placeholderIndex + placeholder.Length)..]);
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        meta = await InstanceService.GetAsync(lifetime.Token);
+        pendingInitialFailureCode = ErrorCode;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || meta is null)
+        {
+            return;
+        }
+
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            attachment = await AuthenticationInterop.AttachSignUpAsync(
+                formElement,
+                receiver,
+                "/auth/username-available",
+                lifetime.Token);
+            if (!string.IsNullOrWhiteSpace(pendingInitialFailureCode))
+            {
+                ShowRegistrationFailure();
+                pendingInitialFailureCode = null;
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task NotifyUsernameState(string? state)
+    {
+        usernameState = state;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task NotifyEmailState(string? state)
+    {
+        emailState = state;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task NotifyPasswordStrength(string state)
+    {
+        passwordStrength = state;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task NotifyPasswordRetypeState(string? state)
+    {
+        passwordRetypeState = state;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task NotifyEmailPending(string emailAddress)
+    {
+        submitting = false;
+        string safeEmailAddress = emailAddress.Length <= 320 ? emailAddress : string.Empty;
+        string title = Localizer.Translate("_signup.almostThere");
+        Overlays.ShowAlert(new MisskeyAlertOptions(
+            "success",
+            title,
+            Localizer.Translate(
+                "_signup.emailSent",
+                new Dictionary<string, object?> { ["email"] = safeEmailAddress }),
+            title,
+            Localizer.Translate("gotIt")));
+        await InvokeAsync(StateHasChanged);
+        await EmailPending.InvokeAsync();
+    }
+
+    [JSInvokable]
+    public async Task NotifyRegistrationFailure(string _)
+    {
+        submitting = false;
+        hasHcaptchaResponse = false;
+        hasRecaptchaResponse = false;
+        ShowRegistrationFailure();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task NotifyRegistrationStarted()
+    {
+        submitting = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task NotifyRegistrationSucceeded()
+    {
+        submitting = false;
+        return NotifyRegistrationSucceededAsync();
+    }
+
+    private async Task NotifyRegistrationSucceededAsync()
+    {
+        await InvokeAsync(StateHasChanged);
+        await Succeeded.InvokeAsync();
+    }
+
+    private void ShowUsernameInformation() => ShowInformation("usernameInfo");
+
+    private void ShowEmailInformation() => ShowInformation("_signup.emailAddressInfo");
+
+    private void ShowUsernameInformationFromKeyboard(KeyboardEventArgs args)
+    {
+        if (args.Key is "Enter" or " ")
+        {
+            ShowUsernameInformation();
+        }
+    }
+
+    private void ShowEmailInformationFromKeyboard(KeyboardEventArgs args)
+    {
+        if (args.Key is "Enter" or " ")
+        {
+            ShowEmailInformation();
+        }
+    }
+
+    private void ShowInformation(string translationKey)
+    {
+        string text = Localizer.Translate(translationKey);
+        Overlays.ShowAlert(new MisskeyAlertOptions(
+            "info",
+            null,
+            text,
+            text,
+            Localizer.Translate("gotIt")));
+    }
+
+    private Task SetTosAgreement(bool value)
+    {
+        tosAgreement = value;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task SetHcaptchaResponse(bool value)
+    {
+        hasHcaptchaResponse = value;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task SetRecaptchaResponse(bool value)
+    {
+        hasRecaptchaResponse = value;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private static RenderFragment Caption(string color, string iconClass, string text) => builder =>
+    {
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "style", $"color: {color}");
+        builder.OpenElement(2, "i");
+        builder.AddAttribute(3, "class", iconClass);
+        builder.CloseElement();
+        builder.AddContent(4, " " + text);
+        builder.CloseElement();
+    };
+
+    private static string ToUnicode(string? host)
+    {
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return new IdnMapping().GetUnicode(host);
+        }
+        catch (ArgumentException)
+        {
+            return host;
+        }
+    }
+
+    private void ShowRegistrationFailure()
+    {
+        string text = Localizer.Translate("somethingHappened");
+        Overlays.ShowAlert(new MisskeyAlertOptions(
+            "error",
+            null,
+            text,
+            text,
+            Localizer.Translate("gotIt")));
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+}

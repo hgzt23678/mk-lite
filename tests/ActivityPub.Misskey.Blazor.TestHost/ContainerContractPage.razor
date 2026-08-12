@@ -1,0 +1,48 @@
+@namespace ActivityPub.Misskey.Blazor.TestHost
+@page "/__test/components/container"
+@layout KeyValueContractLayout
+@attribute [AllowAnonymous]
+
+<PageTitle>MkContainer contract</PageTitle>
+
+<main data-contract="mk-container">
+    <div class="fixture-container-controls">
+        <button type="button" data-action="collapse" @onclick="CollapseAsync">collapse</button>
+        <button type="button" data-action="expand" @onclick="ExpandAsync">expand</button>
+    </div>
+    <MkContainer @ref="contract"
+                 Foldable="true"
+                 Scrollable="true"
+                 MaxHeight="120"
+                 class="fixture-container"
+                 style="width: 360px;"
+                 data-container-contract="primary">
+        <Header>
+            <i class="fas fa-box" aria-hidden="true"></i><span>Container header</span>
+        </Header>
+        <Function>
+            <button class="fixture-function _button" type="button" aria-label="header action">
+                <i class="fas fa-ellipsis-h" aria-hidden="true"></i>
+            </button>
+        </Function>
+        <ChildContent>
+            <div class="fixture-container-body" style="height: 240px; padding: 12px;">Container body</div>
+        </ChildContent>
+    </MkContainer>
+    <MkContainer ShowHeader="false"
+                 Thin="true"
+                 Naked="true"
+                 Foldable="true"
+                 Expanded="false"
+                 class="fixture-container-collapsed">
+        <ChildContent>Initially collapsed</ChildContent>
+    </MkContainer>
+</main>
+
+@code {
+    private MkContainer? contract;
+
+    private Task CollapseAsync() => contract?.ToggleContentAsync(false) ?? Task.CompletedTask;
+
+    private Task ExpandAsync() => contract?.ToggleContentAsync(true) ?? Task.CompletedTask;
+}

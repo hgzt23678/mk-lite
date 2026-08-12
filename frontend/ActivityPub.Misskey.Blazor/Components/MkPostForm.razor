@@ -1,0 +1,1082 @@
+@implements IAsyncDisposable
+@inject ITimelinePresentationService Timeline
+@inject ICurrentAccountPresentationService CurrentAccount
+@inject IComposerMediaService Media
+@inject IVisibleUsersPresentationService VisibleUsers
+@inject IClientStorage Storage
+@inject IPostFormInterop PostFormInterop
+@inject IMisskeyOverlayService Overlays
+@inject IMisskeyLocalizer Localizer
+
+<div @ref="root" class="@RootClass">
+    <header>
+        @if (!Fixed)
+        {
+            <button class="cancel _button" type="button" aria-label="@Localizer.Translate("cancel")" @onclick="CancelAsync"><i class="fas fa-times"></i></button>
+        }
+        <button @ref="accountButton" class="account _button" type="button" title="@Localizer.Translate("switchAccount")" @onclick="OpenAccountMenu">
+            @if (account is not null)
+            {
+                <MkAvatar User="account" CssClass="avatar" />
+            }
+        </button>
+        <div class="right">
+            <span class="text-count @(TextLength > MaxTextLength ? "over" : null)">@(MaxTextLength - TextLength)</span>
+            @if (localOnly)
+            {
+                <span class="local-only"><i class="fas fa-biohazard"></i></span>
+            }
+            <button @ref="visibilityButton" class="_button visibility" type="button" title="@Localizer.Translate("visibility")" @onclick="OpenVisibilityPicker">
+                <span><i class="@VisibilityIcon"></i></span>
+            </button>
+            <button class="_button preview @(showPreview ? "active" : null)" type="button" title="@Localizer.Translate("previewNoteText")" aria-pressed="@showPreview" @onclick="TogglePreviewAsync"><i class="fas fa-file-code"></i></button>
+            <button class="submit _buttonGradate" type="button" disabled="@(!CanPost)" data-cy-open-post-form-submit @onclick="PostAsync">
+                @SubmitText<i class="@SubmitIcon"></i>
+            </button>
+        </div>
+    </header>
+    <div class="form @(Fixed ? "fixed" : null)">
+        @if (Reply is not null)
+        {
+            <MkNoteSimple CssClass="preview" Note="Reply" />
+        }
+        @if (Renote is not null)
+        {
+            <MkNoteSimple CssClass="preview" Note="Renote" />
+            <div class="with-quote">
+                <i class="fas fa-quote-left"></i> @Localizer.Translate("quoteAttached")
+                <button type="button" @onclick="ClearQuoteAsync"><i class="fas fa-times"></i></button>
+            </div>
+        }
+        @if (visibility == Visibility.MentionedOnly)
+        {
+            <div class="to-specified">
+                <span style="margin-right: 8px;">@Localizer.Translate("recipient")</span>
+                <div class="visibleUsers">
+                    @foreach (NoteAuthorViewModel user in visibleUsers)
+                    {
+                        <span @key="user.Id">
+                            <MkAcct User="user" />
+                            <button class="_button" type="button" aria-label="@Localizer.Translate("remove")" @onclick="() => RemoveVisibleUserAsync(user)"><i class="fas fa-times"></i></button>
+                        </span>
+                    }
+                    @foreach (string mention in UnresolvedVisibleMentions)
+                    {
+                        <span @key="mention">
+                            @mention
+                            <button class="_button" type="button" aria-label="@Localizer.Translate("remove")" @onclick="() => RemoveMentionAsync(mention)"><i class="fas fa-times"></i></button>
+                        </span>
+                    }
+                    <button class="_buttonPrimary" type="button" title="@Localizer.Translate("add")" @onclick="InsertMentionAsync"><i class="fas fa-plus fa-fw"></i></button>
+                </div>
+            </div>
+        }
+        @if (HasNoSpecifiedRecipients)
+        {
+            <MkInfo Warn="true" CssClassAdditional="hasNotSpecifiedMentions">
+                @Localizer.Translate("notSpecifiedMentionWarning") - <button class="_textButton" type="button" @onclick="InsertMentionAsync">@Localizer.Translate("add")</button>
+            </MkInfo>
+        }
+        <input @ref="cwInput"
+               class="cw"
+               value="@contentWarning"
+               style="@(useCw ? null : "display: none;")"
+               placeholder="@Localizer.Translate("annotation")"
+               aria-label="@Localizer.Translate("annotation")"
+               @onkeydown="OnKeyDownAsync"
+               @oninput="ContentWarningChangedAsync" />
+        <textarea @ref="textarea"
+                  class="text @(useCw ? "withCw" : null)"
+                  disabled="@posting"
+                  placeholder="@Placeholder"
+                  data-cy-post-form-text
+                  value="@text"
+                  @onkeydown="OnKeyDownAsync"
+                  @oninput="TextChangedAsync"></textarea>
+        <input @ref="hashtagsInput"
+               class="hashtags"
+               value="@hashtags"
+               style="@(withHashtags ? null : "display: none;")"
+               placeholder="@Localizer.Translate("hashtags")"
+               list="hashtags"
+               @oninput="HashtagsChangedAsync" />
+        <MkPostFormAttaches CssClass="attaches"
+                            Files="files"
+                            Updated="ReorderFilesAsync"
+                            Detach="DetachFileAsync"
+                            SensitiveChanged="ChangeFileSensitiveAsync"
+                            NameChanged="ChangeFileNameAsync"
+                            DescriptionChanged="ChangeFileDescriptionAsync" />
+        @if (poll is not null)
+        {
+            <MkPollEditor @bind-Model="poll" />
+        }
+        @if (showPreview)
+        {
+            <MkNotePreview CssClass="preview" Text="@EffectiveText" Account="account" />
+        }
+        <footer>
+            <button class="_button" type="button" title="@Localizer.Translate("attachFile")" disabled="@uploading" @onclick="ChooseFileAsync"><i class="fas fa-photo-video"></i></button>
+            <button class="_button @(poll is not null ? "active" : null)" type="button" title="@Localizer.Translate("poll")" @onclick="TogglePollAsync"><i class="fas fa-poll-h"></i></button>
+            <button class="_button @(useCw ? "active" : null)" type="button" title="@Localizer.Translate("useCw")" @onclick="ToggleContentWarningAsync"><i class="fas fa-eye-slash"></i></button>
+            <button class="_button" type="button" title="@Localizer.Translate("mention")" @onclick="InsertMentionAsync"><i class="fas fa-at"></i></button>
+            <button class="_button @(withHashtags ? "active" : null)" type="button" title="@Localizer.Translate("hashtags")" @onclick="ToggleHashtagsAsync"><i class="fas fa-hashtag"></i></button>
+            <button @ref="emojiButton" class="_button" type="button" title="@Localizer.Translate("emoji")" @onclick="OpenEmojiPicker"><i class="fas fa-laugh-squint"></i></button>
+        </footer>
+        <datalist id="hashtags">
+            @foreach (string hashtag in recentHashtags)
+            {
+                <option value="@hashtag"></option>
+            }
+        </datalist>
+    </div>
+</div>
+<InputFile @ref="fileInput"
+           class="post-form-file-input"
+           hidden
+           multiple
+           accept="image/*,video/*,audio/*"
+           OnChange="FilesSelectedAsync" />
+
+@code {
+    private const int MaxTextLength = 5_000;
+    private const int MaxAttachments = 16;
+    private const long MaxBrowserUploadBytes = 268_435_456;
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly string[] PlaceholderKeys =
+    [
+        "_postForm._placeholders.a",
+        "_postForm._placeholders.b",
+        "_postForm._placeholders.c",
+        "_postForm._placeholders.d",
+        "_postForm._placeholders.e",
+        "_postForm._placeholders.f"
+    ];
+    private readonly CancellationTokenSource lifetime = new();
+    private readonly List<ComposerMediaViewModel> files = [];
+    private readonly List<string> recentHashtags = [];
+    private readonly List<NoteAuthorViewModel> visibleUsers = [];
+    private readonly int placeholderIndex = Random.Shared.Next(PlaceholderKeys.Length);
+    private ElementReference root;
+    private ElementReference accountButton;
+    private ElementReference visibilityButton;
+    private ElementReference emojiButton;
+    private ElementReference textarea;
+    private ElementReference cwInput;
+    private ElementReference hashtagsInput;
+    private InputFile? fileInput;
+    private DotNetObjectReference<MkPostForm>? receiver;
+    private IJSObjectReference? sizeObservation;
+    private IJSObjectReference? dropAttachment;
+    private NoteAuthorViewModel? account;
+    private ComposerPollViewModel? poll;
+    private string text = string.Empty;
+    private string imeText = string.Empty;
+    private string contentWarning = string.Empty;
+    private string hashtags = string.Empty;
+    private string idempotencyKey = NewIdempotencyKey();
+    private Visibility visibility = Visibility.Public;
+    private double width = double.PositiveInfinity;
+    private bool useCw;
+    private bool showPreview;
+    private bool withHashtags;
+    private bool localOnly;
+    private bool posting;
+    private bool uploading;
+    private bool restored;
+    private Guid? autocompleteId;
+    private int autocompleteTriggerStart;
+    private int autocompleteCaret;
+
+    [Parameter]
+    public NoteViewModel? Reply { get; set; }
+
+    [Parameter]
+    public NoteViewModel? Renote { get; set; }
+
+    [Parameter]
+    public NoteAuthorViewModel? Mention { get; set; }
+
+    [Parameter]
+    public NoteAuthorViewModel? Specified { get; set; }
+
+    [Parameter]
+    public Visibility? InitialVisibility { get; set; }
+
+    [Parameter]
+    public bool? InitialLocalOnly { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<ComposerMediaViewModel>? InitialFiles { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<NoteAuthorViewModel>? InitialVisibleUsers { get; set; }
+
+    [Parameter]
+    public bool Modal { get; set; }
+
+    [Parameter]
+    public bool Fixed { get; set; }
+
+    [Parameter]
+    public bool Autofocus { get; set; } = true;
+
+    [Parameter]
+    public bool Instant { get; set; }
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter]
+    public string? InitialText { get; set; }
+
+    [Parameter]
+    public EventCallback<NoteViewModel> Posted { get; set; }
+
+    [Parameter]
+    public EventCallback Cancelled { get; set; }
+
+    [Parameter]
+    public EventCallback Escape { get; set; }
+
+    public ElementReference TextAreaReference => textarea;
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "gafaadew",
+        Modal ? "modal _popup" : null,
+        width <= 500 ? "max-width_500px" : null,
+        width <= 310 ? "max-width_310px" : null,
+        CssClass
+    }.Where(value => value is not null));
+
+    private int TextLength => new StringInfo((text + imeText).Trim()).LengthInTextElements;
+    private IReadOnlyList<string> VisibleMentions => ExtractMentions(text);
+    private IReadOnlyList<string> UnresolvedVisibleMentions => VisibleMentions
+        .Where(mention => visibleUsers.All(user => !MentionMatchesUser(mention, user)))
+        .ToArray();
+    private bool HasNoSpecifiedRecipients => visibility == Visibility.MentionedOnly &&
+        visibleUsers.Count == 0 && VisibleMentions.Count == 0;
+    private bool CanPost => !posting && !uploading &&
+        (TextLength > 0 || files.Count > 0 || poll is not null || Renote is not null) &&
+        TextLength <= MaxTextLength &&
+        (poll is null || poll.HasEnoughChoices) &&
+        (visibility != Visibility.MentionedOnly || visibleUsers.Count > 0 || VisibleMentions.Count > 0);
+    private string EffectiveText
+    {
+        get
+        {
+            string value = text;
+            if (withHashtags && !string.IsNullOrWhiteSpace(hashtags))
+            {
+                string normalized = string.Join(' ', hashtags.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(item => item.StartsWith('#') ? item : "#" + item));
+                value = string.IsNullOrWhiteSpace(value) ? normalized : $"{value} {normalized}";
+            }
+
+            if (visibility == Visibility.MentionedOnly)
+            {
+                foreach (NoteAuthorViewModel user in visibleUsers.Where(user =>
+                    !ExtractMentions(value).Any(mention => MentionMatchesUser(mention, user))))
+                {
+                    string mention = $"@{user.Acct}";
+                    value = string.IsNullOrWhiteSpace(value) ? mention : $"{value} {mention}";
+                }
+            }
+
+            return value;
+        }
+    }
+
+    private string VisibilityIcon => visibility switch
+    {
+        Visibility.Unlisted => "fas fa-home",
+        Visibility.FollowersOnly => "fas fa-unlock",
+        Visibility.MentionedOnly => "fas fa-envelope",
+        _ => "fas fa-globe"
+    };
+    private string Placeholder => Localizer.Translate(Renote is not null
+        ? "_postForm.quotePlaceholder"
+        : Reply is not null
+            ? "_postForm.replyPlaceholder"
+            : PlaceholderKeys[placeholderIndex]);
+    private string SubmitText => Localizer.Translate(Reply is not null ? "reply" : Renote is not null ? "quote" : "note");
+    private string SubmitIcon => Reply is not null ? "fas fa-reply" : Renote is not null ? "fas fa-quote-right" : "fas fa-paper-plane";
+    private string DraftKey => Reply is not null ? $"reply:{Reply.Id}" : Renote is not null ? $"renote:{Renote.Id}" : "note";
+
+    protected override async Task OnInitializedAsync()
+    {
+        account = await CurrentAccount.GetAsync(lifetime.Token);
+        text = InitialText ?? string.Empty;
+        visibility = InitialVisibility ?? Visibility.Public;
+        localOnly = InitialLocalOnly ?? false;
+        files.AddRange(InitialFiles ?? []);
+        foreach (NoteAuthorViewModel user in InitialVisibleUsers ?? [])
+        {
+            AddVisibleUser(user);
+        }
+
+        if (Mention is not null)
+        {
+            text = $"@{Mention.Acct} ";
+        }
+
+        if (Reply is not null)
+        {
+            if (!string.Equals(Reply.Author.Id, account.Id, StringComparison.Ordinal))
+            {
+                text = $"@{Reply.Author.Acct} ";
+            }
+
+            foreach (string mention in Reply.Mentions)
+            {
+                string normalized = mention.StartsWith('@') ? mention : $"@{mention}";
+                if (!MentionMatchesUser(normalized, account) && !ExtractMentions(text).Contains(normalized, StringComparer.OrdinalIgnoreCase))
+                {
+                    text += $"{normalized} ";
+                }
+            }
+
+            if (Reply.Visibility is Visibility.Unlisted or Visibility.FollowersOnly or Visibility.MentionedOnly)
+            {
+                visibility = Reply.Visibility;
+            }
+
+            if (visibility == Visibility.MentionedOnly)
+            {
+                IReadOnlyList<string> recipientIds = (Reply.VisibleUserIds ?? [])
+                    .Where(id => !string.Equals(id, account.Id, StringComparison.Ordinal) &&
+                        !string.Equals(id, Reply.Author.Id, StringComparison.Ordinal))
+                    .ToArray();
+                if (recipientIds.Count > 0)
+                {
+                    foreach (NoteAuthorViewModel user in await VisibleUsers.ReadAsync(recipientIds, lifetime.Token))
+                    {
+                        AddVisibleUser(user);
+                    }
+                }
+
+                if (!string.Equals(Reply.Author.Id, account.Id, StringComparison.Ordinal))
+                {
+                    AddVisibleUser(Reply.Author);
+                }
+            }
+        }
+
+        if (Specified is not null)
+        {
+            visibility = Visibility.MentionedOnly;
+            AddVisibleUser(Specified);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || fileInput is null)
+        {
+            return;
+        }
+
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            sizeObservation = await PostFormInterop.ObserveSizeAsync(root, receiver, lifetime.Token);
+            if (fileInput.Element is ElementReference fileElement)
+            {
+                dropAttachment = await PostFormInterop.AttachDropTargetAsync(root, fileElement, lifetime.Token);
+            }
+            await RestoreDraftAsync();
+            restored = true;
+            if (Autofocus)
+            {
+                await PostFormInterop.FocusAsync(textarea, lifetime.Token);
+            }
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JsonException)
+        {
+            ShowOperationFailure("DRAFT_STORAGE_INVALID");
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    [JSInvokable]
+    public Task UpdatePostFormWidth(double nextWidth)
+    {
+        if (Math.Abs(width - nextWidth) < 0.5)
+        {
+            return Task.CompletedTask;
+        }
+
+        width = nextWidth;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task CancelAsync() => Cancelled.InvokeAsync();
+
+    private void OpenAccountMenu() => Overlays.ShowPopupMenu(accountButton,
+    [
+        new MisskeyMenuItem(
+            MisskeyMenuItemKind.Label,
+            account is null ? Localizer.Translate("account") : $"@{account.Acct}"),
+        new MisskeyMenuItem(
+            MisskeyMenuItemKind.Action,
+            Localizer.Translate("accountSettings"),
+            "fas fa-cog",
+            Href: "/settings/accounts")
+    ]);
+
+    private void OpenVisibilityPicker() => Overlays.ShowVisibilityPicker(
+        visibilityButton,
+        visibility,
+        localOnly,
+        ChangeVisibilityAsync);
+
+    private async Task ChangeVisibilityAsync(Visibility nextVisibility, bool nextLocalOnly)
+    {
+        visibility = nextVisibility;
+        localOnly = nextLocalOnly;
+        await SaveDraftAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task TogglePreviewAsync()
+    {
+        showPreview = !showPreview;
+        await SaveDraftAsync();
+    }
+
+    private async Task ToggleContentWarningAsync()
+    {
+        useCw = !useCw;
+        await SaveDraftAsync();
+    }
+
+    private async Task ToggleHashtagsAsync()
+    {
+        withHashtags = !withHashtags;
+        await SaveDraftAsync();
+    }
+
+    private async Task TogglePollAsync()
+    {
+        poll = poll is null ? new ComposerPollViewModel() : null;
+        await SaveDraftAsync();
+    }
+
+    private async Task TextChangedAsync(ChangeEventArgs args)
+    {
+        text = args.Value?.ToString() ?? string.Empty;
+        await RefreshAutocompleteAsync();
+        await SaveDraftAsync();
+    }
+
+    private async Task RefreshAutocompleteAsync()
+    {
+        if (posting || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            AutocompleteContext context = await PostFormInterop.GetAutocompleteContextAsync(textarea, lifetime.Token);
+            string line = context.Line;
+            int mentionIndex = line.LastIndexOf('@');
+            int hashtagIndex = line.LastIndexOf('#');
+            int emojiIndex = line.LastIndexOf(':');
+            int mfmTagIndex = line.LastIndexOf('$');
+            int max = Math.Max(Math.Max(mentionIndex, hashtagIndex), Math.Max(emojiIndex, mfmTagIndex));
+            if (max == -1)
+            {
+                CloseAutocomplete();
+                return;
+            }
+
+            string type = string.Empty;
+            string? query = null;
+            if (mentionIndex != -1 && IsValidQuery(line[(mentionIndex + 1)..]))
+            {
+                type = "user";
+                query = line[(mentionIndex + 1)..];
+            }
+            else if (hashtagIndex != -1 && !line[(hashtagIndex + 1)..].Contains(' '))
+            {
+                type = "hashtag";
+                query = line[(hashtagIndex + 1)..];
+            }
+            else if (emojiIndex != -1 && EmojiTrigger(line) && !line[(emojiIndex + 1)..].Contains(' '))
+            {
+                type = "emoji";
+                query = line[(emojiIndex + 1)..];
+            }
+            else if (mfmTagIndex != -1 && !line[(mfmTagIndex + 1)..].Contains(' '))
+            {
+                type = "mfmTag";
+                query = line[(mfmTagIndex + 1)..].Replace("[", string.Empty);
+            }
+
+            if (type.Length == 0)
+            {
+                CloseAutocomplete();
+                return;
+            }
+
+            int triggerStart = context.CaretStart - line.Length + TriggerIndex(line, type);
+            autocompleteCaret = context.CaretStart;
+            if (autocompleteId is null)
+            {
+                autocompleteId = Overlays.ShowAutocomplete(
+                    type,
+                    query,
+                    context.X,
+                    context.Y,
+                    textarea,
+                    CompleteAutocompleteAsync);
+                autocompleteTriggerStart = triggerStart;
+            }
+            else
+            {
+                Overlays.UpdateAutocomplete(autocompleteId.Value, query, context.X, context.Y);
+                autocompleteTriggerStart = triggerStart;
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private void CloseAutocomplete()
+    {
+        if (autocompleteId is not null)
+        {
+            Overlays.Close(autocompleteId.Value);
+            autocompleteId = null;
+        }
+    }
+
+    private Task CompleteAutocompleteAsync(MisskeyAutocompleteChoice choice)
+    {
+        if (disposed)
+        {
+            return Task.CompletedTask;
+        }
+
+        string replacement = choice.Type switch
+        {
+            "user" => "@" + choice.Value + " ",
+            "hashtag" => "#" + choice.Value + " ",
+            "emoji" => choice.Value,
+            "mfmTag" => "$[" + choice.Value + " ]",
+            _ => choice.Value
+        };
+        return PostFormInterop.CompleteAutocompleteAsync(
+            textarea,
+            autocompleteTriggerStart,
+            autocompleteCaret,
+            replacement,
+            lifetime.Token).AsTask();
+    }
+
+    private static bool IsValidQuery(string value) =>
+        value.Length == 0 || value.All(character =>
+            char.IsAsciiLetterOrDigit(character) || character is '_' or '-' or '.' or '@');
+
+    private static bool EmojiTrigger(string line)
+    {
+        for (int index = line.Length - 1; index >= 0; index--)
+        {
+            char character = line[index];
+            if (character == ':')
+            {
+                return true;
+            }
+
+            if (!char.IsAsciiLetterOrDigit(character) && character is not '_' and not '+' and not '-')
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static int TriggerIndex(string line, string type)
+    {
+        char trigger = type switch
+        {
+            "user" => '@',
+            "hashtag" => '#',
+            "emoji" => ':',
+            _ => '$'
+        };
+        return line.LastIndexOf(trigger);
+    }
+
+    private async Task ContentWarningChangedAsync(ChangeEventArgs args)
+    {
+        contentWarning = args.Value?.ToString() ?? string.Empty;
+        await SaveDraftAsync();
+    }
+
+    private async Task HashtagsChangedAsync(ChangeEventArgs args)
+    {
+        hashtags = args.Value?.ToString() ?? string.Empty;
+        await SaveDraftAsync();
+    }
+
+    [JSInvokable]
+    public Task UpdateCompositionText(string? value)
+    {
+        string next = value ?? string.Empty;
+        if (string.Equals(imeText, next, StringComparison.Ordinal))
+        {
+            return Task.CompletedTask;
+        }
+
+        imeText = next;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ChooseFileAsync()
+    {
+        if (fileInput?.Element is ElementReference fileElement)
+        {
+            await PostFormInterop.OpenFilesAsync(fileElement, lifetime.Token);
+        }
+    }
+
+    private async Task FilesSelectedAsync(InputFileChangeEventArgs args)
+    {
+        int capacity = MaxAttachments - files.Count;
+        if (capacity <= 0)
+        {
+            ShowOperationFailure("MEDIA_ATTACHMENT_LIMIT");
+            return;
+        }
+
+        uploading = true;
+        try
+        {
+            foreach (IBrowserFile browserFile in args.GetMultipleFiles(MaxAttachments).Take(capacity))
+            {
+                await using Stream content = browserFile.OpenReadStream(MaxBrowserUploadBytes, lifetime.Token);
+                ComposerMediaViewModel uploaded = await Media.UploadAsync(
+                    browserFile.Name,
+                    browserFile.ContentType,
+                    content,
+                    lifetime.Token);
+                files.Add(uploaded);
+            }
+
+            await SaveDraftAsync();
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (ComposerMediaUnavailableException)
+        {
+            ShowOperationFailure("MEDIA_PIPELINE_UNAVAILABLE");
+        }
+        catch (InvalidDataException)
+        {
+            ShowOperationFailure("MEDIA_VALIDATION_FAILED");
+        }
+        catch (IOException)
+        {
+            ShowOperationFailure("MEDIA_UPLOAD_FAILED");
+        }
+        finally
+        {
+            uploading = false;
+        }
+    }
+
+    private async Task DetachFileAsync(Guid id)
+    {
+        files.RemoveAll(file => file.Id == id);
+        await SaveDraftAsync();
+    }
+
+    private async Task ReorderFilesAsync(IReadOnlyList<ComposerMediaViewModel> reordered)
+    {
+        if (reordered.Count != files.Count ||
+            reordered.Select(file => file.Id).ToHashSet().SetEquals(files.Select(file => file.Id)) is false)
+        {
+            return;
+        }
+
+        files.Clear();
+        files.AddRange(reordered);
+        await SaveDraftAsync();
+    }
+
+    private async Task ChangeFileSensitiveAsync((Guid Id, bool Sensitive) change)
+    {
+        int index = files.FindIndex(file => file.Id == change.Id);
+        if (index >= 0)
+        {
+            files[index] = files[index] with { Sensitive = change.Sensitive };
+            await SaveDraftAsync();
+        }
+    }
+
+    private async Task ChangeFileNameAsync((Guid Id, string Name) change)
+    {
+        int index = files.FindIndex(file => file.Id == change.Id);
+        if (index >= 0 && !string.IsNullOrWhiteSpace(change.Name) && change.Name.Length <= 512)
+        {
+            files[index] = files[index] with { Name = change.Name };
+            await SaveDraftAsync();
+        }
+    }
+
+    private async Task ChangeFileDescriptionAsync((Guid Id, string? Description) change)
+    {
+        int index = files.FindIndex(file => file.Id == change.Id);
+        if (index >= 0 && (change.Description is null || change.Description.Length <= 512))
+        {
+            files[index] = files[index] with { Description = change.Description };
+            await SaveDraftAsync();
+        }
+    }
+
+    private Task InsertMentionAsync() => PostFormInterop.InsertTextAsync(textarea, "@", lifetime.Token).AsTask();
+
+    private async Task RemoveVisibleUserAsync(NoteAuthorViewModel user)
+    {
+        visibleUsers.RemoveAll(item => string.Equals(item.Id, user.Id, StringComparison.Ordinal));
+        await SaveDraftAsync();
+    }
+
+    private async Task RemoveMentionAsync(string mention)
+    {
+        text = System.Text.RegularExpressions.Regex.Replace(
+            text,
+            $@"(?<!\S){System.Text.RegularExpressions.Regex.Escape(mention)}(?=\s|$)",
+            string.Empty,
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant)
+            .TrimStart();
+        await SaveDraftAsync();
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs args)
+    {
+        if (string.Equals(args.Key, "Escape", StringComparison.Ordinal))
+        {
+            await Escape.InvokeAsync();
+            return;
+        }
+
+        if (string.Equals(args.Key, "Enter", StringComparison.Ordinal) && (args.CtrlKey || args.MetaKey) && CanPost)
+        {
+            await PostAsync();
+        }
+    }
+
+    private void OpenEmojiPicker() => Overlays.ShowEmojiPicker(
+        emojiButton,
+        value => PostFormInterop.InsertTextAsync(textarea, value, lifetime.Token).AsTask());
+
+    private Task ClearQuoteAsync()
+    {
+        Renote = null;
+        return Task.CompletedTask;
+    }
+
+    private async Task PostAsync()
+    {
+        if (!CanPost)
+        {
+            return;
+        }
+
+        if (localOnly)
+        {
+            ShowOperationFailure("LOCAL_ONLY_NOT_AVAILABLE");
+            return;
+        }
+
+        posting = true;
+        try
+        {
+            bool pureRenote = Renote is not null && string.IsNullOrWhiteSpace(EffectiveText) &&
+                files.Count == 0 && poll is null && !useCw;
+            NoteViewModel created = pureRenote
+                ? await Timeline.RenoteAsync(Renote!.Id, idempotencyKey, lifetime.Token)
+                : await Timeline.CreateAsync(
+                    new NoteDraft(
+                        EffectiveText,
+                        useCw ? contentWarning : null,
+                        visibility,
+                        Reply?.InternalId,
+                        Renote?.InternalId,
+                        files.Select(file => file.Id).ToArray(),
+                        files.Any(file => file.Sensitive),
+                        CreatePollDraft()),
+                    idempotencyKey,
+                    lifetime.Token);
+            await RememberHashtagsAsync(EffectiveText);
+            await DeleteDraftAsync();
+            Clear();
+            await Posted.InvokeAsync(created);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (FrontendAuthenticationException exception)
+        {
+            ShowOperationFailure(exception.ErrorCode);
+        }
+        catch (ArgumentException)
+        {
+            ShowOperationFailure("COMPOSE_VALIDATION_FAILED");
+        }
+        catch (KeyNotFoundException)
+        {
+            ShowOperationFailure("COMPOSE_REFERENCE_NOT_FOUND");
+        }
+        catch (InvalidOperationException)
+        {
+            ShowOperationFailure("COMPOSE_COMMIT_FAILED");
+        }
+        finally
+        {
+            posting = false;
+        }
+    }
+
+    private NotePollDraft? CreatePollDraft()
+    {
+        if (poll is null)
+        {
+            return null;
+        }
+
+        DateTimeOffset? expiresAt = poll.Expiration switch
+        {
+            ComposerPollExpiration.At => new DateTimeOffset(
+                poll.AtDate.ToDateTime(poll.AtTime),
+                TimeZoneInfo.Local.GetUtcOffset(poll.AtDate.ToDateTime(poll.AtTime))),
+            ComposerPollExpiration.After when poll.After > 0 => DateTimeOffset.UtcNow.Add(
+                poll.Unit switch
+                {
+                    ComposerPollUnit.Minute => TimeSpan.FromMinutes(poll.After),
+                    ComposerPollUnit.Hour => TimeSpan.FromHours(poll.After),
+                    ComposerPollUnit.Day => TimeSpan.FromDays(poll.After),
+                    _ => TimeSpan.FromSeconds(poll.After)
+                }),
+            _ => null
+        };
+        return new(
+            poll.Choices.Select(value => value.Trim()).Where(value => value.Length > 0).ToArray(),
+            poll.Multiple,
+            expiresAt);
+    }
+
+    private void Clear()
+    {
+        text = string.Empty;
+        contentWarning = string.Empty;
+        hashtags = string.Empty;
+        files.Clear();
+        poll = null;
+        useCw = false;
+        idempotencyKey = NewIdempotencyKey();
+    }
+
+    private async Task RestoreDraftAsync()
+    {
+        if (Instant || Mention is not null || Specified is not null)
+        {
+            return;
+        }
+
+        Dictionary<string, JsonElement>? drafts = await Storage.ReadAsync<Dictionary<string, JsonElement>>(
+            ClientStorageArea.Local,
+            "drafts",
+            lifetime.Token);
+        if (drafts is not null && drafts.TryGetValue(DraftKey, out JsonElement raw))
+        {
+            ComposerDraftEnvelope? saved = raw.Deserialize<ComposerDraftEnvelope>(JsonOptions);
+            if (saved is not null)
+            {
+                text = saved.Data.Text ?? string.Empty;
+                useCw = saved.Data.UseCw;
+                contentWarning = saved.Data.Cw ?? string.Empty;
+                visibility = ParseVisibility(saved.Data.Visibility);
+                localOnly = saved.Data.LocalOnly;
+                withHashtags = saved.Data.WithHashtags;
+                hashtags = saved.Data.Hashtags ?? string.Empty;
+                files.Clear();
+                files.AddRange(saved.Data.Files ?? []);
+                poll = saved.Data.Poll;
+            }
+        }
+
+        IReadOnlyList<string>? history = await Storage.ReadAsync<IReadOnlyList<string>>(
+            ClientStorageArea.Local,
+            "hashtags",
+            lifetime.Token);
+        recentHashtags.Clear();
+        recentHashtags.AddRange(history ?? []);
+    }
+
+    private async Task SaveDraftAsync()
+    {
+        if (!restored || Instant || lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        Dictionary<string, JsonElement> drafts = await Storage.ReadAsync<Dictionary<string, JsonElement>>(
+            ClientStorageArea.Local,
+            "drafts",
+            lifetime.Token) ?? new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        var data = new ComposerDraftData(
+            text,
+            useCw,
+            contentWarning,
+            VisibilityName(visibility),
+            localOnly,
+            withHashtags,
+            hashtags,
+            files.ToArray(),
+            poll);
+        drafts[DraftKey] = JsonSerializer.SerializeToElement(
+            new ComposerDraftEnvelope(DateTimeOffset.UtcNow, data),
+            JsonOptions);
+        await Storage.WriteAsync(ClientStorageArea.Local, "drafts", drafts, lifetime.Token);
+    }
+
+    private async Task DeleteDraftAsync()
+    {
+        Dictionary<string, JsonElement>? drafts = await Storage.ReadAsync<Dictionary<string, JsonElement>>(
+            ClientStorageArea.Local,
+            "drafts",
+            lifetime.Token);
+        if (drafts is null || !drafts.Remove(DraftKey))
+        {
+            return;
+        }
+
+        await Storage.WriteAsync(ClientStorageArea.Local, "drafts", drafts, lifetime.Token);
+    }
+
+    private async Task RememberHashtagsAsync(string value)
+    {
+        string[] found = value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+            .Select(token => token.Trim('.', ',', '!', '?', ':', ';', '(', ')', '[', ']'))
+            .Where(token => token.StartsWith('#') && token.Length > 1)
+            .Select(token => token[1..])
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (found.Length == 0)
+        {
+            return;
+        }
+
+        string[] merged = found.Concat(recentHashtags)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(100)
+            .ToArray();
+        recentHashtags.Clear();
+        recentHashtags.AddRange(merged);
+        await Storage.WriteAsync(ClientStorageArea.Local, "hashtags", merged, lifetime.Token);
+    }
+
+    private static IReadOnlyList<string> ExtractMentions(string value) => value
+        .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+        .Select(token => token.Trim('(', ')', '[', ']', '{', '}', ',', '.', ':', ';', '!', '?'))
+        .Where(token => token.StartsWith('@') && token.Length > 1)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    private static bool MentionMatchesUser(string mention, NoteAuthorViewModel user)
+    {
+        string value = mention.TrimStart('@');
+        return string.Equals(value, user.Acct, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, user.Username, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void AddVisibleUser(NoteAuthorViewModel user)
+    {
+        if (visibleUsers.All(item => !string.Equals(item.Id, user.Id, StringComparison.Ordinal) &&
+            !string.Equals(item.Acct, user.Acct, StringComparison.OrdinalIgnoreCase)))
+        {
+            visibleUsers.Add(user);
+        }
+    }
+
+    private void ShowOperationFailure(string errorCode) => Overlays.ShowAlert(new MisskeyAlertOptions(
+        "error",
+        Localizer.Translate("somethingHappened"),
+        errorCode,
+        errorCode,
+        Localizer.Translate("gotIt")));
+
+    private static Visibility ParseVisibility(string? value) => value switch
+    {
+        "home" => Visibility.Unlisted,
+        "followers" => Visibility.FollowersOnly,
+        "specified" => Visibility.MentionedOnly,
+        _ => Visibility.Public
+    };
+
+    private static string VisibilityName(Visibility value) => value switch
+    {
+        Visibility.Unlisted => "home",
+        Visibility.FollowersOnly => "followers",
+        Visibility.MentionedOnly => "specified",
+        _ => "public"
+    };
+
+    private static string NewIdempotencyKey() => $"blazor-note-{Guid.NewGuid():N}";
+
+    private bool disposed;
+
+    public async ValueTask DisposeAsync()
+    {
+        disposed = true;
+        CloseAutocomplete();
+        lifetime.Cancel();
+        foreach (IJSObjectReference? attachment in new[] { sizeObservation, dropAttachment })
+        {
+            if (attachment is null)
+            {
+                continue;
+            }
+
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private sealed record ComposerDraftEnvelope(DateTimeOffset UpdatedAt, ComposerDraftData Data);
+
+    private sealed record ComposerDraftData(
+        string? Text,
+        bool UseCw,
+        string? Cw,
+        string Visibility,
+        bool LocalOnly,
+        bool WithHashtags,
+        string? Hashtags,
+        IReadOnlyList<ComposerMediaViewModel>? Files,
+        ComposerPollViewModel? Poll);
+}

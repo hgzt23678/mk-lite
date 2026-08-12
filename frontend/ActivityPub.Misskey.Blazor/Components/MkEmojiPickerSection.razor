@@ -1,0 +1,63 @@
+<section>
+    <header class="_acrylic" @onclick="Toggle">
+        <i class="toggle fa-fw @(shown ? "fas fa-chevron-down" : "fas fa-chevron-up")"></i>
+        @if (ChildContent is not null)
+        {
+            @ChildContent
+        }
+        else
+        {
+            @Title
+        }
+        <text> (@Emojis.Count)</text>
+    </header>
+    @if (shown)
+    {
+        <div class="body">
+            @foreach (string emoji in Emojis)
+            {
+                <button @key="emoji" class="_button item" @onclick="eventArgs => Choose(emoji, eventArgs)">
+                    <MkEmoji CssClass="emoji" Emoji="@emoji" CustomUrl="@CustomUrl(emoji)" Normal="true" />
+                </button>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    private bool shown;
+
+    [Parameter]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<string> Emojis { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyDictionary<string, string> CustomEmojiUrls { get; set; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
+    [Parameter]
+    public bool InitialShown { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback<string> Chosen { get; set; }
+
+    [Parameter]
+    public EventCallback<EmojiPickerChosenEvent> ChosenWithEvent { get; set; }
+
+    protected override void OnInitialized() => shown = InitialShown;
+
+    private void Toggle() => shown = !shown;
+
+    private async Task Choose(string value, MouseEventArgs eventArgs)
+    {
+        await ChosenWithEvent.InvokeAsync(new(value, eventArgs));
+        await Chosen.InvokeAsync(value);
+    }
+
+    private string? CustomUrl(string value) => CustomEmojiUrls.TryGetValue(value, out string? url) ? url : null;
+}

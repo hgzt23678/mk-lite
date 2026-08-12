@@ -1,0 +1,88 @@
+@page "/__test/security/remote-media"
+@using ActivityPub.Domain
+@using ActivityPub.Misskey.Blazor.Presentation
+
+<main data-contract="remote-media-boundary">
+    <MkAvatar User="remoteAuthor" DisableLink="true" />
+    <MkEmoji Emoji=":remote:" CustomUrl="https://tracker.invalid/emoji.png" />
+    <MkReactionsViewer Note="remoteReactionNote" />
+    <MkMediaList Media="media" />
+    <VisitorKanban Instance="instance" Full="true" Announcements="announcements" />
+</main>
+
+@code {
+    private readonly NoteAuthorViewModel remoteAuthor = new(
+        "remote-user",
+        "remote",
+        "remote@remote.example",
+        "Remote",
+        "https://tracker.invalid/avatar.png",
+        IsBot: false);
+
+    private readonly InstanceSummaryViewModel instance = new(
+        "Boundary fixture",
+        "Remote URLs must never leave this page.",
+        "12.119.2",
+        "https://tracker.invalid/icon.png",
+        "https://tracker.invalid/background.png",
+        "https://tracker.invalid/logo.png",
+        DisableRegistration: false,
+        EmailRequiredForSignup: false,
+        EnableEmail: false,
+        TosUrl: null);
+
+    private readonly IReadOnlyList<VisitorAnnouncementViewModel> announcements =
+    [
+        new("remote", "Remote", "This image is not proxied.", "https://tracker.invalid/announcement.png"),
+        new("local", "Local", "This image is same-origin.", "/static-assets/favicon.png")
+    ];
+
+    private readonly IReadOnlyList<NoteMediaViewModel> media =
+    [
+        new(
+            "remote",
+            "image/png",
+            "https://tracker.invalid/media.png",
+            "https://tracker.invalid/preview.png",
+            "Remote media",
+            Blurhash: null,
+            Width: 10,
+            Height: 10,
+            Sensitive: false),
+        new(
+            "local",
+            "image/png",
+            "/static-assets/favicon.png",
+            "/static-assets/favicon.png",
+            "Local media",
+            Blurhash: null,
+            Width: 10,
+            Height: 10,
+            Sensitive: false)
+    ];
+
+    private NoteViewModel remoteReactionNote => new(
+        Guid.Parse("00000000-0000-0000-0000-000000000001"),
+        "remote-note",
+        DateTimeOffset.UnixEpoch,
+        remoteAuthor,
+        "Remote reaction",
+        ContentWarning: null,
+        Visibility.Public,
+        ReplyId: null,
+        RepliesCount: 0,
+        RenotesCount: 0,
+        ReactionsCount: 1,
+        ReactedByViewer: false,
+        Reactions: new Dictionary<string, long>(StringComparer.Ordinal) { [":remote:"] = 1 },
+        ViewerReaction: null,
+        Media: [],
+        Mentions: [],
+        Hashtags: [],
+        Emojis: new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["remote"] = "https://tracker.invalid/reaction.png"
+        },
+        Poll: null,
+        Renote: null);
+}

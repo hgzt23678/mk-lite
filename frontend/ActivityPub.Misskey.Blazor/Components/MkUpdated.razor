@@ -1,0 +1,137 @@
+@implements IAsyncDisposable
+@inject IClientUpdateInterop Browser
+@inject IMisskeyLocalizer Localizer
+@inject MisskeyFrontendRuntimeConfiguration RuntimeConfiguration
+
+<div @ref="modalElement"
+     class="qzhlnise dialog modal-enter-active modal-enter-from"
+     role="dialog"
+     aria-modal="true"
+     aria-label="@Localizer.Translate("misskeyUpdated")">
+    <div class="bg _modalBg"></div>
+    <div @ref="contentElement" class="content">
+        <div @ref="panelElement" class="ewlycnyt">
+            <div class="title"><MkSparkle>@Localizer.Translate("misskeyUpdated")</MkSparkle></div>
+            <div class="version">✨@RuntimeConfiguration.Version🚀</div>
+            <MkButton Full="true">@Localizer.Translate("whatIsNew")</MkButton>
+            <MkButton CssClassAdditional="gotIt" Primary="true" Full="true">@Localizer.Translate("gotIt")</MkButton>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference modalElement;
+    private ElementReference contentElement;
+    private ElementReference panelElement;
+    private DotNetObjectReference<MkUpdated>? receiver;
+    private IJSObjectReference? attachment;
+    private Task? attachmentTask;
+    private bool closed;
+    private bool disposed;
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    private Uri ReleaseNotesUrl => new(
+        "https://misskey-hub.net/docs/releases.html#_" +
+        Uri.EscapeDataString(RuntimeConfiguration.Version.Replace('.', '-')),
+        UriKind.Absolute);
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            attachmentTask = AttachAsync();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task AttachAsync()
+    {
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            IJSObjectReference created = await Browser.AttachDialogAsync(
+                modalElement,
+                contentElement,
+                panelElement,
+                receiver,
+                ReleaseNotesUrl,
+                lifetime.Token);
+            if (disposed)
+            {
+                await DisposeAttachmentAsync(created);
+                return;
+            }
+
+            attachment = created;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task NotifyOpened() => Task.CompletedTask;
+
+    [JSInvokable]
+    public async Task NotifyClosed()
+    {
+        if (closed || disposed)
+        {
+            return;
+        }
+
+        closed = true;
+        await Closed.InvokeAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachmentTask is not null)
+        {
+            try
+            {
+                await attachmentTask;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        if (attachment is not null)
+        {
+            await DisposeAttachmentAsync(attachment);
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        try
+        {
+            await handle.InvokeVoidAsync("dispose");
+            await handle.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

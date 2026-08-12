@@ -1,0 +1,123 @@
+@implements IAsyncDisposable
+@inject IElementSizeInterop ElementSizeInterop
+
+<div @ref="root" class="@RootClass" @attributes="AttributesWithoutClass">
+    <MkAvatar CssClass="avatar" User="Account" />
+    <div class="main">
+        <div class="header">
+            <MkUserName User="Account" />
+        </div>
+        <div class="body">
+            <div class="content">
+                <MfmView Text="@Text.Trim()"
+                         Author="Account"
+                         CustomEmojis="@AccountEmojis" />
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference root;
+    private DotNetObjectReference<MkNotePreview>? receiver;
+    private IJSObjectReference? observation;
+    private double width;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public NoteAuthorViewModel Account { get; set; } = null!;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "fefdfafb",
+        width >= 350 ? "min-width_350px" : null,
+        width >= 500 ? "min-width_500px" : null,
+        CssClass,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private IReadOnlyDictionary<string, string> AccountEmojis =>
+        Account.Emojis ?? EmptyEmojis;
+
+    private static IReadOnlyDictionary<string, string> EmptyEmojis { get; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            observation = await ElementSizeInterop.ObserveAsync(root, receiver, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task UpdateElementSize(double nextWidth, int viewportWidth)
+    {
+        _ = viewportWidth;
+        if (disposed || Math.Abs(width - nextWidth) < 0.5)
+        {
+            return Task.CompletedTask;
+        }
+
+        width = nextWidth;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (observation is not null)
+        {
+            try
+            {
+                await observation.InvokeVoidAsync("dispose");
+                await observation.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+}

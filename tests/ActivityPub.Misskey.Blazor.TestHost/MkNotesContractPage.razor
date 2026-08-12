@@ -1,0 +1,80 @@
+@page "/__test/components/mk-notes"
+@rendermode InteractiveServer
+
+<main data-contract="mk-notes-slice">
+    <section data-contract="populated-notes">
+        <MkNotes Source="notesSource"
+                 NoGap="false"
+                 class="contract-notes">
+            <AdvertisementContent Context="note">
+                <aside class="mk-notes-contract-ad" data-ad-for="@note.Id">advertisement</aside>
+            </AdvertisementContent>
+        </MkNotes>
+    </section>
+    <section data-contract="empty-notes">
+        <MkNotes Source="emptySource" class="contract-empty-notes" />
+    </section>
+</main>
+
+@code {
+    private static readonly NoteAuthorViewModel alice = new(
+        "9alice",
+        "alice",
+        "alice",
+        "Alice",
+        "/static-assets/favicon.png",
+        IsBot: false);
+
+    private static readonly NoteViewModel[] notes =
+    [
+        CreateNote("9note-a", 4),
+        CreateNote("9note-b", 3),
+        CreateNote("9note-c", 2),
+        CreateNote("9note-d", 1)
+    ];
+
+    private static readonly NotesSource notesSource = new(notes, markAdvertisement: true);
+    private static readonly NotesSource emptySource = new([], markAdvertisement: false);
+
+    private static NoteViewModel CreateNote(string id, int minute) => new(
+        Guid.NewGuid(),
+        id,
+        new DateTimeOffset(2026, 8, 4, 12, minute, 0, TimeSpan.Zero),
+        alice,
+        $"note {id}",
+        ContentWarning: null,
+        ActivityPub.Domain.Visibility.Public,
+        ReplyId: null,
+        RepliesCount: 0,
+        RenotesCount: 0,
+        ReactionsCount: 0,
+        ReactedByViewer: false,
+        new Dictionary<string, long>(StringComparer.Ordinal),
+        ViewerReaction: null,
+        Media: [],
+        Mentions: [],
+        Hashtags: [],
+        new Dictionary<string, string>(StringComparer.Ordinal),
+        Poll: null,
+        Renote: null);
+
+    private sealed class NotesSource(
+        IReadOnlyList<NoteViewModel> values,
+        bool markAdvertisement) : IMisskeyPaginationSource<NoteViewModel>
+    {
+        public MisskeyPaginationOptions Options { get; } = new(Limit: 10);
+
+        public ValueTask<IReadOnlyList<NoteViewModel>> FetchAsync(
+            MisskeyPaginationRequest request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(values);
+        }
+
+        public string GetId(NoteViewModel item) => item.Id;
+
+        public NoteViewModel MarkAdvertisement(NoteViewModel item) =>
+            markAdvertisement ? item with { ShouldInsertAdvertisement = true } : item;
+    }
+}

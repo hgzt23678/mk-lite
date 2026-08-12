@@ -1,0 +1,41 @@
+@namespace ActivityPub.Misskey.Blazor.TestHost
+@page "/__test/key-value"
+@layout KeyValueContractLayout
+@attribute [AllowAnonymous]
+
+<PageTitle>MkKeyValue contract</PageTitle>
+
+<section aria-label="MkKeyValue contract fixtures" data-interactive="@(interactive ? "true" : "false")">
+    <MkKeyValue Copy="contract-copy-値-✓"
+                class="_formBlock fixture-key-value"
+                data-contract="copy">
+        <Key>バージョン</Key>
+        <Value>12.119.2</Value>
+    </MkKeyValue>
+    <MkKeyValue Oneline="true"
+                class="fixture-oneline"
+                style="margin: 1em 0;"
+                data-contract="oneline">
+        <Key>ID</Key>
+        <Value>9duke7z2w3</Value>
+    </MkKeyValue>
+    <MkKeyValue Copy="" data-contract="empty-copy">
+        <Key>空のコピー値</Key>
+        <Value>buttonなし</Value>
+    </MkKeyValue>
+</section>
+
+@code {
+    private bool interactive;
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            interactive = true;
+            return InvokeAsync(StateHasChanged);
+        }
+
+        return Task.CompletedTask;
+    }
+}

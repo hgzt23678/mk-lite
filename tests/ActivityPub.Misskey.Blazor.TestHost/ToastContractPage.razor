@@ -1,0 +1,27 @@
+@page "/__test/components/toast"
+@rendermode InteractiveServer
+
+<main data-contract="mk-toast">
+    <button id="show-toast" type="button" @onclick="Show">Show</button>
+    <button id="remove-toast" type="button" @onclick="Remove">Remove</button>
+    <output id="toast-closed-count">@closedCount</output>
+    @if (showing)
+    {
+        <MkToast Message="Welcome back, Alice" Closed="OnClosed" data-fixture="toast" />
+    }
+</main>
+
+@code {
+    private bool showing;
+    private int closedCount;
+
+    private void Show() => showing = true;
+
+    private void Remove() => showing = false;
+
+    private void OnClosed()
+    {
+        closedCount++;
+        showing = false;
+    }
+}

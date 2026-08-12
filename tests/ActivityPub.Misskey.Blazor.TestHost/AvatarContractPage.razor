@@ -1,0 +1,41 @@
+@page "/__test/components/avatar"
+@rendermode InteractiveServer
+
+<main data-contract="avatar">
+    <MkAvatar User="cat"
+              CssClass="linked-avatar"
+              ShowIndicator="true"
+              Target="_blank"
+              Clicked="OnLinkedClicked"
+              style="width: 64px; height: 64px;"
+              data-avatar="linked" />
+    <MkAvatar User="cat"
+              CssClass="disabled-avatar"
+              DisableLink="true"
+              DisablePreview="true"
+              Clicked="OnDisabledClicked"
+              style="width: 48px; height: 48px;"
+              data-avatar="disabled" />
+    <output id="linked-clicks">@linkedClicks</output>
+    <output id="disabled-clicks">@disabledClicks</output>
+</main>
+
+@code {
+    private int linkedClicks;
+    private int disabledClicks;
+
+    private readonly NoteAuthorViewModel cat = new(
+        "9cat",
+        "cat",
+        "cat",
+        "Cat",
+        "/static-assets/favicon.png?avatar=cat",
+        IsBot: false,
+        IsCat: true,
+        AvatarBlurhash: "LEHV6nWB2yk8pyo0adR*.7kCMdnj",
+        OnlineStatus: "active");
+
+    private void OnLinkedClicked(MouseEventArgs args) => linkedClicks++;
+
+    private void OnDisabledClicked(MouseEventArgs args) => disabledClicks++;
+}

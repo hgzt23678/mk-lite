@@ -1,0 +1,123 @@
+@page "/__test/components/object-view"
+@rendermode InteractiveServer
+@inject IMisskeyOverlayService Overlays
+
+<main data-contract="mk-object-view">
+    <MkObjectView Value="fixture" />
+    <MkGoogle Q="initial query" />
+    <button @ref="reactionTarget" data-contract="reaction-tooltip-target">reaction</button>
+    @if (tooltipReady)
+    {
+        <MkReactionTooltip Target="reactionTarget"
+                           Reaction="@reaction"
+                           CustomEmojis="customEmojis" />
+        <MkTooltip X="320"
+                   Y="240"
+                   Direction="right"
+                   InnerMargin="16"
+                   Showing="true"
+                   Text="coordinate tooltip"
+                   data-contract="coordinate-tooltip" />
+    }
+    <div data-contract="emoji-picker-section">
+        <MkEmojiPickerSection Emojis="sectionEmojis" Chosen="ChooseSectionEmoji">Faces</MkEmojiPickerSection>
+        <output>@chosenSectionEmoji</output>
+    </div>
+    <MkInstanceTicker Instance="remoteInstance" class="ticker" data-contract="instance-ticker" />
+    <MkFeaturedPhotos class="cover" data-contract="featured-photos" />
+    <div data-contract="form-select">
+        <MkFormSelect @bind-Value="selectedVisibility"
+                      Items="visibilityItems"
+                      Large="true"
+                      data-select="visibility">
+            <Label>公開範囲</Label>
+            <Prefix><i class="fas fa-eye"></i></Prefix>
+            <Caption>投稿の受信者</Caption>
+        </MkFormSelect>
+        <output>@selectedVisibility</output>
+    </div>
+    <button type="button" data-contract="dialog-trigger" @onclick="OpenDialog">dialog</button>
+    <output data-contract="dialog-result">@dialogResult</output>
+    <div data-contract="form-range">
+        <MkFormRange @bind-Value="rangeValue"
+                     Min="0"
+                     Max="10"
+                     Step="2"
+                     ShowTicks="true"
+                     Easing="true"
+                     TextConverter="rangeText">
+            <Label>音量</Label>
+            <Caption>再生音量</Caption>
+        </MkFormRange>
+        <output>@rangeValue</output>
+    </div>
+</main>
+
+@code {
+    private ElementReference reactionTarget;
+    private bool tooltipReady;
+    private const string reaction = ":party@.:";
+    private readonly IReadOnlyList<string> sectionEmojis = ["😀", "🎉"];
+    private readonly InstanceTickerViewModel remoteInstance = new("remote.example", "/static-assets/favicon.png", "#123456");
+    private string? chosenSectionEmoji;
+    private string selectedVisibility = "home";
+    private string? dialogResult;
+    private double rangeValue = 2;
+    private readonly Func<double, string> rangeText = value => $"音量 {value:0}";
+
+    private readonly IReadOnlyList<MkFormSelectItem> visibilityItems =
+    [
+        MkFormSelectItem.Group("公開", [
+            MkFormSelectItem.Option("public", "パブリック"),
+            MkFormSelectItem.Option("home", "ホーム")
+        ]),
+        MkFormSelectItem.Option("followers", "フォロワー")
+    ];
+
+    private readonly MisskeyDialogSelect dialogSelect = new(
+    [
+        MkFormSelectItem.Group("公開", [
+            MkFormSelectItem.Option("public", "パブリック"),
+            MkFormSelectItem.Option("home", "ホーム")
+        ])
+    ],
+    "home");
+
+    private readonly IReadOnlyList<EmojiPickerCustomEmoji> customEmojis =
+    [
+        new("party@.", "/media/party.webp", null, [])
+    ];
+
+    private readonly IReadOnlyDictionary<string, object?> fixture = new Dictionary<string, object?>
+    {
+        ["enabled"] = true,
+        ["count"] = 1234,
+        ["nested"] = new Dictionary<string, object?> { ["answer"] = 42 },
+        ["items"] = new object?[] { false, "x" }
+    };
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            tooltipReady = true;
+            StateHasChanged();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void ChooseSectionEmoji(string value) => chosenSectionEmoji = value;
+    private void OpenDialog() => Overlays.ShowDialog(new MisskeyDialogOptions(
+        "info",
+        "公開範囲",
+        "ノートの公開範囲を選択してください",
+        Select: dialogSelect,
+        Done: OnDialogDone));
+
+    private Task OnDialogDone(MisskeyDialogResult result)
+    {
+        dialogResult = result.Result?.ToString();
+        return InvokeAsync(StateHasChanged);
+    }
+}

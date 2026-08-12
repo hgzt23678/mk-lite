@@ -1,0 +1,377 @@
+@implements IAsyncDisposable
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+
+<MkModalWindow @ref="dialog"
+               OverlayId="OverlayId"
+               Width="450"
+               WithOkButton="true"
+               OkButtonDisabled="false"
+               Clicked="CancelAsync"
+               CloseRequested="CancelAsync"
+               Closed="OnClosedAsync"
+               Ok="OkAsync"
+               AccessibleLabel="@Title">
+    <Header>@Title</Header>
+    <ChildContent>
+        <MkSpacer MarginMin="20" MarginMax="32">
+            <div class="xkpnjxcv _formRoot">
+                @foreach (MisskeyFormDialogItem item in Form.Where(item => !item.Hidden))
+                {
+                    @switch (item.Type)
+                    {
+                        case "number":
+                            <MkFormInput @key="item.Name"
+                                         Value="@NumberText(item)"
+                                         NumberValue="@NumberValue(item)"
+                                         NumberValueChanged="value => SetValue(item, value)"
+                                         Type="number"
+                                         Step="@NumberStep(item)"
+                                         CssClassAdditional="_formBlock">
+                                <Label>@FieldLabel(item)</Label>
+                                <Caption>@item.Description</Caption>
+                            </MkFormInput>
+                            break;
+                        case "string" when !item.Multiline:
+                            <MkFormInput @key="item.Name"
+                                         Value="@StringValue(item)"
+                                         ValueChanged="value => SetValue(item, value)"
+                                         Type="text"
+                                         CssClassAdditional="_formBlock">
+                                <Label>@FieldLabel(item)</Label>
+                                <Caption>@item.Description</Caption>
+                            </MkFormInput>
+                            break;
+                        case "string":
+                            <MkFormTextarea @key="item.Name"
+                                            Value="@StringValue(item)"
+                                            ValueChanged="value => SetValue(item, value)"
+                                            class="_formBlock">
+                                <Label>@FieldLabel(item)</Label>
+                                <Caption>@item.Description</Caption>
+                            </MkFormTextarea>
+                            break;
+                        case "boolean":
+                            <MkFormSwitch @key="item.Name"
+                                          Value="@BooleanValue(item)"
+                                          ValueChanged="value => SetValue(item, value)"
+                                          CssClassAdditional="_formBlock">
+                                <ChildContent><span>@ResolvedLabel(item)</span></ChildContent>
+                                <Caption>@item.Description</Caption>
+                            </MkFormSwitch>
+                            break;
+                        case "enum":
+                            <MkFormSelect @key="item.Name"
+                                          Value="@SelectedOptionToken(item)"
+                                          ValueChanged="value => SelectOption(item, value)"
+                                          Items="@SelectItems(item)"
+                                          CssClassAdditional="_formBlock">
+                                <Label>@FieldLabel(item)</Label>
+                            </MkFormSelect>
+                            break;
+                        case "radio":
+                            <MkFormRadios @key="item.Name"
+                                          TValue="string"
+                                          Value="@SelectedOptionToken(item)"
+                                          ValueChanged="value => SelectOption(item, value)"
+                                          class="_formBlock">
+                                <Label>@FieldLabel(item)</Label>
+                                <ChildContent>
+                                    @for (int optionIndex = 0; optionIndex < item.Options.Count; optionIndex++)
+                                    {
+                                        MisskeyFormDialogOption option = item.Options[optionIndex];
+                                        <MkFormRadio @key="optionIndex"
+                                                     TValue="string"
+                                                     Value="@OptionToken(optionIndex)">@option.Label</MkFormRadio>
+                                    }
+                                </ChildContent>
+                            </MkFormRadios>
+                            break;
+                        case "range":
+                            <MkFormRange @key="item.Name"
+                                         Value="@RangeValue(item)"
+                                         ValueChanged="value => SetValue(item, value)"
+                                         Min="@item.Min!.Value"
+                                         Max="@item.Max!.Value"
+                                         Step="@item.Step.GetValueOrDefault(1)"
+                                         TextConverter="@item.TextConverter"
+                                         CssClassAdditional="_formBlock">
+                                <Label>@FieldLabel(item)</Label>
+                                <Caption>@item.Description</Caption>
+                            </MkFormRange>
+                            break;
+                        case "button":
+                            <MkButton @key="item.Name"
+                                      CssClassAdditional="_formBlock"
+                                      OnClick="args => RunActionAsync(item, args)">
+                                <span>@(item.Content ?? item.Name)</span>
+                            </MkButton>
+                            break;
+                    }
+                }
+            </div>
+        </MkSpacer>
+    </ChildContent>
+</MkModalWindow>
+
+@code {
+    private static readonly HashSet<string> SupportedTypes = new(StringComparer.Ordinal)
+    {
+        "string", "number", "boolean", "enum", "radio", "range", "button", "object", "array"
+    };
+
+    private readonly Dictionary<string, object?> values = new(StringComparer.Ordinal);
+    private MkModalWindow? dialog;
+    private IReadOnlyList<MisskeyFormDialogItem>? initializedForm;
+    private bool completionEmitted;
+    private bool closing;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<MisskeyFormDialogItem> Form { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<MisskeyFormDialogResult> Done { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    [Parameter]
+    public Guid? OverlayId { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (OverlayId is Guid id)
+        {
+            Overlays.RegisterCloseHandler(id, CancelAsync);
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        ValidateForm();
+        if (!ReferenceEquals(initializedForm, Form))
+        {
+            values.Clear();
+            foreach (MisskeyFormDialogItem item in Form)
+            {
+                values[item.Name] = item.DefaultValue;
+            }
+
+            initializedForm = Form;
+        }
+    }
+
+    private RenderFragment FieldLabel(MisskeyFormDialogItem item) => builder =>
+    {
+        builder.OpenElement(0, "span");
+        builder.AddContent(1, ResolvedLabel(item));
+        builder.CloseElement();
+        if (item.Required == false)
+        {
+            builder.OpenElement(2, "span");
+            builder.AddContent(3, $" ({Localizer.Translate("optional")})");
+            builder.CloseElement();
+        }
+    };
+
+    private string ResolvedLabel(MisskeyFormDialogItem item) => item.Label ?? item.Name;
+
+    private string StringValue(MisskeyFormDialogItem item) =>
+        values.TryGetValue(item.Name, out object? value) ? value?.ToString() ?? string.Empty : string.Empty;
+
+    private double? NumberValue(MisskeyFormDialogItem item) => TryDouble(item, out double value) ? value : null;
+
+    private string NumberText(MisskeyFormDialogItem item) => NumberValue(item) is double value
+        ? value.ToString("R", CultureInfo.InvariantCulture)
+        : string.Empty;
+
+    private string NumberStep(MisskeyFormDialogItem item) =>
+        item.Step.GetValueOrDefault(1).ToString("R", CultureInfo.InvariantCulture);
+
+    private bool BooleanValue(MisskeyFormDialogItem item) =>
+        values.TryGetValue(item.Name, out object? value) && value is true;
+
+    private double RangeValue(MisskeyFormDialogItem item) => TryDouble(item, out double value)
+        ? value
+        : item.Min!.Value;
+
+    private string SelectedOptionToken(MisskeyFormDialogItem item)
+    {
+        values.TryGetValue(item.Name, out object? selected);
+        for (int index = 0; index < item.Options.Count; index++)
+        {
+            if (Equals(item.Options[index].Value, selected))
+            {
+                return OptionToken(index);
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static string OptionToken(int index) => $"mk-form-option-{index.ToString(CultureInfo.InvariantCulture)}";
+
+    private static IReadOnlyList<MkFormSelectItem> SelectItems(MisskeyFormDialogItem item) =>
+        item.Options.Select((option, index) =>
+            MkFormSelectItem.Option(OptionToken(index), option.Label)).ToArray();
+
+    private void SelectOption(MisskeyFormDialogItem item, string token)
+    {
+        for (int index = 0; index < item.Options.Count; index++)
+        {
+            if (string.Equals(token, OptionToken(index), StringComparison.Ordinal))
+            {
+                values[item.Name] = item.Options[index].Value;
+                return;
+            }
+        }
+    }
+
+    private void SetValue(MisskeyFormDialogItem item, object? value) => values[item.Name] = value;
+
+    private bool TryDouble(MisskeyFormDialogItem item, out double value)
+    {
+        if (!values.TryGetValue(item.Name, out object? raw) || raw is null)
+        {
+            value = 0;
+            return false;
+        }
+
+        try
+        {
+            value = Convert.ToDouble(raw, CultureInfo.InvariantCulture);
+            return double.IsFinite(value);
+        }
+        catch (FormatException)
+        {
+            value = 0;
+            return false;
+        }
+        catch (InvalidCastException)
+        {
+            value = 0;
+            return false;
+        }
+        catch (OverflowException)
+        {
+            value = 0;
+            return false;
+        }
+    }
+
+    private async Task RunActionAsync(MisskeyFormDialogItem item, MouseEventArgs args)
+    {
+        if (item.Action is not null)
+        {
+            await item.Action(new MisskeyFormDialogActionContext(args, values));
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private Task OkAsync() => CompleteAsync(canceled: false);
+
+    private Task CancelAsync() => CompleteAsync(canceled: true);
+
+    private async Task CompleteAsync(bool canceled)
+    {
+        if (completionEmitted)
+        {
+            return;
+        }
+
+        completionEmitted = true;
+        IReadOnlyDictionary<string, object?>? result = canceled
+            ? null
+            : new Dictionary<string, object?>(values, StringComparer.Ordinal);
+        await Done.InvokeAsync(new MisskeyFormDialogResult(canceled, result));
+        await BeginCloseAsync();
+    }
+
+    private async Task BeginCloseAsync()
+    {
+        if (closing)
+        {
+            return;
+        }
+
+        closing = true;
+        if (dialog is not null)
+        {
+            await dialog.BeginCloseAsync();
+        }
+        else
+        {
+            await OnClosedAsync();
+        }
+    }
+
+    private async Task OnClosedAsync()
+    {
+        if (!completionEmitted)
+        {
+            completionEmitted = true;
+            await Done.InvokeAsync(new MisskeyFormDialogResult(Canceled: true));
+        }
+
+        if (OverlayId is Guid id)
+        {
+            Overlays.Close(id);
+        }
+
+        await Closed.InvokeAsync();
+    }
+
+    private void ValidateForm()
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(Title);
+        if (Form.Select(item => item.Name).Distinct(StringComparer.Ordinal).Count() != Form.Count)
+        {
+            throw new InvalidOperationException("Misskey form item names must be unique.");
+        }
+
+        foreach (MisskeyFormDialogItem item in Form)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(item.Name);
+            if (!SupportedTypes.Contains(item.Type))
+            {
+                throw new ArgumentOutOfRangeException(nameof(Form), item.Type, "The Misskey form item type is unsupported.");
+            }
+
+            if (item.Type is "enum" or "radio" && item.Options.Count == 0)
+            {
+                throw new InvalidOperationException($"Misskey form item '{item.Name}' requires options.");
+            }
+
+            if (item.Type == "range" &&
+                (item.Min is not double min || item.Max is not double max || !double.IsFinite(min) ||
+                 !double.IsFinite(max) || max <= min))
+            {
+                throw new InvalidOperationException($"Misskey range form item '{item.Name}' has invalid bounds.");
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        if (OverlayId is Guid id)
+        {
+            Overlays.UnregisterCloseHandler(id);
+        }
+
+        if (!completionEmitted)
+        {
+            completionEmitted = true;
+            await Done.InvokeAsync(new MisskeyFormDialogResult(Canceled: true));
+        }
+    }
+}

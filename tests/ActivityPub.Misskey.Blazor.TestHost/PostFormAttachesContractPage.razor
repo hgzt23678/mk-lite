@@ -1,0 +1,79 @@
+@page "/__test/components/post-form-attaches"
+@rendermode InteractiveServer
+
+<main data-contract="post-form-attaches">
+    <MkPostFormAttaches Files="files"
+                        Updated="Reorder"
+                        Detach="Detach"
+                        SensitiveChanged="ChangeSensitive"
+                        NameChanged="ChangeName"
+                        DescriptionChanged="ChangeDescription"
+                        CssClass="contract-attaches" />
+    <output data-contract="state"
+            data-order="@string.Join(',', files.Select(file => file.Id))"
+            data-sensitive="@string.Join(',', files.Where(file => file.Sensitive).Select(file => file.Id))"
+            data-names="@string.Join('|', files.Select(file => file.Name))"
+            data-descriptions="@string.Join('|', files.Select(file => file.Description ?? string.Empty))"
+            data-detached="@detached"></output>
+</main>
+
+@code {
+    private readonly List<ComposerMediaViewModel> files =
+    [
+        Media(Guid.Parse("11111111-1111-1111-1111-111111111111"), "first.png", "image/png", sensitive: false),
+        Media(Guid.Parse("22222222-2222-2222-2222-222222222222"), "second.png", "image/png", sensitive: true),
+        Media(Guid.Parse("33333333-3333-3333-3333-333333333333"), "third.png", "image/png", sensitive: false)
+    ];
+    private Guid? detached;
+
+    private void Reorder(IReadOnlyList<ComposerMediaViewModel> reordered)
+    {
+        files.Clear();
+        files.AddRange(reordered);
+    }
+
+    private void Detach(Guid id)
+    {
+        detached = id;
+        files.RemoveAll(file => file.Id == id);
+    }
+
+    private void ChangeSensitive((Guid Id, bool Sensitive) change)
+    {
+        int index = files.FindIndex(file => file.Id == change.Id);
+        if (index >= 0)
+        {
+            files[index] = files[index] with { Sensitive = change.Sensitive };
+        }
+    }
+
+    private void ChangeName((Guid Id, string Name) change)
+    {
+        int index = files.FindIndex(file => file.Id == change.Id);
+        if (index >= 0)
+        {
+            files[index] = files[index] with { Name = change.Name };
+        }
+    }
+
+    private void ChangeDescription((Guid Id, string? Description) change)
+    {
+        int index = files.FindIndex(file => file.Id == change.Id);
+        if (index >= 0)
+        {
+            files[index] = files[index] with { Description = change.Description };
+        }
+    }
+
+    private static ComposerMediaViewModel Media(Guid id, string name, string mediaType, bool sensitive) => new(
+        id,
+        name,
+        mediaType,
+        "/static-assets/favicon.png",
+        "/static-assets/favicon.png",
+        sensitive,
+        null,
+        64,
+        64,
+        1024);
+}

@@ -1,0 +1,251 @@
+@implements IAsyncDisposable
+@inject IDialogWindowInterop DialogInterop
+
+<div @ref="modalElement"
+     class="qzhlnise dialog modal-enter-active modal-enter-from"
+     role="dialog"
+     aria-modal="true"
+     aria-label="@AccessibleLabel">
+    <div class="bg _modalBg" @onclick="OnBackgroundClickAsync" @oncontextmenu:preventDefault @oncontextmenu:stopPropagation></div>
+    <div @ref="contentElement" class="content">
+        <div @ref="windowElement" class="ebkgoccj _narrow_" style="@WindowStyle">
+            <div class="header">
+                @if (WithOkButton)
+                {
+                    <button class="_button" type="button" aria-label="@CloseLabel" data-mk-dialog-close="true" @onclick="OnCloseButtonAsync"><i class="fas fa-times"></i></button>
+                }
+                <span class="title">@Header</span>
+                @if (!WithOkButton)
+                {
+                    <button class="_button" type="button" aria-label="@CloseLabel" data-mk-dialog-close="true" @onclick="OnCloseButtonAsync"><i class="fas fa-times"></i></button>
+                }
+                else
+                {
+                    <button class="_button" type="button" aria-label="@OkLabel" disabled="@OkButtonDisabled" @onclick="OnOkAsync"><i class="fas fa-check"></i></button>
+                }
+            </div>
+            <div class="body">@ChildContent</div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference modalElement;
+    private ElementReference contentElement;
+    private ElementReference windowElement;
+    private DotNetObjectReference<MkModalWindow>? receiver;
+    private IJSObjectReference? attachment;
+    private Task? attachmentTask;
+    private bool isClosing;
+    private bool disposed;
+
+    [Parameter]
+    public Guid? OverlayId { get; set; }
+
+    [Parameter]
+    public RenderFragment? Header { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public bool WithOkButton { get; set; }
+
+    [Parameter]
+    public bool OkButtonDisabled { get; set; }
+
+    [Parameter]
+    public int Width { get; set; } = 400;
+
+    [Parameter]
+    public int? Height { get; set; }
+
+    [Parameter]
+    public bool Scroll { get; set; } = true;
+
+    [Parameter]
+    public string AccessibleLabel { get; set; } = "ダイアログ";
+
+    [Parameter]
+    public string CloseLabel { get; set; } = "閉じる";
+
+    [Parameter]
+    public string OkLabel { get; set; } = "決定";
+
+    [Parameter]
+    public EventCallback Clicked { get; set; }
+
+    [Parameter]
+    public EventCallback CloseRequested { get; set; }
+
+    [Parameter]
+    public EventCallback Opened { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    [Parameter]
+    public EventCallback Ok { get; set; }
+
+    private string WindowStyle
+    {
+        get
+        {
+            string height = Scroll
+                ? Height is int scrollHeight ? $"{scrollHeight}px" : "auto"
+                : Height is int fixedHeight ? $"min({fixedHeight}px, 100%)" : "100%";
+            return $"width: {Width}px; height: {height};";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        attachmentTask = AttachAsync();
+        await attachmentTask;
+    }
+
+    private async Task AttachAsync()
+    {
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            IJSObjectReference result = await DialogInterop.AttachAsync(
+                modalElement,
+                contentElement,
+                windowElement,
+                receiver,
+                lifetime.Token);
+            if (disposed)
+            {
+                await DisposeAttachmentAsync(result);
+                return;
+            }
+
+            attachment = result;
+            if (isClosing)
+            {
+                await CloseAttachmentAsync();
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            if (!disposed)
+            {
+                await Closed.InvokeAsync();
+            }
+        }
+    }
+
+    public async Task BeginCloseAsync()
+    {
+        if (isClosing)
+        {
+            return;
+        }
+
+        isClosing = true;
+        await CloseRequested.InvokeAsync();
+        if (attachment is not null)
+        {
+            await CloseAttachmentAsync();
+        }
+    }
+
+    private Task OnCloseButtonAsync(MouseEventArgs args) => BeginCloseAsync();
+
+    private Task OnBackgroundClickAsync(MouseEventArgs args) => Clicked.InvokeAsync();
+
+    private Task OnOkAsync(MouseEventArgs args) => Ok.InvokeAsync();
+
+    private async Task CloseAttachmentAsync()
+    {
+        if (attachment is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await attachment.InvokeVoidAsync("close", lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            if (!disposed)
+            {
+                await Closed.InvokeAsync();
+            }
+        }
+    }
+
+    [JSInvokable]
+    public Task NotifyOpened() => Opened.InvokeAsync();
+
+    [JSInvokable]
+    public Task NotifyClosed() => Closed.InvokeAsync();
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        try
+        {
+            if (attachmentTask is not null)
+            {
+                try
+                {
+                    await attachmentTask;
+                }
+                catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+                {
+                }
+                catch (JSDisconnectedException)
+                {
+                }
+            }
+
+            if (attachment is not null)
+            {
+                await DisposeAttachmentAsync(attachment);
+            }
+        }
+        finally
+        {
+            receiver?.Dispose();
+            lifetime.Dispose();
+        }
+    }
+
+    private async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try
+        {
+            await handle.InvokeVoidAsync("dispose", cleanup.Token);
+            await handle.DisposeAsync().AsTask().WaitAsync(cleanup.Token);
+        }
+        catch (OperationCanceledException) when (
+            disposed && (lifetime.IsCancellationRequested || cleanup.IsCancellationRequested))
+        {
+        }
+        catch (JSDisconnectedException) when (disposed)
+        {
+        }
+    }
+}

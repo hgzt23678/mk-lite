@@ -1,0 +1,45 @@
+<div class="@RootClass"
+     style="@RootStyle"
+     @attributes="AttributesWithoutClassAndStyle">
+    <MkAvatar CssClass="avatar"
+              User="@User.User"
+              DisableLink="true"
+              ShowIndicator="true" />
+    <div class="body">
+        <span class="name"><MkUserName CssClass="name" User="@User.User" /></span>
+        <span class="sub"><span class="acct _monospace">@AccountName</span></span>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public UserPreviewViewModel User { get; set; } = null!;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "_root_18erp_1",
+        User.IsSilenced ? "yellow" : null,
+        User.IsSuspended ? "red" : null,
+        CssClass,
+        ReadAdditionalAttribute("class")
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string? RootStyle => ReadAdditionalAttribute("style");
+    private string AccountName => $"@{User.User.Acct}";
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private string? ReadAdditionalAttribute(string name) =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue(name, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+}

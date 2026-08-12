@@ -1,0 +1,38 @@
+@switch (Widget.Name)
+{
+    case "calendar":
+        <MkwCalendar Transparent="@MisskeyWidgetData.Boolean(Widget, "transparent", false)" CssClass="@CssClass" />
+        break;
+    case "postForm":
+        <MkwPostForm CssClass="@CssClass" />
+        break;
+    case "timeline":
+        <MkwTimeline Widget="Widget" CssClass="@CssClass" DataChanged="DataChanged" />
+        break;
+    case "clock":
+        <MkwClock Widget="Widget" CssClass="@CssClass" />
+        break;
+    case "digitalClock":
+        <MkwDigitalClock Widget="Widget" CssClass="@CssClass" />
+        break;
+    case "memo":
+        <MkwMemo Widget="Widget" CssClass="@CssClass" />
+        break;
+    case "unixClock":
+        <MkwUnixClock Widget="Widget" CssClass="@CssClass" />
+        break;
+    case "trends":
+        <MkwTrends Widget="Widget" CssClass="@CssClass" />
+        break;
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public MisskeyWidgetModel Widget { get; set; } = null!;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter]
+    public EventCallback<IReadOnlyDictionary<string, JsonElement>> DataChanged { get; set; }
+}

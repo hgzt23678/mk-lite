@@ -1,0 +1,440 @@
+@implements IAsyncDisposable
+@inject IMkModalInterop Browser
+@inject IPizzaxDeviceState DeviceState
+
+<div @ref="modal"
+     class="@RootClass"
+     style="@RootStyle"
+     @attributes="AttributesWithoutClassAndStyle">
+    <div @ref="background" class="@BackgroundClass"></div>
+    <div @ref="content" class="@ContentClass">
+        @ChildContent(new MkModalContext(ResolvedTypeName, maximumHeight))
+    </div>
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference modal;
+    private ElementReference background;
+    private ElementReference content;
+    private DotNetObjectReference<MkModal>? receiver;
+    private IJSObjectReference? attachment;
+    private bool attaching;
+    private bool? animation;
+    private bool? disableDrawer;
+    private bool showing = true;
+    private bool observedShowing;
+    private bool parametersInitialized;
+    private bool? pendingShowing;
+    private bool fixedPosition;
+    private bool disposed;
+    private double? maximumHeight;
+    private int? zIndex;
+    private string transformOrigin = "center";
+    private string? resolvedType;
+    private ModalMotionState motionState;
+
+    [Parameter]
+    public bool? ManualShowing { get; set; }
+
+    [Parameter]
+    public MkModalAnchor Anchor { get; set; } = new();
+
+    [Parameter]
+    public ElementReference? Source { get; set; }
+
+    [Parameter]
+    public MkModalType PreferType { get; set; } = MkModalType.Auto;
+
+    [Parameter]
+    public MkModalZPriority ZPriority { get; set; } = MkModalZPriority.Low;
+
+    [Parameter]
+    public bool NoOverlap { get; set; } = true;
+
+    [Parameter]
+    public bool TransparentBackground { get; set; }
+
+    [Parameter, EditorRequired]
+    public RenderFragment<MkModalContext> ChildContent { get; set; } = _ => _ => { };
+
+    [Parameter]
+    public EventCallback Opening { get; set; }
+
+    [Parameter]
+    public EventCallback Opened { get; set; }
+
+    [Parameter]
+    public EventCallback Clicked { get; set; }
+
+    [Parameter]
+    public EventCallback Escape { get; set; }
+
+    [Parameter]
+    public EventCallback CloseRequested { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private bool EffectiveShowing => ManualShowing ?? showing;
+
+    private string ResolvedTypeName => resolvedType ?? InitialTypeName;
+
+    private string InitialTypeName => PreferType switch
+    {
+        MkModalType.Popup => "popup",
+        MkModalType.Dialog => "dialog",
+        MkModalType.DialogTop => "dialog:top",
+        MkModalType.Drawer => "drawer",
+        _ => Source.HasValue ? "popup" : "dialog"
+    };
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "qzhlnise",
+        ResolvedTypeName == "drawer" ? "drawer" : null,
+        ResolvedTypeName is "dialog" or "dialog:top" ? "dialog" : null,
+        ResolvedTypeName == "popup" ? "popup" : null,
+        MotionClass,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? MotionClass
+    {
+        get
+        {
+            if (animation != true || motionState == ModalMotionState.Hidden)
+            {
+                return null;
+            }
+
+            string name = ResolvedTypeName switch
+            {
+                "drawer" => "modal-drawer",
+                "popup" => "modal-popup",
+                _ => "modal"
+            };
+            return motionState switch
+            {
+                ModalMotionState.Entering => $"{name}-enter-active {name}-enter-from",
+                ModalMotionState.Leaving => $"{name}-leave-active {name}-leave-to",
+                _ => null
+            };
+        }
+    }
+
+    private string RootStyle => string.Join(' ', new[]
+    {
+        $"pointer-events: {(EffectiveShowing ? "auto" : "none")};",
+        $"--transformOrigin: {transformOrigin};",
+        zIndex is int layer ? $"z-index: {layer.ToString(CultureInfo.InvariantCulture)};" : null,
+        EffectiveShowing ? null : "display: none;",
+        AdditionalStyle
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string BackgroundClass => string.Join(' ', new[]
+    {
+        "bg",
+        "_modalBg",
+        TransparentBackground && ResolvedTypeName == "popup" ? "transparent" : null
+    }.Where(value => value is not null));
+
+    private string ContentClass => string.Join(' ', new[]
+    {
+        "content",
+        fixedPosition ? "fixed" : null,
+        ResolvedTypeName == "dialog:top" ? "top" : null
+    }.Where(value => value is not null));
+
+    private string PreferTypeName => PreferType switch
+    {
+        MkModalType.Auto => "auto",
+        MkModalType.Popup => "popup",
+        MkModalType.Dialog => "dialog",
+        MkModalType.DialogTop => "dialog:top",
+        MkModalType.Drawer => "drawer",
+        _ => throw new InvalidOperationException("The Misskey modal type is invalid.")
+    };
+
+    private string PriorityName => ZPriority switch
+    {
+        MkModalZPriority.Low => "low",
+        MkModalZPriority.Middle => "middle",
+        MkModalZPriority.High => "high",
+        _ => throw new InvalidOperationException("The Misskey modal priority is invalid.")
+    };
+
+    private string? AdditionalClass => ReadAdditionalAttribute("class");
+
+    private string? AdditionalStyle => ReadAdditionalAttribute("style");
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        ArgumentNullException.ThrowIfNull(Anchor);
+        if (Anchor.X is not ("left" or "center" or "right") ||
+            Anchor.Y is not ("top" or "center" or "bottom"))
+        {
+            throw new ArgumentException("The Misskey modal anchor is invalid.", nameof(Anchor));
+        }
+
+        bool nextShowing = EffectiveShowing;
+        if (!parametersInitialized)
+        {
+            parametersInitialized = true;
+            observedShowing = nextShowing;
+            motionState = nextShowing ? ModalMotionState.Entering : ModalMotionState.Hidden;
+            return;
+        }
+
+        if (nextShowing != observedShowing)
+        {
+            observedShowing = nextShowing;
+            pendingShowing = nextShowing;
+            motionState = nextShowing ? ModalMotionState.Entering : ModalMotionState.Leaving;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        if (animation is null || disableDrawer is null)
+        {
+            try
+            {
+                animation = await DeviceState.ReadAsync("animation", true, lifetime.Token);
+                disableDrawer = await DeviceState.ReadAsync("disableDrawer", false, lifetime.Token);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (JSDisconnectedException)
+            {
+                animation = true;
+                disableDrawer = false;
+            }
+
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (attachment is null && !attaching)
+        {
+            await AttachAsync();
+            return;
+        }
+
+        if (pendingShowing is bool nextShowing)
+        {
+            pendingShowing = null;
+            await InvokeAttachmentAsync(nextShowing ? "show" : "hide");
+        }
+    }
+
+    private async Task AttachAsync()
+    {
+        attaching = true;
+        receiver ??= DotNetObjectReference.Create(this);
+        try
+        {
+            MkModalAttachment created = await Browser.AttachAsync(
+                Source,
+                modal,
+                background,
+                content,
+                receiver,
+                new(
+                    PreferTypeName,
+                    Anchor.X,
+                    Anchor.Y,
+                    PriorityName,
+                    NoOverlap,
+                    TransparentBackground,
+                    animation!.Value,
+                    disableDrawer!.Value,
+                    EffectiveShowing),
+                lifetime.Token);
+            if (disposed)
+            {
+                await DisposeAttachmentAsync(created.Handle);
+                return;
+            }
+
+            attachment = created.Handle;
+            ApplyPlacement(created.Placement);
+            pendingShowing = null;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        finally
+        {
+            attaching = false;
+        }
+    }
+
+    public async Task CloseAsync()
+    {
+        if (disposed || (ManualShowing is null && !showing))
+        {
+            return;
+        }
+
+        showing = false;
+        await CloseRequested.InvokeAsync();
+        if (ManualShowing is not null)
+        {
+            if (attachment is not null)
+            {
+                await InvokeAttachmentAsync("releaseSource");
+            }
+            return;
+        }
+
+        observedShowing = false;
+        pendingShowing = false;
+        motionState = ModalMotionState.Leaving;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task NotifyOpening()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        motionState = ModalMotionState.Entering;
+        await Opening.InvokeAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task NotifyOpened()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        motionState = ModalMotionState.Opened;
+        await Opened.InvokeAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task NotifyClicked() => disposed ? Task.CompletedTask : Clicked.InvokeAsync();
+
+    [JSInvokable]
+    public Task NotifyEscape() => disposed ? Task.CompletedTask : Escape.InvokeAsync();
+
+    [JSInvokable]
+    public async Task NotifyClosed()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        motionState = ModalMotionState.Hidden;
+        await Closed.InvokeAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task NotifyPlacement(MkModalBrowserPlacement placement)
+    {
+        if (!disposed)
+        {
+            ApplyPlacement(placement);
+            return InvokeAsync(StateHasChanged);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void ApplyPlacement(MkModalBrowserPlacement placement)
+    {
+        resolvedType = placement.Type;
+        fixedPosition = placement.Fixed;
+        maximumHeight = placement.MaximumHeight;
+        transformOrigin = placement.TransformOrigin;
+        zIndex = placement.ZIndex;
+    }
+
+    private async Task InvokeAttachmentAsync(string method)
+    {
+        try
+        {
+            await attachment!.InvokeVoidAsync(method, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            await DisposeAttachmentAsync(attachment);
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        try
+        {
+            await handle.InvokeVoidAsync("dispose");
+            await handle.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private string? ReadAdditionalAttribute(string name) =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue(name, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private enum ModalMotionState
+    {
+        Hidden,
+        Entering,
+        Opened,
+        Leaving
+    }
+}

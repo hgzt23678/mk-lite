@@ -1,0 +1,157 @@
+@implements IAsyncDisposable
+@inject IClientStorage Storage
+@inject IMediaElementInterop Browser
+@inject IMisskeyLocalizer Localizer
+
+<div @attributes="AttributesWithoutClass" class="@RootClass">
+    @if (Media.Sensitive && hide)
+    {
+        <div class="sensitive" @onclick="Reveal">
+            <span class="icon"><i class="fas fa-exclamation-triangle"></i></span><b>@Localizer.Translate("sensitive")</b><span>@Localizer.Translate("clickToShow")</span>
+        </div>
+    }
+    else if (IsPlayableAudio)
+    {
+        <div class="audio"><audio @ref="audio" class="audio" src="@MediaUrl" title="@MediaName" controls preload="metadata"></audio></div>
+    }
+    else
+    {
+        <a class="download" href="@MediaUrl" title="@MediaName" download="@MediaName"><span class="icon"><i class="fas fa-download"></i></span><b>@MediaName</b></a>
+    }
+</div>
+
+@code {
+    private const string MediaVolumeStorageKey = "miux:mediaVolume";
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference audio;
+    private DotNetObjectReference<MkMediaBanner>? receiver;
+    private IJSObjectReference? volumeHandle;
+    private string? mediaKey;
+    private string? attachedKey;
+    private bool hide = true;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public NoteMediaViewModel Media { get; set; } = null!;
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private bool IsPlayableAudio => Media.MediaType.StartsWith("audio", StringComparison.Ordinal) &&
+        !string.Equals(Media.MediaType, "audio/midi", StringComparison.Ordinal);
+    private string MediaName => Media.Description ?? Media.Id;
+    private string MediaUrl => SameOriginMediaUrl.Normalize(Media.Url) ??
+        throw new InvalidOperationException("Attached media must use the same-origin media boundary.");
+    private string RootClass => string.Join(' ', new[] { "mk-media-banner", AdditionalClass }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        string key = $"{Media.Id}\u001f{Media.MediaType}\u001f{Media.Sensitive}";
+        if (!string.Equals(key, mediaKey, StringComparison.Ordinal))
+        {
+            mediaKey = key;
+            hide = true;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _ = firstRender;
+        string? nextKey = IsPlayableAudio && (!Media.Sensitive || !hide) ? mediaKey : null;
+        if (string.Equals(nextKey, attachedKey, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        await DetachVolumeAsync().ConfigureAwait(false);
+        attachedKey = nextKey;
+        if (nextKey is null || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            double initialVolume = await Storage.ReadAsync<double?>(
+                ClientStorageArea.Local,
+                MediaVolumeStorageKey,
+                lifetime.Token).ConfigureAwait(false) ?? 0.5;
+            if (!double.IsFinite(initialVolume) || initialVolume is < 0 or > 1)
+            {
+                initialVolume = 0.5;
+            }
+
+            receiver = DotNetObjectReference.Create(this);
+            volumeHandle = await Browser.AttachVolumeAsync(
+                audio,
+                initialVolume,
+                receiver,
+                lifetime.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public async Task StoreVolumeAsync(double volume)
+    {
+        if (disposed || !double.IsFinite(volume) || volume is < 0 or > 1)
+        {
+            return;
+        }
+
+        await Storage.WriteAsync(
+            ClientStorageArea.Local,
+            MediaVolumeStorageKey,
+            volume,
+            lifetime.Token).ConfigureAwait(false);
+    }
+
+    private void Reveal() => hide = false;
+
+    private async ValueTask DetachVolumeAsync()
+    {
+        if (volumeHandle is not null)
+        {
+            try
+            {
+                await volumeHandle.InvokeVoidAsync("dispose").ConfigureAwait(false);
+                await volumeHandle.DisposeAsync().ConfigureAwait(false);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+            volumeHandle = null;
+        }
+
+        receiver?.Dispose();
+        receiver = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        await DetachVolumeAsync().ConfigureAwait(false);
+        lifetime.Dispose();
+    }
+}

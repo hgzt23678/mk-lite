@@ -1,0 +1,190 @@
+@implements IAsyncDisposable
+@inject IPostFormAttachesInterop Browser
+@inject IMisskeyLocalizer Localizer
+
+<div class="@RootClass" style="@(Files.Count == 0 ? "display: none;" : null)">
+    <div @ref="filesElement" class="files">
+        @foreach (ComposerMediaViewModel file in Files)
+        {
+            <MkPostFormAttach @key="file.Id"
+                              File="file"
+                              Detach="DetachMediaAsync"
+                              SensitiveChanged="SensitiveChanged"
+                              NameChanged="NameChanged"
+                              DescribeRequested="ShowCaption" />
+        }
+    </div>
+    <p class="remain">@(16 - Files.Count)/16</p>
+</div>
+
+@if (captionFile is not null)
+{
+    <MkMediaCaption Image="captionFile"
+                    Title="@Localizer.Translate("describeFile")"
+                    Input="captionInput!"
+                    Done="CaptionDone"
+                    Closed="CaptionClosed" />
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference filesElement;
+    private DotNetObjectReference<MkPostFormAttaches>? receiver;
+    private IJSObjectReference? attachment;
+    private ComposerMediaViewModel? captionFile;
+    private MisskeyMediaCaptionInput? captionInput;
+    private bool attaching;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ComposerMediaViewModel> Files { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<IReadOnlyList<ComposerMediaViewModel>> Updated { get; set; }
+
+    [Parameter]
+    public Func<Guid, Task>? DetachMedia { get; set; }
+
+    [Parameter]
+    public EventCallback<Guid> Detach { get; set; }
+
+    [Parameter]
+    public EventCallback<(Guid Id, bool Sensitive)> SensitiveChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<(Guid Id, string Name)> NameChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<(Guid Id, string? Description)> DescriptionChanged { get; set; }
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    private string RootClass => string.IsNullOrWhiteSpace(CssClass) ? "skeikyzd" : $"skeikyzd {CssClass}";
+
+    protected override void OnParametersSet()
+    {
+        ArgumentNullException.ThrowIfNull(Files);
+        if (Files.Count > 16 || Files.Select(file => file.Id).Distinct().Count() != Files.Count)
+        {
+            throw new ArgumentException("The Misskey attachment collection is invalid.", nameof(Files));
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _ = firstRender;
+        if (disposed || attachment is not null || attaching)
+        {
+            return;
+        }
+
+        attaching = true;
+        receiver ??= DotNetObjectReference.Create(this);
+        try
+        {
+            IJSObjectReference created = await Browser.AttachAsync(
+                filesElement,
+                receiver,
+                lifetime.Token);
+            if (disposed)
+            {
+                await DisposeAttachmentAsync(created);
+                return;
+            }
+            attachment = created;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        finally
+        {
+            attaching = false;
+        }
+    }
+
+    [JSInvokable]
+    public Task NotifyReordered(IReadOnlyList<string> orderedIds)
+    {
+        if (disposed || orderedIds.Count != Files.Count)
+        {
+            return Task.CompletedTask;
+        }
+
+        Dictionary<Guid, ComposerMediaViewModel> byId = Files.ToDictionary(file => file.Id);
+        var reordered = new List<ComposerMediaViewModel>(Files.Count);
+        foreach (string value in orderedIds)
+        {
+            if (!Guid.TryParse(value, out Guid id) || !byId.Remove(id, out ComposerMediaViewModel? file))
+            {
+                return Task.CompletedTask;
+            }
+            reordered.Add(file);
+        }
+
+        return byId.Count == 0 && !reordered.Select(file => file.Id).SequenceEqual(Files.Select(file => file.Id))
+            ? Updated.InvokeAsync(reordered)
+            : Task.CompletedTask;
+    }
+
+    private Task DetachMediaAsync(Guid id) => DetachMedia is null
+        ? Detach.InvokeAsync(id)
+        : DetachMedia(id);
+
+    private void ShowCaption(ComposerMediaViewModel file)
+    {
+        captionFile = file;
+        captionInput = new(
+            Localizer.Translate("inputNewDescription"),
+            file.Description ?? string.Empty);
+    }
+
+    private Task CaptionDone(MisskeyMediaCaptionResult result)
+    {
+        if (result.Canceled || captionFile is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        string? description = string.IsNullOrEmpty(result.Result) ? null : result.Result;
+        return DescriptionChanged.InvokeAsync((captionFile.Id, description));
+    }
+
+    private void CaptionClosed()
+    {
+        captionFile = null;
+        captionInput = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            await DisposeAttachmentAsync(attachment);
+        }
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        try
+        {
+            await handle.InvokeVoidAsync("dispose");
+            await handle.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

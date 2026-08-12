@@ -1,0 +1,43 @@
+@inject IMisskeyLocalizer Localizer
+
+<div @attributes="AttributesWithoutClass" class="@RootClass"><i class="fas fa-exclamation-triangle" style="margin-right: 8px;"></i>@Localizer.Translate("remoteUserCaution")<a class="link" href="@SafeHref" rel="nofollow noopener" target="_blank">@Localizer.Translate("showOnRemote")</a></div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Href { get; set; } = string.Empty;
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string SafeHref
+    {
+        get
+        {
+            if (!Uri.TryCreate(Href, UriKind.Absolute, out Uri? uri) ||
+                uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps ||
+                !string.IsNullOrEmpty(uri.UserInfo))
+            {
+                throw new InvalidOperationException("Remote profile links must use an absolute HTTP(S) URL without user information.");
+            }
+
+            return uri.AbsoluteUri;
+        }
+    }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "jmgmzlwq _block",
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+}

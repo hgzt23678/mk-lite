@@ -1,0 +1,445 @@
+@implements IAsyncDisposable
+@inject IUniversalShellInterop Browser
+@inject NavigationManager Navigation
+@inject IMisskeyOverlayService Overlays
+@inject IMisskeyLocalizer Localizer
+@inject IServiceProvider Services
+
+<CascadingValue Value="hasUnreadNotifications" Name="HasUnreadNotifications">
+<div @ref="rootElement"
+     class="@RootClass"
+     inert="@(!isInteractive)"
+     aria-busy="@(!isInteractive ? "true" : null)"
+     @onkeydown="OnShellKeyDown">
+    @if (!isMobile)
+    {
+        <MisskeyNavbar AdditionalClass="sidebar" />
+    }
+
+    <MkStickyContainer class="contents">
+        <Header><div class="_statusbars_1bps6_1"></div></Header>
+        <ChildContent>
+            <main style="@MainStyle" @oncontextmenu:stopPropagation="true">
+                <div>@ChildContent</div>
+                <div class="_spacer_1bps6_7"></div>
+            </main>
+        </ChildContent>
+    </MkStickyContainer>
+
+    @if (isDesktop)
+    {
+        <div class="widgets"><MisskeyWidgets /></div>
+    }
+    else if (!isMobile)
+    {
+        <button @ref="widgetsSource" class="widgetButton _button" type="button" aria-label="@Localizer.Translate("widgets")" @onclick="ShowWidgetsAsync">
+            <i class="fas fa-layer-group"></i>
+        </button>
+    }
+
+    @if (isMobile)
+    {
+        <div class="buttons">
+            <button @ref="menuSource" class="button nav _button" type="button" aria-label="@Localizer.Translate("menu")" @onclick="ShowMenuAsync"><i class="fas fa-bars"></i></button>
+            <button class="button home _button" type="button" aria-label="@Localizer.Translate("home")" @onclick="GoHomeAsync"><i class="fas fa-home"></i></button>
+            <button class="button notifications _button" type="button" aria-label="@Localizer.Translate("notifications")" @onclick="GoNotifications"><i class="fas fa-bell"></i>@if (hasUnreadNotifications) { <span class="indicator" aria-label="@Localizer.Translate("notifications")"><i class="fas fa-circle"></i></span> }</button>
+            <button @ref="widgetsSource" class="button widget _button" type="button" aria-label="@Localizer.Translate("widgets")" @onclick="ShowWidgetsAsync"><i class="fas fa-layer-group"></i></button>
+            <button class="button post _button" type="button" aria-label="@Localizer.Translate("note")" @onclick="Compose"><i class="fas fa-pencil-alt"></i></button>
+        </div>
+    }
+
+    @if (MenuRendered)
+    {
+        <div @ref="menuBackground" class="@MenuBackgroundClass" @onclick="CloseMenuAsync"></div>
+        <MisskeyNavbarMobile @ref="drawerNavbar" AdditionalClass="@MenuPanelClass" />
+    }
+
+    @if (WidgetsRendered)
+    {
+        <div @ref="widgetsBackground" class="@WidgetsBackgroundClass" @onclick="CloseWidgetsAsync"></div>
+        <div @ref="widgetsPanel" class="@WidgetsPanelClass"><MisskeyWidgets /></div>
+    }
+</div>
+</CascadingValue>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference rootElement;
+    private ElementReference menuSource;
+    private ElementReference widgetsSource;
+    private ElementReference menuBackground;
+    private ElementReference widgetsBackground;
+    private ElementReference widgetsPanel;
+    private MisskeyNavbarMobile? drawerNavbar;
+    private DotNetObjectReference<UniversalShell>? receiver;
+    private IJSObjectReference? attachment;
+    private bool isDesktop = true;
+    private bool isMobile;
+    private bool isInteractive;
+    private bool wallpaper;
+    private bool hasUnreadNotifications;
+    private string? pageBackground;
+    private IPageMetadataState? pageMetadataState;
+    private bool metricsReceived;
+    private DrawerPhase menuPhase;
+    private DrawerPhase widgetsPhase;
+    private int menuGeneration;
+    private int widgetsGeneration;
+    private int startedMenuGeneration = -1;
+    private int startedWidgetsGeneration = -1;
+    private bool disposed;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private string RootClass => wallpaper ? "dkgtipfy wallpaper" : "dkgtipfy";
+    private bool MenuRendered => menuPhase != DrawerPhase.Closed;
+    private bool WidgetsRendered => widgetsPhase != DrawerPhase.Closed;
+    private string MainStyle => string.IsNullOrWhiteSpace(pageBackground)
+        ? "min-width: 0;"
+        : $"min-width: 0; background: {pageBackground};";
+    private string MenuBackgroundClass => menuPhase == DrawerPhase.Entering
+        ? "menuDrawer-back _modalBg menuDrawer-back-enter-active menuDrawer-back-enter-from"
+        : "menuDrawer-back _modalBg";
+    private string MenuPanelClass => menuPhase == DrawerPhase.Entering
+        ? "menuDrawer menuDrawer-enter-active menuDrawer-enter-from"
+        : "menuDrawer";
+    private string WidgetsBackgroundClass => widgetsPhase == DrawerPhase.Entering
+        ? "widgetsDrawer-back _modalBg widgetsDrawer-back-enter-active widgetsDrawer-back-enter-from"
+        : "widgetsDrawer-back _modalBg";
+    private string WidgetsPanelClass => widgetsPhase == DrawerPhase.Entering
+        ? "widgetsDrawer widgetsDrawer-enter-active widgetsDrawer-enter-from"
+        : "widgetsDrawer";
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        pageMetadataState = Services.GetService(typeof(IPageMetadataState)) as IPageMetadataState;
+        if (pageMetadataState is not null)
+        {
+            pageMetadataState.Changed += OnPageMetadataChanged;
+            pageBackground = SafeBackground(pageMetadataState.Background);
+        }
+        _ = RefreshUnreadAsync();
+    }
+
+    private async Task RefreshUnreadAsync()
+    {
+        INotificationPresentationService? notifications = Services.GetService(typeof(INotificationPresentationService)) as INotificationPresentationService;
+        if (notifications is null)
+        {
+            return;
+        }
+
+        try
+        {
+            IReadOnlyList<NotificationViewModel> unread = await notifications.ReadAsync(
+                new NotificationPresentationQuery(null, 1, UnreadOnly: true),
+                lifetime.Token).ConfigureAwait(false);
+            hasUnreadNotifications = unread.Count > 0;
+            await InvokeAsync(StateHasChanged).ConfigureAwait(false);
+        }
+        catch (FrontendAuthenticationException)
+        {
+            hasUnreadNotifications = false;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+            hasUnreadNotifications = false;
+        }
+    }
+
+    private void OnPageMetadataChanged(object? sender, EventArgs args)
+    {
+        pageBackground = SafeBackground((sender as IPageMetadataState)?.Background);
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private static string? SafeBackground(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length > 512)
+        {
+            return null;
+        }
+
+        string candidate = value.Trim();
+        if (candidate.Contains("url(", StringComparison.OrdinalIgnoreCase) ||
+            candidate.Contains("expression", StringComparison.OrdinalIgnoreCase) ||
+            candidate.Contains("://", StringComparison.Ordinal) ||
+            candidate.Contains("data:", StringComparison.OrdinalIgnoreCase) ||
+            candidate.IndexOfAny([';', '{', '}', '<', '>', '\"', '\'', '`']) >= 0)
+        {
+            return null;
+        }
+
+        foreach (char character in candidate)
+        {
+            if (char.IsLetterOrDigit(character) || char.IsWhiteSpace(character) ||
+                character is '#' or '(' or ')' or ',' or '.' or '%' or '/' or ':' or '+' or '-' or '_')
+            {
+                continue;
+            }
+
+            return null;
+        }
+
+        return candidate;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            receiver = DotNetObjectReference.Create(this);
+            try
+            {
+                attachment = await Browser.AttachAsync(rootElement, receiver, lifetime.Token);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+
+            isInteractive = true;
+            await InvokeAsync(StateHasChanged);
+        }
+
+        if (attachment is not null)
+        {
+            await StartMenuMotionAsync();
+            await StartWidgetsMotionAsync();
+        }
+    }
+
+    [JSInvokable]
+    public Task UpdateUniversalMetrics(int width, string deviceKind, bool hasWallpaper)
+    {
+        bool nextDesktop = metricsReceived ? isDesktop || width >= 1100 : width >= 1100;
+        bool nextMobile = string.Equals(deviceKind, "smartphone", StringComparison.Ordinal) || width <= 500;
+        metricsReceived = true;
+        if (nextDesktop == isDesktop && nextMobile == isMobile && hasWallpaper == wallpaper)
+        {
+            return Task.CompletedTask;
+        }
+
+        isDesktop = nextDesktop;
+        isMobile = nextMobile;
+        wallpaper = hasWallpaper;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task RequestUniversalBackdropClose(string kind) => kind switch
+    {
+        "menuDrawer" => CloseMenuAsync(),
+        "widgetsDrawer" => CloseWidgetsAsync(),
+        _ => Task.CompletedTask
+    };
+
+    [JSInvokable]
+    public Task NotifyUniversalMotionCompleted(string kind, int generation, bool entered)
+    {
+        if (kind == "menuDrawer" && generation == menuGeneration)
+        {
+            menuPhase = entered ? DrawerPhase.Open : DrawerPhase.Closed;
+            return InvokeAsync(StateHasChanged);
+        }
+        if (kind == "widgetsDrawer" && generation == widgetsGeneration)
+        {
+            widgetsPhase = entered ? DrawerPhase.Open : DrawerPhase.Closed;
+            return InvokeAsync(StateHasChanged);
+        }
+        return Task.CompletedTask;
+    }
+
+    private Task ShowMenuAsync()
+    {
+        if (menuPhase is DrawerPhase.Open or DrawerPhase.Entering)
+        {
+            return Task.CompletedTask;
+        }
+        menuPhase = DrawerPhase.Entering;
+        menuGeneration++;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task CloseMenuAsync()
+    {
+        if (menuPhase is DrawerPhase.Closed or DrawerPhase.Leaving)
+        {
+            return Task.CompletedTask;
+        }
+        menuPhase = DrawerPhase.Leaving;
+        menuGeneration++;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task ShowWidgetsAsync()
+    {
+        if (widgetsPhase is DrawerPhase.Open or DrawerPhase.Entering)
+        {
+            return Task.CompletedTask;
+        }
+        widgetsPhase = DrawerPhase.Entering;
+        widgetsGeneration++;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task CloseWidgetsAsync()
+    {
+        if (widgetsPhase is DrawerPhase.Closed or DrawerPhase.Leaving)
+        {
+            return Task.CompletedTask;
+        }
+        widgetsPhase = DrawerPhase.Leaving;
+        widgetsGeneration++;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task StartMenuMotionAsync()
+    {
+        if (startedMenuGeneration == menuGeneration || menuPhase is DrawerPhase.Closed or DrawerPhase.Open || drawerNavbar is null)
+        {
+            return;
+        }
+        startedMenuGeneration = menuGeneration;
+        if (menuPhase == DrawerPhase.Entering)
+        {
+            await attachment!.InvokeVoidAsync(
+                "beginEnter",
+                lifetime.Token,
+                "menuDrawer",
+                menuBackground,
+                drawerNavbar.RootElement,
+                menuGeneration);
+        }
+        else
+        {
+            await attachment!.InvokeVoidAsync(
+                "beginLeave",
+                lifetime.Token,
+                "menuDrawer",
+                menuBackground,
+                drawerNavbar.RootElement,
+                menuSource,
+                menuGeneration);
+        }
+    }
+
+    private async Task StartWidgetsMotionAsync()
+    {
+        if (startedWidgetsGeneration == widgetsGeneration || widgetsPhase is DrawerPhase.Closed or DrawerPhase.Open)
+        {
+            return;
+        }
+        startedWidgetsGeneration = widgetsGeneration;
+        if (widgetsPhase == DrawerPhase.Entering)
+        {
+            await attachment!.InvokeVoidAsync(
+                "beginEnter",
+                lifetime.Token,
+                "widgetsDrawer",
+                widgetsBackground,
+                widgetsPanel,
+                widgetsGeneration);
+        }
+        else
+        {
+            await attachment!.InvokeVoidAsync(
+                "beginLeave",
+                lifetime.Token,
+                "widgetsDrawer",
+                widgetsBackground,
+                widgetsPanel,
+                widgetsSource,
+                widgetsGeneration);
+        }
+    }
+
+    private async Task GoHomeAsync()
+    {
+        if (string.IsNullOrEmpty(Navigation.ToBaseRelativePath(Navigation.Uri).Trim('/')) && attachment is not null)
+        {
+            await attachment.InvokeVoidAsync("scrollTop", lifetime.Token);
+            return;
+        }
+        Navigation.NavigateTo("/");
+    }
+
+    private void GoNotifications() => Navigation.NavigateTo("/my/notifications");
+    private void Compose() => Overlays.ShowPostForm();
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await CloseMenuAsync();
+        });
+    }
+
+    private async Task OnShellKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key != "Escape")
+        {
+            return;
+        }
+
+        if (await Overlays.RequestCloseTopAsync())
+        {
+            return;
+        }
+
+        if (WidgetsRendered)
+        {
+            await CloseWidgetsAsync();
+        }
+        else if (MenuRendered)
+        {
+            await CloseMenuAsync();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+        disposed = true;
+        Navigation.LocationChanged -= OnLocationChanged;
+        if (pageMetadataState is not null)
+        {
+            pageMetadataState.Changed -= OnPageMetadataChanged;
+            pageMetadataState = null;
+        }
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+        await Browser.DisposeAsync();
+    }
+
+    private enum DrawerPhase
+    {
+        Closed,
+        Entering,
+        Open,
+        Leaving
+    }
+}

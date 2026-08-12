@@ -1,0 +1,172 @@
+@implements IDisposable
+@inject IServiceProvider Services
+
+@if (DisableLink)
+{
+    <span class="@RootClass"
+          style="@RootStyle"
+          title="@AccountLabel"
+          data-user-preview="@(DisablePreview ? null : User.Id)"
+          @onclick="OnClickedAsync"
+          @attributes="AttributesWithoutClassAndStyle">
+        <img class="inner" src="@AvatarUrl" decoding="async" />
+        @if (ShowIndicator)
+        {
+            <MkUserOnlineIndicator class="indicator" Status="@User.OnlineStatus" />
+        }
+    </span>
+}
+else
+{
+    <a class="@RootClass"
+       style="@RootStyle"
+       href="@UserPage"
+       title="@AccountLabel"
+       target="@Target"
+       data-user-preview="@(DisablePreview ? null : User.Id)"
+       @attributes="AttributesWithoutClassAndStyle">
+        <img class="inner" src="@AvatarUrl" decoding="async" />
+        @if (ShowIndicator)
+        {
+            <MkUserOnlineIndicator class="indicator" Status="@User.OnlineStatus" />
+        }
+    </a>
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private bool squareAvatars;
+    private bool disableAnimatedImages;
+    private bool deviceSettingsLoaded;
+
+    [Parameter, EditorRequired]
+    public NoteAuthorViewModel User { get; set; } = null!;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter]
+    public bool DisableLink { get; set; }
+
+    [Parameter]
+    public bool DisablePreview { get; set; }
+
+    [Parameter]
+    public bool ShowIndicator { get; set; }
+
+    [Parameter]
+    public string? Target { get; set; }
+
+    [Parameter]
+    public EventCallback<MouseEventArgs> Clicked { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "eiwwqkts _noSelect",
+        User.IsCat ? "cat" : null,
+        squareAvatars ? "square" : null,
+        CssClass,
+        ReadAdditionalAttribute("class")
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? RootStyle => string.Join(' ', new[]
+    {
+        AvatarAverageColor(User.AvatarBlurhash) is { } color ? $"color: {color};" : null,
+        ReadAdditionalAttribute("style")
+    }.Where(value => !string.IsNullOrWhiteSpace(value))) is { Length: > 0 } style ? style : null;
+
+    private string AvatarUrl
+    {
+        get
+        {
+            string url = SameOriginMediaUrl.Normalize(User.AvatarUrl) ?? "/static-assets/user-unknown.png";
+            return disableAnimatedImages && !string.Equals(url, "/static-assets/user-unknown.png", StringComparison.Ordinal)
+                ? AppendStaticQuery(url)
+                : url;
+        }
+    }
+
+    private string AccountLabel => $"@{User.Acct}";
+
+    private string UserPage => $"/@{User.Acct}";
+
+    private string? ReadAdditionalAttribute(string name) =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue(name, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || deviceSettingsLoaded || lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        deviceSettingsLoaded = true;
+        if (Services.GetService(typeof(IPizzaxDeviceState)) is not IPizzaxDeviceState deviceState)
+        {
+            return;
+        }
+
+        try
+        {
+            bool square = await deviceState.ReadAsync("squareAvatars", false, lifetime.Token);
+            bool staticImages = await deviceState.ReadAsync("disableShowingAnimatedImages", false, lifetime.Token);
+            if (!lifetime.IsCancellationRequested && (squareAvatars != square || disableAnimatedImages != staticImages))
+            {
+                squareAvatars = square;
+                disableAnimatedImages = staticImages;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private Task OnClickedAsync(MouseEventArgs args) => Clicked.InvokeAsync(args);
+
+    private static string AppendStaticQuery(string url) =>
+        url.Contains('?', StringComparison.Ordinal) ? url + "&static=1" : url + "?static=1";
+
+    private static string? AvatarAverageColor(string? blurhash)
+    {
+        const string base83 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#$%*+,-.:;=?@[]^_{|}~";
+        if (blurhash is null || blurhash.Length < 6)
+        {
+            return null;
+        }
+
+        int value = 0;
+        foreach (char character in blurhash.AsSpan(2, 4))
+        {
+            int digit = base83.IndexOf(character);
+            if (digit < 0)
+            {
+                return null;
+            }
+            value = checked((value * 83) + digit);
+        }
+
+        return $"#{value:x6}";
+    }
+
+    public void Dispose()
+    {
+        lifetime.Cancel();
+        lifetime.Dispose();
+    }
+}

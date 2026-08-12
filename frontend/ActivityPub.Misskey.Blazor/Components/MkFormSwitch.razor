@@ -1,0 +1,67 @@
+@inject IMisskeyLocalizer Localizer
+
+<div class="@RootClass" @attributes="AttributesWithoutClass">
+    <input type="checkbox"
+           disabled="@Disabled"
+           @onkeydown="OnKeyDownAsync" />
+    <span class="button" title="@Localizer.Translate(Value ? "itsOn" : "itsOff")" @onclick="ToggleAsync">
+        <div class="knob"></div>
+    </span>
+    <span class="label">
+        <span @onclick="ToggleAsync">@Label@ChildContent</span>
+        <p class="caption">@Caption</p>
+    </span>
+</div>
+
+@code {
+    [Parameter]
+    public bool Value { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> ValueChanged { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public RenderFragment? Label { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? Caption { get; set; }
+
+    [Parameter]
+    public string? CssClassAdditional { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "ziffeomt",
+        Disabled ? "disabled" : null,
+        Value ? "checked" : null,
+        CssClassAdditional,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private Task ToggleAsync(MouseEventArgs args) => Disabled ? Task.CompletedTask : ValueChanged.InvokeAsync(!Value);
+
+    private Task OnKeyDownAsync(KeyboardEventArgs args) =>
+        !Disabled && string.Equals(args.Code, "Enter", StringComparison.Ordinal)
+            ? ValueChanged.InvokeAsync(!Value)
+            : Task.CompletedTask;
+}

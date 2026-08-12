@@ -1,0 +1,85 @@
+@implements IAsyncDisposable
+@inject IPrismSyntaxHighlightInterop Prism
+
+@if (Inline)
+{
+    <code @ref="element" class="@InlineClass" @attributes="AttributesWithoutClass">@Code</code>
+}
+else
+{
+    <pre class="@BlockClass" @attributes="AttributesWithoutClass"><code @ref="element" class="language-@PrismLanguage">@Code</code></pre>
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference element;
+    private string? highlightedCode;
+    private string? highlightedLanguage;
+    private bool? highlightedInline;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public string Code { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Lang { get; set; }
+
+    [Parameter]
+    public bool Inline { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string PrismLanguage => Lang is "plain" or "plaintext" or "text" or "txt" or
+        "markup" or "html" or "mathml" or "svg" or "xml" or "ssml" or "atom" or "rss" or
+        "css" or "clike" or "javascript" or "js"
+            ? Lang
+            : "js";
+
+    private string InlineClass => MergeClass($"language-{PrismLanguage}");
+    private string BlockClass => MergeClass($"language-{PrismLanguage}");
+
+    private string MergeClass(string required) => string.Join(' ', new[] { required, AdditionalClass }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (disposed ||
+            (highlightedCode == Code && highlightedLanguage == Lang && highlightedInline == Inline))
+        {
+            return;
+        }
+
+        try
+        {
+            await Prism.HighlightAsync(element, Code, Lang, lifetime.Token);
+            highlightedCode = Code;
+            highlightedLanguage = Lang;
+            highlightedInline = Inline;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

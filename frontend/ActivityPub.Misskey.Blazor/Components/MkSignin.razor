@@ -1,0 +1,352 @@
+@implements IAsyncDisposable
+@inject IAuthenticationFormInterop AuthenticationInterop
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+@inject MisskeyFrontendRuntimeConfiguration Runtime
+
+<form @ref="formElement"
+      class="@RootClass"
+      method="@AuthenticationMethod"
+      action="@AuthenticationAction"
+      autocomplete="on"
+      data-auth-mode="@AuthenticationMode"
+      data-auto-set="@AutoSet.ToString().ToLowerInvariant()"
+      aria-busy="@("false")">
+    @if (Runtime.LocalAccountsEnabled)
+    {
+        <AntiforgeryToken />
+    }
+    <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+    <div class="auth _section _formRoot">
+        <div class="avatar" style="@AvatarStyle"></div>
+        @if (!string.IsNullOrWhiteSpace(Message))
+        {
+            <MkInfo>@Message</MkInfo>
+        }
+        @if (!totpLogin)
+        {
+            <div class="normal-signin">
+                <MkFormInput CssClassAdditional="_formBlock"
+                             Name="username"
+                             Type="text"
+                             Pattern="^[a-zA-Z0-9_]+$"
+                             Placeholder="@Localizer.Translate("username")"
+                             Spellcheck="false"
+                             Autofocus="true"
+                             Required="true"
+                             ServerBound="false"
+                             data-cy-signin-username="true">
+                    <Prefix>@@</Prefix>
+                    <Suffix>@@@Host</Suffix>
+                </MkFormInput>
+                <MkFormInput CssClassAdditional="_formBlock"
+                             Name="password"
+                             Type="password"
+                             Placeholder="@Localizer.Translate("password")"
+                             Required="true"
+                             ServerBound="false"
+                             data-cy-signin-password="true">
+                    <Prefix><i class="fas fa-lock"></i></Prefix>
+                    <Suffix>
+                        <button class="_button password-toggle"
+                                type="button"
+                                data-password-toggle
+                                aria-label="@Localizer.Translate("password")"
+                                aria-pressed="false">
+                            <i class="fas fa-eye" aria-hidden="true"></i>
+                        </button>
+                    </Suffix>
+                    <Caption>
+                        <button class="_textButton" type="button" @onclick="OpenForgotPasswordAsync">@Localizer.Translate("forgotPassword")</button>
+                        <span class="caps-lock-warning" data-caps-lock-warning role="status" aria-live="polite" hidden>
+                            <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                            <span>Caps Lock</span>
+                        </span>
+                    </Caption>
+                </MkFormInput>
+                <MkButton CssClassAdditional="_formBlock"
+                          Type="submit"
+                          Primary="true"
+                          style="margin: 0 auto;"
+                          data-auth-submit="true"
+                          data-default-label="@Localizer.Translate("login")"
+                          data-pending-label="@Localizer.Translate("loggingIn")">
+                    @Localizer.Translate("login")
+                </MkButton>
+            </div>
+        }
+        else
+        {
+            <div class="@TwoFactorClass">
+                @if (userHasSecurityKeys)
+                {
+                    <div class="twofa-group tap-group">
+                        <p>@Localizer.Translate("tapSecurityKey")</p>
+                        @if (!queryingKey)
+                        {
+                            <MkButton OnClick="RetrySecurityKeyAsync">@Localizer.Translate("retry")</MkButton>
+                        }
+                    </div>
+                    <div class="or-hr">
+                        <p class="or-msg">@Localizer.Translate("or")</p>
+                    </div>
+                }
+                <div class="twofa-group totp-group">
+                    <p style="margin-bottom:0;">@Localizer.Translate("twoStepAuthentication")</p>
+                    <MkFormInput Name="token"
+                                 Type="text"
+                                 Pattern="^[0-9]{6}$"
+                                 Autocomplete="off"
+                                 Spellcheck="false"
+                                 Required="true"
+                                 ServerBound="false">
+                        <Label>@Localizer.Translate("token")</Label>
+                        <Prefix><i class="fas fa-gavel"></i></Prefix>
+                    </MkFormInput>
+                    <MkButton Type="submit"
+                              Primary="true"
+                              style="margin: 0 auto;"
+                              data-auth-submit="true"
+                              data-default-label="@Localizer.Translate("login")"
+                              data-pending-label="@Localizer.Translate("loggingIn")">
+                        @Localizer.Translate("login")
+                    </MkButton>
+                </div>
+            </div>
+        }
+    </div>
+    @* Misskey v12 always renders the social section; provider links are conditional
+       on instance capabilities. The current local-auth deployment has those
+       external integrations disabled, so the container remains intentionally
+       empty rather than exposing non-functional links. *@
+    <div class="social _section"></div>
+</form>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference formElement;
+    private DotNetObjectReference<MkSignin>? receiver;
+    private IJSObjectReference? attachment;
+    private bool disposed;
+    private bool totpLogin;
+    private bool userHasSecurityKeys;
+    private bool queryingKey;
+    private string? pendingInitialErrorCode;
+    private string? presentedInitialErrorCode;
+
+    [Parameter]
+    public string ReturnUrl { get; set; } = "/";
+
+    [Parameter]
+    public string? Message { get; set; }
+
+    [Parameter]
+    public bool WithAvatar { get; set; } = true;
+
+    [Parameter]
+    public bool AutoSet { get; set; }
+
+    [Parameter]
+    public string? ErrorCode { get; set; }
+
+    [Parameter]
+    public EventCallback ForgotPassword { get; set; }
+
+    [Parameter]
+    public EventCallback Login { get; set; }
+
+    [CascadingParameter(Name = "MisskeyLocaleRevision")]
+    private long LocaleRevision { get; set; }
+
+    private string Host => Runtime.PublicBaseUri?.IdnHost ?? string.Empty;
+
+    private string AuthenticationAction => "/api/signin";
+
+    private string AuthenticationMethod => "post";
+
+    private string AuthenticationMode => "local";
+
+    private string RootClass => $"eppvobhk _monolithic_{(totpLogin ? " totpLogin" : string.Empty)}";
+
+    private string TwoFactorClass => userHasSecurityKeys ? "2fa-signin securityKeys" : "2fa-signin";
+
+    private string AvatarStyle => string.Join(' ', new[]
+    {
+        WithAvatar ? null : "display: none;",
+        string.IsNullOrWhiteSpace(Message) ? null : "margin-bottom: 1.5em;"
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    protected override void OnParametersSet()
+    {
+        if (string.Equals(ErrorCode, "TWO_FACTOR_REQUIRED", StringComparison.Ordinal))
+        {
+            totpLogin = true;
+        }
+
+        pendingInitialErrorCode = ErrorText(ErrorCode) is null ? null : ErrorCode;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Runtime.LocalAccountsEnabled)
+        {
+            receiver = DotNetObjectReference.Create(this);
+            try
+            {
+                IJSObjectReference created = await AuthenticationInterop.AttachSignInAsync(
+                    formElement,
+                    receiver,
+                    "/auth/passkey/options",
+                    "/auth/passkey/assertion",
+                    lifetime.Token);
+                if (disposed)
+                {
+                    await DisposeAttachmentAsync(created);
+                }
+                else
+                {
+                    attachment = created;
+                }
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        if (pendingInitialErrorCode is { } errorCode &&
+            !string.Equals(presentedInitialErrorCode, errorCode, StringComparison.Ordinal))
+        {
+            presentedInitialErrorCode = errorCode;
+            ShowAuthenticationFailure(errorCode);
+        }
+    }
+
+    [JSInvokable]
+    public Task NotifyPasskeyAvailable()
+    {
+        userHasSecurityKeys = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task NotifyTwoFactorRequired()
+    {
+        totpLogin = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task NotifyPasskeyQuerying(bool querying)
+    {
+        queryingKey = querying;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task NotifyAuthenticationSucceeded()
+    {
+        return Login.InvokeAsync();
+    }
+
+    [JSInvokable]
+    public Task NotifyAuthenticationFailure(string safeErrorCode)
+    {
+        queryingKey = false;
+        totpLogin = false;
+        ShowAuthenticationFailure(safeErrorCode);
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task OpenForgotPasswordAsync(MouseEventArgs args) => ForgotPassword.InvokeAsync();
+
+    private async Task RetrySecurityKeyAsync(MouseEventArgs args)
+    {
+        if (attachment is null || queryingKey)
+        {
+            return;
+        }
+
+        await attachment.InvokeVoidAsync("retryPasskey", lifetime.Token);
+    }
+
+    private string? ErrorText(string? code) => code switch
+    {
+        "INVALID_CREDENTIALS" => Localizer.Translate("signinFailed"),
+        "RATE_LIMIT_EXCEEDED" => Localizer.Translate("rateLimitExceeded"),
+        "ACCOUNT_NOT_ACTIVE" => Localizer.Translate("signinFailed"),
+        "EMAIL_CONFIRMATION_REQUIRED" => Localizer.Translate("clickToFinishEmailVerification"),
+        "SIGNIN_FAILED" => Localizer.Translate("signinFailed"),
+        "INVALID_TWO_FACTOR_CODE" => Localizer.Translate("signinFailed"),
+        "INVALID_PASSKEY_ASSERTION" or "PASSKEY_FAILED" => Localizer.Translate("signinFailed"),
+        "PASSKEY_UNAVAILABLE" => Localizer.Translate("signinFailed"),
+        "PASSKEY_STATE_CONFLICT" => Localizer.Translate("somethingHappened"),
+        "OIDC_CALLBACK_FAILED" => Localizer.Translate("signinFailed"),
+        _ => null
+    };
+
+    private void ShowAuthenticationFailure(string safeErrorCode)
+    {
+        string title;
+        string text;
+        if (string.Equals(safeErrorCode, "ACCOUNT_NOT_ACTIVE", StringComparison.Ordinal))
+        {
+            title = Localizer.Translate("yourAccountSuspendedTitle");
+            text = Localizer.Translate("yourAccountSuspendedDescription");
+        }
+        else
+        {
+            title = Localizer.Translate("loginFailed");
+            text = ErrorText(safeErrorCode) ?? Localizer.Translate("signinFailed");
+        }
+
+        Overlays.ShowAlert(new MisskeyAlertOptions(
+            "error",
+            title,
+            text,
+            title,
+            Localizer.Translate("gotIt")));
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        try
+        {
+            if (attachment is not null)
+            {
+                await DisposeAttachmentAsync(attachment);
+            }
+        }
+        finally
+        {
+            receiver?.Dispose();
+            lifetime.Dispose();
+        }
+    }
+
+    private async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try
+        {
+            await handle.InvokeVoidAsync("dispose", cleanup.Token);
+            await handle.DisposeAsync().AsTask().WaitAsync(cleanup.Token);
+        }
+        catch (OperationCanceledException) when (
+            disposed && (lifetime.IsCancellationRequested || cleanup.IsCancellationRequested))
+        {
+        }
+        catch (JSDisconnectedException) when (disposed)
+        {
+        }
+    }
+}

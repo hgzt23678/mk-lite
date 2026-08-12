@@ -1,0 +1,39 @@
+@page "/__test/components/emoji-picker-dialog"
+@rendermode InteractiveServer
+@inject IMisskeyOverlayService Overlays
+
+<main data-contract="mk-emoji-picker-dialog">
+    <button @ref="source"
+            type="button"
+            data-contract="open-drawer"
+            @onclick="() => Open(false)">drawer</button>
+    <button type="button"
+            data-contract="open-reaction"
+            @onclick="() => Open(true)">reaction</button>
+    <output data-contract="state"
+            data-chosen="@chosen"
+            data-chosen-count="@chosenCount"></output>
+</main>
+
+@code {
+    private readonly IReadOnlyList<EmojiPickerCustomEmoji> customEmojis =
+    [
+        new("party", "/static-assets/favicon.png", "fun", ["tada"])
+    ];
+    private ElementReference source;
+    private string? chosen;
+    private int chosenCount;
+
+    private void Open(bool reaction) => Overlays.ShowEmojiPicker(
+        source,
+        OnChosenAsync,
+        asReactionPicker: reaction,
+        customEmojis: customEmojis);
+
+    private Task OnChosenAsync(string value)
+    {
+        chosen = value;
+        chosenCount++;
+        return InvokeAsync(StateHasChanged);
+    }
+}

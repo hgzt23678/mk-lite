@@ -1,0 +1,44 @@
+@inject IMisskeyLocalizer Localizer
+
+<MkPagination @ref="pagingComponent"
+              TItem="UserPreviewViewModel"
+              Source="Pagination"
+              @attributes="AdditionalAttributes">
+    <EmptyContent>
+        <div class="_fullinfo">
+            <img src="/client-assets/about-icon.png" class="_ghost" />
+            <div>@Localizer.Translate("noUsers")</div>
+        </div>
+    </EmptyContent>
+    <ChildContent Context="users">
+        <div class="efvhhmdq">
+            @foreach (UserPreviewViewModel user in users)
+            {
+                <MkUserInfo @key="user.Id" CssClass="user" User="user" />
+            }
+        </div>
+    </ChildContent>
+</MkPagination>
+
+@code {
+    private MkPagination<UserPreviewViewModel>? pagingComponent;
+
+    [Parameter, EditorRequired]
+    public IMisskeyPaginationSource<UserPreviewViewModel> Pagination { get; set; } = default!;
+
+    // Misskey 12.119.2 declares this public prop but does not read it in the template or script.
+    [Parameter]
+    public bool NoGap { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    public Task LoadMoreAsync() => RequirePagingComponent().LoadMoreAsync();
+
+    public Task ReloadAsync() => RequirePagingComponent().ReloadAsync();
+
+    public Task RefreshAsync() => RequirePagingComponent().RefreshAsync();
+
+    private MkPagination<UserPreviewViewModel> RequirePagingComponent() =>
+        pagingComponent ?? throw new InvalidOperationException("The user-list pagination component is not rendered.");
+}

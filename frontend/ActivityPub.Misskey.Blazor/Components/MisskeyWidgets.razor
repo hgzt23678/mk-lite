@@ -1,0 +1,154 @@
+@implements IAsyncDisposable
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyLocalizer Localizer
+
+<div class="efzpzdvf">
+    @if (loaded)
+    {
+        <MkWidgets Edit="editMode"
+                   Widgets="widgets"
+                   AddWidget="AddWidgetAsync"
+                   RemoveWidget="RemoveWidgetAsync"
+                   UpdateWidget="UpdateWidgetAsync"
+                   UpdateWidgets="UpdateWidgetsAsync"
+                   Exit="ExitEditMode" />
+    }
+
+    @if (editMode)
+    {
+        <button class="_textButton"
+                style="font-size: 0.9em;"
+                type="button"
+                @onclick="ExitEditMode">
+            <i class="fas fa-check"></i> @Localizer.Translate("editWidgetsExit")
+        </button>
+    }
+    else
+    {
+        <button class="_textButton mk-widget-edit"
+                style="font-size: 0.9em;"
+                type="button"
+                @onclick="EnterEditMode">
+            <i class="fas fa-pencil-alt"></i> @Localizer.Translate("editWidgets")
+        </button>
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private List<MisskeyWidgetModel> widgets = [];
+    private bool loaded;
+    private bool editMode;
+    private bool disposed;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            widgets = (await DeviceState.ReadAsync<IReadOnlyList<MisskeyWidgetModel>>(
+                "widgets",
+                [],
+                lifetime.Token)).ToList();
+        }
+        catch (JsonException)
+        {
+            widgets = [];
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        loaded = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void EnterEditMode() => editMode = true;
+
+    private void ExitEditMode() => editMode = false;
+
+    private async Task AddWidgetAsync(MisskeyWidgetModel widget)
+    {
+        if (!MkWidgets.SupportedWidgetNames.Contains(widget.Name, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException("Unsupported widgets cannot be added.");
+        }
+
+        widgets.Insert(0, widget with { Place = null });
+        await PersistAsync();
+    }
+
+    private async Task RemoveWidgetAsync(MisskeyWidgetModel widget)
+    {
+        widgets.RemoveAll(candidate => string.Equals(candidate.Id, widget.Id, StringComparison.Ordinal));
+        await PersistAsync();
+    }
+
+    private async Task UpdateWidgetAsync(MisskeyWidgetUpdate update)
+    {
+        int index = widgets.FindIndex(widget => string.Equals(widget.Id, update.Id, StringComparison.Ordinal));
+        if (index < 0)
+        {
+            return;
+        }
+
+        widgets[index] = widgets[index] with
+        {
+            Data = new Dictionary<string, JsonElement>(update.Data, StringComparer.Ordinal)
+        };
+        await PersistAsync();
+    }
+
+    private async Task UpdateWidgetsAsync(IReadOnlyList<MisskeyWidgetModel> reordered)
+    {
+        var byId = reordered.ToDictionary(widget => widget.Id, StringComparer.Ordinal);
+        Queue<MisskeyWidgetModel> supported = new(reordered);
+        for (int index = 0; index < widgets.Count; index++)
+        {
+            if (!MkWidgets.SupportedWidgetNames.Contains(widgets[index].Name, StringComparer.Ordinal))
+            {
+                continue;
+            }
+
+            if (supported.Count == 0)
+            {
+                break;
+            }
+
+            widgets[index] = supported.Dequeue();
+        }
+
+        if (supported.Count > 0 || byId.Count != reordered.Count)
+        {
+            throw new InvalidOperationException("The reordered widget collection is inconsistent.");
+        }
+
+        await PersistAsync();
+    }
+
+    private async Task PersistAsync()
+    {
+        await DeviceState.WriteAsync("widgets", widgets, lifetime.Token);
+        if (!disposed)
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

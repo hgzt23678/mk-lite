@@ -1,0 +1,21 @@
+.mkw-unixClock {
+	padding: 16px 0;
+	text-align: center;
+
+	> .label {
+		font-size: 65%;
+		opacity: 0.7;
+	}
+
+	> .time {
+		> .colon {
+			opacity: 0;
+			transition: opacity 1s ease;
+
+			&.showColon {
+				opacity: 1;
+				transition: opacity 0s;
+			}
+		}
+	}
+}

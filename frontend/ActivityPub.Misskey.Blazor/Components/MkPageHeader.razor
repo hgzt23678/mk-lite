@@ -1,0 +1,465 @@
+@implements IAsyncDisposable
+@inject IPageHeaderInterop HeaderInterop
+@inject IMisskeyOverlayService Overlays
+@inject ICurrentAccountPresentationService CurrentAccount
+@inject IServiceProvider Services
+
+@if (ShouldShow)
+{
+    <div @ref="element"
+         class="@RootClass"
+         style="@RootStyle"
+         data-header-background="@EffectiveMetadata?.Background"
+         @attributes="AttributesWithoutClassStyleAndBackground"
+         @onclick="ScrollToTopAsync">
+        @if (narrow)
+        {
+            <div class="buttons left">
+                @if (DisplayMyAvatar && account is not null)
+                {
+                    <MkAvatar CssClass="avatar" User="account" DisablePreview="true" />
+                }
+            </div>
+        }
+        @if (EffectiveMetadata is { } metadata)
+        {
+            @if (!EffectiveHideTitle)
+            {
+                <div @ref="titleContainer"
+                     class="titleContainer"
+                     role="@(CanOpenTabsPopup ? "button" : null)"
+                     tabindex="@(CanOpenTabsPopup ? "0" : null)"
+                     aria-haspopup="@(CanOpenTabsPopup ? "menu" : null)"
+                     aria-expanded="@(CanOpenTabsPopup ? (tabsPopupId is null ? "false" : "true") : null)"
+                     aria-label="@(CanOpenTabsPopup ? $"{metadata.Title}、タブを選択" : null)"
+                     data-tabs-popup-trigger="@(CanOpenTabsPopup ? "true" : null)"
+                     @onclick="ShowTabsPopup"
+                     @onclick:preventDefault="CanOpenTabsPopup"
+                     @onclick:stopPropagation="CanOpenTabsPopup"
+                     @onkeydown="OnTitleKeyDownAsync">
+                    @if (metadata.Avatar is not null)
+                    {
+                        <MkAvatar CssClass="avatar"
+                                  User="@(metadata.Avatar with { OnlineStatus = metadata.AvatarOnlineStatus })"
+                                  DisablePreview="true"
+                                  ShowIndicator="true" />
+                    }
+                    else if (!string.IsNullOrEmpty(metadata.Icon))
+                    {
+                        <i class="icon @metadata.Icon" aria-hidden="true"></i>
+                    }
+
+                    <div class="title">
+                        @if (metadata.UserName is not null)
+                        {
+                            <MfmView Text="@UserDisplayName(metadata.UserName)"
+                                     Plain="true"
+                                     NoWrap="true"
+                                     CssClass="title" />
+                        }
+                        else if (!string.IsNullOrEmpty(metadata.Title))
+                        {
+                            <div class="title">@metadata.Title</div>
+                        }
+                        @if (!narrow && !string.IsNullOrEmpty(metadata.Subtitle))
+                        {
+                            <div class="subtitle">@metadata.Subtitle</div>
+                        }
+                        @if (narrow && HasTabs)
+                        {
+                            <div class="subtitle activeTab">
+                                @ActiveTab?.Title
+                                <i class="chevron fas fa-chevron-down" aria-hidden="true"></i>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            @if (!narrow || EffectiveHideTitle)
+            {
+                <div class="tabs" role="tablist" aria-label="@metadata.Title">
+                    @foreach (MkPageHeaderTab tab in EffectiveTabs)
+                    {
+                        <button class="tab _button @(IsActive(tab) ? "active" : null)"
+                                type="button"
+                                title="@tab.Title"
+                                data-tooltip="@tab.Title"
+                                role="tab"
+                                aria-selected="@(tab.Key is null ? null : (IsActive(tab) ? "true" : "false"))"
+                                aria-label="@(tab.IconOnly ? tab.Title : null)"
+                                @onmousedown="args => OnTabMouseDownAsync(tab, args)"
+                                @onclick="args => OnTabClickAsync(tab, args)"
+                                @onclick:preventDefault="@HasCustomClick(tab)"
+                                @onclick:stopPropagation="@HasCustomClick(tab)">
+                            @if (!string.IsNullOrEmpty(tab.Icon))
+                            {
+                                <i class="icon @tab.Icon" aria-hidden="true"></i>
+                            }
+                            @if (!tab.IconOnly)
+                            {
+                                <span class="title">@tab.Title</span>
+                            }
+                        </button>
+                    }
+                    <div class="highlight" aria-hidden="true"></div>
+                </div>
+            }
+        }
+        <div class="buttons right">
+            @foreach (MkPageHeaderAction action in EffectiveActions)
+            {
+                <MkPageHeaderActionButton @key="action" Action="action" />
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference element;
+    private ElementReference titleContainer;
+    private DotNetObjectReference<MkPageHeader>? receiver;
+    private IJSObjectReference? attachment;
+    private Task? attachmentTask;
+    private NoteAuthorViewModel? account;
+    private Guid? tabsPopupId;
+    private bool accountRequested;
+    private bool narrow;
+    private bool disposed;
+
+    [CascadingParameter(Name = "ShouldOmitHeaderTitle")]
+    private bool ShouldOmitHeaderTitle { get; set; }
+
+    [CascadingParameter(Name = "ShouldHeaderThin")]
+    private bool ShouldHeaderThin { get; set; }
+
+    [Parameter]
+    public MkPageHeaderMetadata? Metadata { get; set; }
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public string? Subtitle { get; set; }
+
+    [Parameter]
+    public string? Icon { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<MkPageHeaderTab>? Tabs { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyList<MkPageHeaderAction>? Actions { get; set; } = [];
+
+    [Parameter]
+    public string? Tab { get; set; }
+
+    [Parameter]
+    public EventCallback<string> TabChanged { get; set; }
+
+    [Parameter]
+    public bool Thin { get; set; }
+
+    [Parameter]
+    public bool DisplayMyAvatar { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private MkPageHeaderMetadata? EffectiveMetadata => Metadata ??
+        (Title is not null ? new MkPageHeaderMetadata(Title, Subtitle, Icon) : null);
+
+    private bool EffectiveHideTitle => ShouldOmitHeaderTitle;
+
+    private bool EffectiveThin => Thin || ShouldHeaderThin;
+
+    private IReadOnlyList<MkPageHeaderTab> EffectiveTabs => Tabs ?? [];
+
+    private IReadOnlyList<MkPageHeaderAction> EffectiveActions => Actions ?? [];
+
+    private bool HasTabs => EffectiveTabs.Count > 0;
+
+    private bool HasActions => EffectiveActions.Count > 0;
+
+    private bool ShouldShow => !EffectiveHideTitle || HasTabs || HasActions;
+
+    private bool CanOpenTabsPopup => narrow && !EffectiveHideTitle && EffectiveMetadata is not null && HasTabs;
+
+    private MkPageHeaderTab? ActiveTab => EffectiveTabs.FirstOrDefault(IsActive);
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "fdidabkb",
+        narrow ? "slim" : null,
+        EffectiveThin ? "thin" : null,
+        ReadAdditionalAttribute("class")
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string RootStyle => string.Join(' ', new[]
+    {
+        "background: color-mix(in srgb, var(--bg) 85%, transparent);",
+        ReadAdditionalAttribute("style")
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    protected override void OnInitialized() => Overlays.Changed += OnOverlaysChanged;
+
+    protected override void OnParametersSet()
+    {
+        if (Services.GetService(typeof(IPageMetadataState)) is IPageMetadataState pageMetadata)
+        {
+            pageMetadata.SetBackground(EffectiveMetadata?.Background);
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!DisplayMyAvatar)
+        {
+            account = null;
+            accountRequested = false;
+            return;
+        }
+
+        if (accountRequested)
+        {
+            return;
+        }
+
+        accountRequested = true;
+        try
+        {
+            account = await CurrentAccount.GetAsync(lifetime.Token);
+        }
+        catch (FrontendAuthenticationException)
+        {
+            account = null;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            account = null;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!ShouldShow)
+        {
+            if (attachment is not null)
+            {
+                IJSObjectReference hiddenAttachment = attachment;
+                attachment = null;
+                await DisposeAttachmentAsync(hiddenAttachment);
+            }
+
+            return;
+        }
+
+        if (attachment is null && attachmentTask is null)
+        {
+            attachmentTask = AttachAsync();
+            await attachmentTask;
+            return;
+        }
+
+        if (attachment is not null)
+        {
+            await InvokeAttachmentAsync("refresh", EffectiveMetadata?.Background);
+        }
+    }
+
+    private async Task AttachAsync()
+    {
+        receiver ??= DotNetObjectReference.Create(this);
+        try
+        {
+            IJSObjectReference result = await HeaderInterop.AttachAsync(element, receiver, lifetime.Token);
+            if (disposed)
+            {
+                await DisposeAttachmentAsync(result);
+                return;
+            }
+
+            attachment = result;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        finally
+        {
+            attachmentTask = null;
+        }
+    }
+
+    [JSInvokable]
+    public Task UpdatePageHeaderNarrow(bool value)
+    {
+        if (disposed || narrow == value)
+        {
+            return Task.CompletedTask;
+        }
+
+        narrow = value;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private bool IsActive(MkPageHeaderTab tab) =>
+        tab.Key is not null && string.Equals(tab.Key, Tab, StringComparison.Ordinal);
+
+    private static bool HasCustomClick(MkPageHeaderTab tab) =>
+        tab.OnClick is not null || tab.Action is not null;
+
+    private static string UserDisplayName(NoteAuthorViewModel user) =>
+        string.IsNullOrEmpty(user.DisplayName) ? user.Username : user.DisplayName;
+
+    private Task OnTabMouseDownAsync(MkPageHeaderTab tab, MouseEventArgs args) =>
+        string.IsNullOrEmpty(tab.Key) ? Task.CompletedTask : TabChanged.InvokeAsync(tab.Key);
+
+    private async Task OnTabClickAsync(MkPageHeaderTab tab, MouseEventArgs args)
+    {
+        if (tab.OnClick is not null)
+        {
+            await tab.OnClick(args);
+        }
+        else if (tab.Action is not null)
+        {
+            await AuxiliaryRequested.InvokeAsync(tab.Action);
+        }
+
+        if (!string.IsNullOrEmpty(tab.Key))
+        {
+            await TabChanged.InvokeAsync(tab.Key);
+        }
+    }
+
+    [Parameter]
+    public EventCallback<string> AuxiliaryRequested { get; set; }
+
+    private void ShowTabsPopup(MouseEventArgs args) => ShowTabsPopup(openedViaKeyboard: args.Detail == 0);
+
+    private Task OnTitleKeyDownAsync(KeyboardEventArgs args)
+    {
+        if (CanOpenTabsPopup && args.Key is "Enter" or " " or "Spacebar" or "ArrowDown")
+        {
+            ShowTabsPopup(openedViaKeyboard: true);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void ShowTabsPopup(bool openedViaKeyboard)
+    {
+        if (!CanOpenTabsPopup)
+        {
+            return;
+        }
+
+        tabsPopupId = Overlays.ShowPopupMenu(
+            titleContainer,
+            EffectiveTabs.Select(tab => new MisskeyMenuItem(
+                MisskeyMenuItemKind.Action,
+                tab.Title,
+                tab.Icon,
+                Action: () => OnTabClickAsync(tab, new MouseEventArgs()),
+                Active: IsActive(tab))).ToArray(),
+            openedViaKeyboard);
+    }
+
+    private void OnOverlaysChanged()
+    {
+        if (disposed || tabsPopupId is null || Overlays.Entries.Any(entry => entry.Id == tabsPopupId))
+        {
+            return;
+        }
+
+        tabsPopupId = null;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private Task ScrollToTopAsync() => InvokeAttachmentAsync("scrollToTop");
+
+    private async Task InvokeAttachmentAsync(string method, params object?[] arguments)
+    {
+        if (attachment is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await attachment.InvokeVoidAsync(method, lifetime.Token, arguments);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private string? ReadAdditionalAttribute(string name) =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue(name, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassStyleAndBackground => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute =>
+                !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(attribute.Key, "data-header-background", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        Overlays.Changed -= OnOverlaysChanged;
+        if (tabsPopupId is Guid popupId)
+        {
+            tabsPopupId = null;
+            Overlays.Close(popupId);
+        }
+        await lifetime.CancelAsync();
+        if (attachmentTask is not null)
+        {
+            try
+            {
+                await attachmentTask;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        if (attachment is not null)
+        {
+            await DisposeAttachmentAsync(attachment);
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        try
+        {
+            await handle.InvokeVoidAsync("dispose");
+            await handle.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

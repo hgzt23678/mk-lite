@@ -1,0 +1,399 @@
+@implements IAsyncDisposable
+@inject IDialogWindowInterop DialogInterop
+@inject IMediaCaptionInterop CaptionInterop
+@inject IMisskeyLocalizer Localizer
+
+@if (CanRender)
+{
+    <div @ref="modalElement"
+         class="@RootClass"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="@(string.IsNullOrWhiteSpace(Title) ? null : titleId)"
+         aria-label="@(string.IsNullOrWhiteSpace(Title) ? ResolvedAccessibleLabel : null)"
+         @attributes="AttributesWithoutClass">
+        <div class="bg _modalBg"
+             @onclick="CancelClickAsync"
+             @oncontextmenu:preventDefault="true"
+             @oncontextmenu:stopPropagation="true"></div>
+        <div @ref="contentElement" class="content" @onclick="CancelClickAsync">
+            <div @ref="captionElement" class="container" @onclick:stopPropagation="true">
+                <div class="fullwidth top-caption">
+                    <div class="mk-dialog">
+                        <header>
+                            @if (!string.IsNullOrWhiteSpace(Title))
+                            {
+                                <MfmView Text="@Title" class="title" id="@titleId" />
+                            }
+                            <span id="@countId"
+                                  class="@CountClass"
+                                  aria-live="polite">@RemainingLength</span>
+                        </header>
+                        <textarea @ref="textareaElement"
+                                  @bind="inputValue"
+                                  @bind:event="oninput"
+                                  autofocus="autofocus"
+                                  data-mk-autofocus="true"
+                                  placeholder="@Input.Placeholder"
+                                  aria-label="@ResolvedInputLabel"
+                                  aria-describedby="@countId"></textarea>
+                        @if (ShowOkButton || ShowCancelButton)
+                        {
+                            <div class="buttons">
+                                <MkButton Inline="true"
+                                          Primary="true"
+                                          Disabled="@(RemainingLength < 0)"
+                                          OnClick="OkClickAsync">@Localizer.Translate("ok")</MkButton>
+                                <MkButton Inline="true" OnClick="CancelClickAsync">@Localizer.Translate("cancel")</MkButton>
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="hdrwpsaf fullwidth">
+                    <header>@Image.Name</header>
+                    <img src="@ImageUrl"
+                         alt="@Image.Description"
+                         title="@Image.Description"
+                         role="button"
+                         tabindex="0"
+                         aria-label="@Localizer.Translate("close")"
+                         @onclick="CloseFromPreviewAsync"
+                         @onkeydown="PreviewKeyDownAsync" />
+                    <footer>
+                        <span>@Image.MediaType</span>
+                        <span>@FormattedSize</span>
+                        @if (Image.Width is not null)
+                        {
+                            <span>@FormatNumber(Image.Width)px × @FormatNumber(Image.Height)px</span>
+                        }
+                    </footer>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private readonly string titleId = $"mk-media-caption-title-{Guid.NewGuid():N}";
+    private readonly string countId = $"mk-media-caption-count-{Guid.NewGuid():N}";
+    private ElementReference modalElement;
+    private ElementReference contentElement;
+    private ElementReference captionElement;
+    private ElementReference textareaElement;
+    private DotNetObjectReference<MkMediaCaption>? receiver;
+    private IJSObjectReference? dialogAttachment;
+    private IJSObjectReference? captionAttachment;
+    private Task? attachmentTask;
+    private MisskeyMediaCaptionInput? lastInput;
+    private string? inputValue;
+    private bool completionEmitted;
+    private bool closeWithoutCompletion;
+    private bool closing;
+    private bool closed;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public ComposerMediaViewModel Image { get; set; } = null!;
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter, EditorRequired]
+    public MisskeyMediaCaptionInput Input { get; set; } = null!;
+
+    [Parameter]
+    public bool ShowOkButton { get; set; } = true;
+
+    [Parameter]
+    public bool ShowCancelButton { get; set; } = true;
+
+    // Misskey 12.119.2 declares this prop, but the template closes directly on MkModal click.
+    [Parameter]
+    public bool CancelableByBgClick { get; set; } = true;
+
+    [Parameter]
+    public string? AccessibleLabel { get; set; }
+
+    [Parameter]
+    public EventCallback<MisskeyMediaCaptionResult> Done { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string? ImageUrl => SameOriginMediaUrl.Normalize(Image.Url);
+    private bool CanRender => ImageUrl is not null;
+    private int RemainingLength => inputValue is null ? 512 : 512 - new StringInfo(inputValue).LengthInTextElements;
+    private string CountClass => RemainingLength < 0 ? "text-count over" : "text-count";
+    private string FormattedSize => FormatBytes(Image.Size);
+    private string ResolvedAccessibleLabel => string.IsNullOrWhiteSpace(AccessibleLabel)
+        ? string.IsNullOrWhiteSpace(Title) ? Localizer.Translate("describeFile") : Title
+        : AccessibleLabel;
+    private string ResolvedInputLabel => string.IsNullOrWhiteSpace(Input.Placeholder)
+        ? Localizer.Translate("inputNewDescription")
+        : Input.Placeholder;
+    private string RootClass => string.Join(' ', new[]
+    {
+        "qzhlnise",
+        "dialog",
+        "modal-enter-active",
+        "modal-enter-from",
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        ArgumentNullException.ThrowIfNull(Image);
+        ArgumentNullException.ThrowIfNull(Input);
+        if (!ReferenceEquals(lastInput, Input))
+        {
+            inputValue = string.IsNullOrEmpty(Input.Default) ? null : Input.Default;
+            lastInput = Input;
+        }
+    }
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && CanRender)
+        {
+            attachmentTask = AttachAsync();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task AttachAsync()
+    {
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            IJSObjectReference createdDialog = await DialogInterop.AttachAsync(
+                modalElement,
+                contentElement,
+                captionElement,
+                receiver,
+                lifetime.Token).ConfigureAwait(false);
+            if (disposed)
+            {
+                await DisposeHandleAsync(createdDialog).ConfigureAwait(false);
+                return;
+            }
+
+            dialogAttachment = createdDialog;
+            IJSObjectReference createdCaption = await CaptionInterop.AttachAsync(
+                textareaElement,
+                receiver,
+                lifetime.Token).ConfigureAwait(false);
+            if (disposed)
+            {
+                await DisposeHandleAsync(createdCaption).ConfigureAwait(false);
+                return;
+            }
+
+            captionAttachment = createdCaption;
+            if (closing)
+            {
+                await CloseDialogAsync().ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            if (!disposed && closing)
+            {
+                await NotifyClosed().ConfigureAwait(false);
+            }
+        }
+    }
+
+    private Task OkClickAsync(MouseEventArgs args)
+    {
+        _ = args;
+        return OkAsync();
+    }
+
+    private Task CancelClickAsync(MouseEventArgs args)
+    {
+        _ = args;
+        return CompleteAsync(canceled: true, result: null);
+    }
+
+    private Task OkAsync() => ShowOkButton
+        ? CompleteAsync(canceled: false, inputValue)
+        : Task.CompletedTask;
+
+    private async Task CompleteAsync(bool canceled, string? result)
+    {
+        if (completionEmitted || disposed)
+        {
+            return;
+        }
+
+        completionEmitted = true;
+        await Done.InvokeAsync(new MisskeyMediaCaptionResult(canceled, result));
+        await BeginCloseAsync();
+    }
+
+    public Task BeginCloseAsync() => BeginCloseCoreAsync(withoutCompletion: false);
+
+    private Task CloseFromPreviewAsync(MouseEventArgs args)
+    {
+        _ = args;
+        return BeginCloseCoreAsync(withoutCompletion: true);
+    }
+
+    private Task PreviewKeyDownAsync(KeyboardEventArgs args) => args.Key is "Enter" or " "
+        ? BeginCloseCoreAsync(withoutCompletion: true)
+        : Task.CompletedTask;
+
+    private async Task BeginCloseCoreAsync(bool withoutCompletion)
+    {
+        if (closing || disposed)
+        {
+            return;
+        }
+
+        closeWithoutCompletion = withoutCompletion;
+        closing = true;
+        if (dialogAttachment is not null)
+        {
+            await CloseDialogAsync().ConfigureAwait(false);
+            return;
+        }
+
+        if (attachmentTask is not null)
+        {
+            await attachmentTask.ConfigureAwait(false);
+        }
+
+        if (dialogAttachment is null && !closed)
+        {
+            await NotifyClosed().ConfigureAwait(false);
+        }
+    }
+
+    private async Task CloseDialogAsync()
+    {
+        try
+        {
+            await dialogAttachment!.InvokeVoidAsync("close", lifetime.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            await NotifyClosed().ConfigureAwait(false);
+        }
+    }
+
+    [JSInvokable]
+    public Task NotifyOpened() => Task.CompletedTask;
+
+    [JSInvokable]
+    public Task NotifyCtrlEnter() => OkAsync();
+
+    [JSInvokable]
+    public async Task NotifyClosed()
+    {
+        if (closed || disposed)
+        {
+            return;
+        }
+
+        closed = true;
+        if (!completionEmitted && !closeWithoutCompletion)
+        {
+            completionEmitted = true;
+            await Done.InvokeAsync(new MisskeyMediaCaptionResult(Canceled: true, Result: null));
+        }
+
+        await Closed.InvokeAsync();
+    }
+
+    private string FormatNumber(int? value) => value?.ToString("N0", Localizer.Culture) ?? "N/A";
+
+    private static string FormatBytes(long? value)
+    {
+        if (value is null)
+        {
+            return "?";
+        }
+
+        if (value == 0)
+        {
+            return "0";
+        }
+
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double absolute = Math.Abs((double)value.Value);
+        int index = Math.Clamp((int)Math.Floor(Math.Log(absolute) / Math.Log(1024)), 0, units.Length - 1);
+        double scaled = absolute / Math.Pow(1024, index);
+        string rounded = Math.Round(scaled, MidpointRounding.AwayFromZero)
+            .ToString(CultureInfo.InvariantCulture);
+        return $"{(value < 0 ? "-" : string.Empty)}{rounded}{units[index]}";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachmentTask is not null)
+        {
+            try
+            {
+                await attachmentTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        if (captionAttachment is not null)
+        {
+            await DisposeHandleAsync(captionAttachment).ConfigureAwait(false);
+        }
+
+        if (dialogAttachment is not null)
+        {
+            await DisposeHandleAsync(dialogAttachment).ConfigureAwait(false);
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static async ValueTask DisposeHandleAsync(IJSObjectReference handle)
+    {
+        try
+        {
+            await handle.InvokeVoidAsync("dispose").ConfigureAwait(false);
+            await handle.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

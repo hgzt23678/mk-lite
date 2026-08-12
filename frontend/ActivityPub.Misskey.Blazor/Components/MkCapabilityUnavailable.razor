@@ -1,0 +1,20 @@
+@inject IMisskeyLocalizer Localizer
+
+<div class="_fullinfo capability-unavailable" data-capability-state="false" data-capability="@Capability" role="status">
+    <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+    <div>
+        <strong>@Title</strong>
+        <p>@Reason</p>
+        <code>@Capability</code>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Capability { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Reason { get; set; } = string.Empty;
+
+    private string Title => Localizer.Translate("notAvailable");
+}

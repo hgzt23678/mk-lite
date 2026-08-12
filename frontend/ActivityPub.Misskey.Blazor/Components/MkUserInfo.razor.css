@@ -1,0 +1,7 @@
+/* Vue applies the parent's scoped selector to a child component root. Blazor scopes the
+   MkFollowButton root to the child instead, so retain the upstream parent override here. */
+.vjnjpkug > ::deep .koudoku-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+}

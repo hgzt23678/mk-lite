@@ -1,0 +1,195 @@
+@implements IAsyncDisposable
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyOverlayService Overlays
+
+@if (configurationLoaded)
+{
+    <MkModal @ref="modal"
+             Source="Source"
+             PreferType="PreferredType"
+             ZPriority="MkModalZPriority.Middle"
+             TransparentBackground="true"
+             ManualShowing="ManualShowing"
+             Opening="OpeningAsync"
+             Clicked="CloseAsync"
+             Escape="CloseAsync"
+             CloseRequested="OnCloseRequestedAsync"
+             Closed="OnClosedAsync">
+        <ChildContent Context="context">
+            <MkEmojiPicker @ref="picker"
+                           CssClass="@PickerClass(context.Type)"
+                           ShowPinned="ShowPinned"
+                           AsReactionPicker="AsReactionPicker"
+                           AsDrawer="@(context.Type == "drawer")"
+                           MaxHeight="context.MaximumHeight"
+                           CustomEmojis="CustomEmojis"
+                           Chosen="OnChosenAsync" />
+        </ChildContent>
+    </MkModal>
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private MkModal? modal;
+    private MkEmojiPicker? picker;
+    private bool reactionPickerUseDrawerForMobile = true;
+    private bool configurationLoaded;
+    private bool configuring;
+    private bool pendingClose;
+    private bool closed;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public Guid Id { get; set; }
+
+    [Parameter, EditorRequired]
+    public ElementReference Source { get; set; }
+
+    [Parameter, EditorRequired]
+    public Func<string, Task> Chosen { get; set; } = null!;
+
+    [Parameter]
+    public bool? ManualShowing { get; set; }
+
+    [Parameter]
+    public bool ShowPinned { get; set; } = true;
+
+    [Parameter]
+    public bool AsReactionPicker { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<EmojiPickerCustomEmoji> CustomEmojis { get; set; } = [];
+
+    [Parameter]
+    public EventCallback Close { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    private MkModalType PreferredType =>
+        AsReactionPicker && !reactionPickerUseDrawerForMobile
+            ? MkModalType.Popup
+            : MkModalType.Auto;
+
+    protected override void OnInitialized() => Overlays.RegisterCloseHandler(Id, CloseAsync);
+
+    protected override void OnParametersSet()
+    {
+        ArgumentNullException.ThrowIfNull(Chosen);
+        ArgumentNullException.ThrowIfNull(CustomEmojis);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _ = firstRender;
+        if (disposed)
+        {
+            return;
+        }
+
+        if (!configurationLoaded && !configuring)
+        {
+            configuring = true;
+            try
+            {
+                reactionPickerUseDrawerForMobile = await DeviceState.ReadAsync(
+                    "reactionPickerUseDrawerForMobile",
+                    true,
+                    lifetime.Token);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (JSDisconnectedException)
+            {
+                reactionPickerUseDrawerForMobile = true;
+            }
+            catch (JsonException)
+            {
+                reactionPickerUseDrawerForMobile = true;
+            }
+            finally
+            {
+                configuring = false;
+            }
+
+            if (!disposed)
+            {
+                configurationLoaded = true;
+                await InvokeAsync(StateHasChanged);
+            }
+            return;
+        }
+
+        if (pendingClose && modal is not null)
+        {
+            pendingClose = false;
+            await modal.CloseAsync();
+        }
+    }
+
+    private static string PickerClass(string modalType) => modalType == "drawer"
+        ? "ryghynhb _popup _shadow drawer"
+        : "ryghynhb _popup _shadow";
+
+    private async Task OpeningAsync()
+    {
+        if (picker is null || disposed)
+        {
+            return;
+        }
+
+        await picker.ResetAsync();
+        await picker.FocusAsync();
+    }
+
+    private async Task OnChosenAsync(string value)
+    {
+        await Chosen(value);
+        await CloseAsync();
+    }
+
+    public Task CloseAsync()
+    {
+        if (disposed)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (modal is null)
+        {
+            pendingClose = true;
+            return Task.CompletedTask;
+        }
+
+        return modal.CloseAsync();
+    }
+
+    private Task OnCloseRequestedAsync() => disposed ? Task.CompletedTask : Close.InvokeAsync();
+
+    private async Task OnClosedAsync()
+    {
+        if (closed || disposed)
+        {
+            return;
+        }
+
+        closed = true;
+        await Closed.InvokeAsync();
+        Overlays.Close(Id);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        Overlays.UnregisterCloseHandler(Id);
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

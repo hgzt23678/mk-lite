@@ -1,0 +1,7 @@
+.settings-sounds {
+    background: var(--bg);
+}
+
+.settings-sounds .sound-link {
+    margin-bottom: 8px;
+}

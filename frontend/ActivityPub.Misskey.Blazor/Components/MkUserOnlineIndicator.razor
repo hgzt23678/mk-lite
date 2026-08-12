@@ -1,0 +1,64 @@
+@inject IServiceProvider Services
+
+<div @attributes="AttributesWithoutClass"
+     class="@RootClass"
+     title="@StatusLabel"
+     aria-label="@StatusLabel">
+</div>
+
+@code {
+    [Parameter]
+    public string Status { get; set; } = "unknown";
+
+    [Parameter]
+    public NoteAuthorViewModel? User { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string NormalizedStatus => (User?.OnlineStatus ?? Status) switch
+    {
+        "online" => "online",
+        "active" => "active",
+        "offline" => "offline",
+        _ => "unknown"
+    };
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "fzgwjkgc",
+        NormalizedStatus,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string StatusLabel => LocalizedStatusLabel() ?? NormalizedStatus switch
+    {
+        "online" => "オンライン",
+        "active" => "アクティブ",
+        "offline" => "オフライン",
+        _ => "不明"
+    };
+
+    private string? LocalizedStatusLabel()
+    {
+        if (Services.GetService(typeof(IMisskeyLocalizer)) is not IMisskeyLocalizer localizer)
+        {
+            return null;
+        }
+
+        string key = NormalizedStatus;
+        string value = localizer.Translate(key);
+        return string.Equals(value, key, StringComparison.Ordinal) ? null : value;
+    }
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+}

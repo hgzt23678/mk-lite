@@ -1,0 +1,76 @@
+@using System.Text.RegularExpressions
+@inject IInstancePresentationService InstancePresentation
+
+@if (resolved is not null)
+{
+    <div @attributes="AttributesWithoutClassAndStyle" class="@RootClass" style="@RootStyle">
+        @if (SafeFaviconUrl is not null)
+        {
+            <img class="icon" src="@SafeFaviconUrl" alt="" decoding="async" />
+        }
+        <span class="name">@resolved.Name</span>
+    </div>
+}
+
+@code {
+    private const string LocalThemeColor = "#86b300";
+    private static readonly Regex ThemeColorPattern = new(
+        "^#[0-9a-fA-F]{6}$",
+        RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
+    private InstanceTickerViewModel? resolved;
+    private bool localLoaded;
+
+    [Parameter]
+    public InstanceTickerViewModel? Instance { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "hpaizdrt",
+        ReadAdditional("class")
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string RootStyle => string.Join(' ', new[]
+    {
+        $"background: linear-gradient(90deg, {ThemeColor}, {ThemeColor}00);",
+        ReadAdditional("style")
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string ThemeColor => resolved?.ThemeColor is { } value && ThemeColorPattern.IsMatch(value)
+        ? value
+        : "#777777";
+
+    private string? SafeFaviconUrl => SameOriginMediaUrl.Normalize(resolved?.FaviconUrl);
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Instance is not null)
+        {
+            resolved = Instance;
+            return;
+        }
+
+        if (localLoaded)
+        {
+            return;
+        }
+
+        InstanceSummaryViewModel local = await InstancePresentation.GetAsync(CancellationToken.None);
+        resolved = new(local.Name, local.IconUrl, LocalThemeColor);
+        localLoaded = true;
+    }
+
+    private string? ReadAdditional(string name) => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue(name, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+}

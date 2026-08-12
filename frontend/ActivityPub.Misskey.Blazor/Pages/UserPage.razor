@@ -1,0 +1,245 @@
+@page "/@{Acct}"
+@page "/@{Acct}/{Page}"
+@implements IAsyncDisposable
+@inject IUserPagePresentationService Users
+@inject IUserFollowRelationsPresentationService FollowRelations
+@inject IMisskeyLocalizer Localizer
+@inject ILogger<UserPage> Logger
+
+<PageTitle>@(user is null ? Localizer.Translate("user") : UserTitle)</PageTitle>
+
+<MkStickyContainer>
+    <Header>
+        <MkPageHeader Metadata="HeaderMetadata"
+                      Actions="HeaderActions"
+                      Tabs="HeaderTabs"
+                      Tab="selectedTab"
+                      TabChanged="ChangeTabAsync" />
+    </Header>
+    <ChildContent>
+        @if (state == UserPageState.Loaded && user is not null)
+        {
+            <MkSpacer ContentMax="1100">
+                <div class="ftskorzw max-width_@(wide ? "1100px" : "500px")" data-user-page-state="loaded">
+                    <div class="main">
+                        <div class="profile">
+                            <div class="_block main">
+                                <div class="banner-container" style="@BannerStyle">
+                                    <div class="banner" style="@BannerStyle"></div>
+                                    <div class="fade"></div>
+                                    <div class="title">
+                                        <MkUserName CssClass="name" User="@user.User" NoWrap="true" />
+                                        <div class="bottom"><span class="username"><MkAcct User="@user.User" Detail="true" /></span></div>
+                                    </div>
+                                    @if (user.IsFollowed)
+                                    {
+                                        <span class="followed">@Localizer.Translate("followsYou")</span>
+                                    }
+                                    @if (user.CanFollow)
+                                    {
+                                        <div class="actions">
+                                            <MkFollowButton User="@user" Full="true" CssClass="koudoku" />
+                                        </div>
+                                    }
+                                </div>
+                                <MkAvatar class="avatar" User="@user.User" DisablePreview="true" ShowIndicator="true" />
+                                <div class="title">
+                                    <MkUserName CssClass="name" User="@user.User" NoWrap="false" />
+                                    <div class="bottom"><span class="username"><MkAcct User="@user.User" Detail="true" /></span></div>
+                                </div>
+                                <div class="description">
+                                    @if (!string.IsNullOrWhiteSpace(user.Description))
+                                    {
+                                        <MfmView Text="@user.Description" CustomEmojis="@user.User.Emojis" />
+                                    }
+                                    else
+                                    {
+                                        <p class="empty">@Localizer.Translate("noAccountDescription")</p>
+                                    }
+                                </div>
+                                <div class="status">
+                                    <a class="@(selectedTab == "home" ? "active" : null)" href="@UserHref()"><b>@user.NotesCount</b><span>@Localizer.Translate("notes")</span></a>
+                                    <a class="@(selectedTab == "following" ? "active" : null)" href="@UserHref("/following")"><b>@user.FollowingCount</b><span>@Localizer.Translate("following")</span></a>
+                                    <a class="@(selectedTab == "followers" ? "active" : null)" href="@UserHref("/followers")"><b>@user.FollowersCount</b><span>@Localizer.Translate("followers")</span></a>
+                                </div>
+                            </div>
+                        </div>
+                        @if (selectedTab == "home" && notesSource is not null)
+                        {
+                            <div class="contents"><MkNotes Source="notesSource" NoGap="true" /></div>
+                        }
+                        else if (selectedTab is "following" or "followers" && followSource is not null)
+                        {
+                            <div class="contents">
+                                @if (selectedTab == "following")
+                                {
+                                    <UserFollowingView Pagination="followSource" />
+                                }
+                                else
+                                {
+                                    <UserFollowersView Pagination="followSource" />
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="capability" data-capability-state="false" data-capability="user/@selectedTab">
+                                @Localizer.Translate("notSupported")
+                            </div>
+                        }
+                    </div>
+                </div>
+            </MkSpacer>
+        }
+        else if (state == UserPageState.Error)
+        {
+            <MkError Retry="LoadAsync" />
+        }
+        else
+        {
+            <MkLoading />
+        }
+    </ChildContent>
+</MkStickyContainer>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private UserPreviewViewModel? user;
+    private UserPagePaginationSource? notesSource;
+    private UserFollowRelationsPaginationSource? followSource;
+    private UserPageState state = UserPageState.Loading;
+    private string selectedTab = "home";
+    private string? observedRoute;
+    private bool wide = true;
+    private bool disposed;
+
+    [Parameter]
+    public string? Acct { get; set; }
+
+    [Parameter]
+    public string? Page { get; set; }
+
+    private string UserTitle => string.IsNullOrWhiteSpace(user?.User.DisplayName)
+        ? $"@{user?.User.Username}"
+        : $"{user.User.DisplayName} (@{user.User.Username})";
+
+    private string? BannerStyle => SameOriginMediaUrl.CssBackgroundImage(user?.BannerUrl);
+
+    private string UserHref(string suffix = "") => $"/@{user?.User.Acct}{suffix}";
+
+    private MkPageHeaderMetadata? HeaderMetadata => user is null
+        ? null
+        : new(UserTitle, Icon: "fas fa-user", Avatar: user.User);
+
+    private IReadOnlyList<MkPageHeaderAction> HeaderActions => [];
+
+    private IReadOnlyList<MkPageHeaderTab> HeaderTabs => user is null
+        ? []
+        : [
+            new("home", Localizer.Translate("overview"), "fas fa-home"),
+            new("reactions", Localizer.Translate("reaction"), "fas fa-laugh"),
+            new("clips", Localizer.Translate("clips"), "fas fa-paperclip"),
+            new("pages", Localizer.Translate("pages"), "fas fa-file-alt"),
+            new("gallery", Localizer.Translate("gallery"), "fas fa-icons")
+        ];
+
+    protected override void OnParametersSet()
+    {
+        selectedTab = Page?.ToLowerInvariant() switch
+        {
+            "reactions" or "clips" or "pages" or "gallery" or "following" or "followers" => Page!.ToLowerInvariant(),
+            _ => "home"
+        };
+        string route = $"{Acct}\u001f{selectedTab}";
+        if (!string.Equals(observedRoute, route, StringComparison.Ordinal))
+        {
+            observedRoute = route;
+            _ = LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        state = UserPageState.Loading;
+        user = null;
+        notesSource = null;
+        followSource = null;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            UserPageViewModel result = await Users.ReadAsync(
+                Acct ?? string.Empty,
+                null,
+                10,
+                lifetime.Token).ConfigureAwait(false);
+            if (disposed)
+            {
+                return;
+            }
+
+            user = result.User;
+            if (selectedTab == "home")
+            {
+                notesSource = new UserPagePaginationSource(Users, result.User, result.Notes);
+            }
+            else if (selectedTab is "following" or "followers")
+            {
+                followSource = new UserFollowRelationsPaginationSource(
+                    FollowRelations,
+                    result.User.User.Acct,
+                    selectedTab == "followers");
+            }
+            wide = true;
+            state = UserPageState.Loaded;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Logger.LogWarning(
+                "User page projection failed. Acct={Acct} FailureType={FailureType}",
+                Acct,
+                exception.GetType().Name);
+            state = UserPageState.Error;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private Task ChangeTabAsync(string key)
+    {
+        if (key is "home" or "reactions" or "clips" or "pages" or "gallery" or "following" or "followers")
+        {
+            selectedTab = key;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        disposed = true;
+        lifetime.Cancel();
+        lifetime.Dispose();
+        return ValueTask.CompletedTask;
+    }
+
+    private enum UserPageState
+    {
+        Loading,
+        Loaded,
+        Error
+    }
+
+}

@@ -1,0 +1,238 @@
+@inject IMisskeyLocalizer Localizer
+
+<div class="igpposuu _monospace">
+    @switch (Kind)
+    {
+        case ObjectValueKind.Null:
+            <div class="null">null</div>
+            break;
+        case ObjectValueKind.Boolean:
+            <div class="boolean @(BooleanValue ? "true" : "false")">@(BooleanValue ? "true" : "false")</div>
+            break;
+        case ObjectValueKind.String:
+            <div class="string">&quot;@StringValue&quot;</div>
+            break;
+        case ObjectValueKind.Number:
+            <div class="number">@NumberText</div>
+            break;
+        case ObjectValueKind.Array when ArrayValues.Count == 0:
+            <div class="array empty">[]</div>
+            break;
+        case ObjectValueKind.Array:
+            <div class="array">
+                @for (int index = 0; index < ArrayValues.Count; index++)
+                {
+                    object? item = ArrayValues[index];
+                    <div @key="index" class="element">
+                        @(index + 1): <MkObjectViewValue Value="item" />
+                    </div>
+                }
+            </div>
+            break;
+        case ObjectValueKind.Object when ObjectValues.Count == 0:
+            <div class="object empty">@("{}")</div>
+            break;
+        case ObjectValueKind.Object:
+            <div class="object">
+                @foreach (KeyValuePair<string, object?> entry in ObjectValues)
+                {
+                    bool collapsable = IsCollapsable(entry.Value);
+                    bool collapsed = collapsedKeys.GetValueOrDefault(entry.Key);
+                    <div @key="entry.Key" class="kv">
+                        <button class="toggle _button @(collapsable ? "visible" : null)"
+                                type="button"
+                                aria-expanded="@(collapsable ? (!collapsed).ToString().ToLowerInvariant() : null)"
+                                @onclick="() => Toggle(entry.Key)">@(collapsed ? "+" : "-")</button>
+                        <div class="k">@entry.Key:</div>
+                        @if (collapsed)
+                        {
+                            <div class="v">
+                                <button class="_button" type="button" @onclick="() => Toggle(entry.Key)">@CollapsedLabel(entry.Value)</button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="v"><MkObjectViewValue Value="entry.Value" /></div>
+                        }
+                    </div>
+                }
+            </div>
+            break;
+    }
+</div>
+
+@code {
+    private readonly Dictionary<string, bool> collapsedKeys = new(StringComparer.Ordinal);
+    private object? previousValue;
+
+    [Parameter, EditorRequired]
+    public object? Value { get; set; }
+
+    private ObjectValueKind Kind => Classify(Value);
+
+    private bool BooleanValue => Value switch
+    {
+        bool value => value,
+        JsonElement { ValueKind: JsonValueKind.True } => true,
+        _ => false
+    };
+
+    private string StringValue => Value switch
+    {
+        string value => value,
+        JsonElement { ValueKind: JsonValueKind.String } element => element.GetString() ?? string.Empty,
+        _ => string.Empty
+    };
+
+    private string NumberText => FormatNumber(Value, Localizer.Culture);
+
+    private IReadOnlyList<object?> ArrayValues => ReadArray(Value);
+
+    private IReadOnlyList<KeyValuePair<string, object?>> ObjectValues => ReadObject(Value);
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(previousValue, Value))
+        {
+            return;
+        }
+
+        previousValue = Value;
+        collapsedKeys.Clear();
+        foreach (KeyValuePair<string, object?> entry in ObjectValues)
+        {
+            collapsedKeys[entry.Key] = IsCollapsable(entry.Value);
+        }
+    }
+
+    private void Toggle(string key)
+    {
+        KeyValuePair<string, object?> entry = ObjectValues.FirstOrDefault(candidate => candidate.Key == key);
+        if (!IsCollapsable(entry.Value))
+        {
+            return;
+        }
+
+        collapsedKeys[key] = !collapsedKeys.GetValueOrDefault(key);
+    }
+
+    private static ObjectValueKind Classify(object? value) => value switch
+    {
+        null => ObjectValueKind.Null,
+        JsonElement { ValueKind: JsonValueKind.Null or JsonValueKind.Undefined } => ObjectValueKind.Null,
+        bool => ObjectValueKind.Boolean,
+        JsonElement { ValueKind: JsonValueKind.True or JsonValueKind.False } => ObjectValueKind.Boolean,
+        string => ObjectValueKind.String,
+        JsonElement { ValueKind: JsonValueKind.String } => ObjectValueKind.String,
+        byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal => ObjectValueKind.Number,
+        JsonElement { ValueKind: JsonValueKind.Number } => ObjectValueKind.Number,
+        JsonElement { ValueKind: JsonValueKind.Array } => ObjectValueKind.Array,
+        System.Collections.IEnumerable when value is not string && value is not System.Collections.IDictionary => ObjectValueKind.Array,
+        JsonElement { ValueKind: JsonValueKind.Object } => ObjectValueKind.Object,
+        System.Collections.IDictionary => ObjectValueKind.Object,
+        _ => ObjectValueKind.String
+    };
+
+    private static IReadOnlyList<object?> ReadArray(object? value)
+    {
+        if (value is JsonElement { ValueKind: JsonValueKind.Array } element)
+        {
+            return element.EnumerateArray().Select(item => (object?)item.Clone()).ToArray();
+        }
+
+        if (value is System.Collections.IEnumerable enumerable && value is not string)
+        {
+            return enumerable.Cast<object?>().ToArray();
+        }
+
+        return [];
+    }
+
+    private static IReadOnlyList<KeyValuePair<string, object?>> ReadObject(object? value)
+    {
+        if (value is JsonElement { ValueKind: JsonValueKind.Object } element)
+        {
+            return element.EnumerateObject()
+                .Select(property => KeyValuePair.Create<string, object?>(property.Name, property.Value.Clone()))
+                .ToArray();
+        }
+
+        if (value is System.Collections.IDictionary dictionary)
+        {
+            var entries = new List<KeyValuePair<string, object?>>(dictionary.Count);
+            foreach (System.Collections.DictionaryEntry entry in dictionary)
+            {
+                entries.Add(KeyValuePair.Create(
+                    Convert.ToString(entry.Key, CultureInfo.InvariantCulture) ?? string.Empty,
+                    entry.Value));
+            }
+
+            return entries;
+        }
+
+        return [];
+    }
+
+    private static bool IsCollapsable(object? value)
+    {
+        ObjectValueKind kind = Classify(value);
+        return kind switch
+        {
+            ObjectValueKind.Array => ReadArray(value).Count > 0,
+            ObjectValueKind.Object => ReadObject(value).Count > 0,
+            _ => false
+        };
+    }
+
+    private static string CollapsedLabel(object? value) => Classify(value) switch
+    {
+        ObjectValueKind.String => "\"...\"",
+        ObjectValueKind.Array => "[...]",
+        ObjectValueKind.Object => "{...}",
+        _ => string.Empty
+    };
+
+    private static string FormatNumber(object? value, CultureInfo culture)
+    {
+        if (value is JsonElement { ValueKind: JsonValueKind.Number } element)
+        {
+            if (element.TryGetInt64(out long integer))
+            {
+                return integer.ToString("N0", culture);
+            }
+
+            if (element.TryGetDecimal(out decimal decimalValue))
+            {
+                return decimalValue.ToString("#,0.############################", culture);
+            }
+
+            return element.GetDouble().ToString("#,0.################", culture);
+        }
+
+        return value switch
+        {
+            byte number => number.ToString("N0", culture),
+            sbyte number => number.ToString("N0", culture),
+            short number => number.ToString("N0", culture),
+            ushort number => number.ToString("N0", culture),
+            int number => number.ToString("N0", culture),
+            uint number => number.ToString("N0", culture),
+            long number => number.ToString("N0", culture),
+            ulong number => number.ToString("N0", culture),
+            decimal number => number.ToString("#,0.############################", culture),
+            float number => number.ToString("#,0.#######", culture),
+            double number => number.ToString("#,0.################", culture),
+            _ => Convert.ToString(value, culture) ?? string.Empty
+        };
+    }
+
+    private enum ObjectValueKind
+    {
+        Null,
+        Boolean,
+        String,
+        Number,
+        Array,
+        Object
+    }
+}

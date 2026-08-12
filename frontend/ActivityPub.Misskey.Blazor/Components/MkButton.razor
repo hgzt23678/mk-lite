@@ -1,0 +1,190 @@
+@implements IAsyncDisposable
+@inject IButtonRippleInterop RippleInterop
+
+@if (!Link)
+{
+    <button @ref="element"
+            class="@CssClass"
+            type="@Type"
+            disabled="@Disabled"
+            @attributes="AttributesWithoutClass"
+            @onclick="OnClick">
+        <div class="ripples"></div>
+        <div class="content">@ChildContent</div>
+    </button>
+}
+else
+{
+    <a @ref="element" class="@CssClass" href="@ResolvedTo" @attributes="AttributesWithoutClass">
+        <div class="ripples"></div>
+        <div class="content">@ChildContent</div>
+    </a>
+}
+
+@code {
+    private ElementReference element;
+    private IJSObjectReference? attachment;
+    private readonly CancellationTokenSource lifetime = new();
+    private bool disposed;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public EventCallback<MouseEventArgs> OnClick { get; set; }
+
+    [Parameter]
+    public string Type { get; set; } = "button";
+
+    [Parameter]
+    public bool Link { get; set; }
+
+    [Parameter]
+    public string? To { get; set; }
+
+    [Parameter]
+    public bool Autofocus { get; set; }
+
+    // Misskey 12.119.2 declares this prop but does not read it or change the rendered output.
+    [Parameter]
+    public bool Wait { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public bool Inline { get; set; }
+
+    [Parameter]
+    public bool Primary { get; set; }
+
+    [Parameter]
+    public bool Gradate { get; set; }
+
+    [Parameter]
+    public bool Rounded { get; set; }
+
+    [Parameter]
+    public bool Full { get; set; }
+
+    [Parameter]
+    public bool Danger { get; set; }
+
+    [Parameter]
+    public string? CssClassAdditional { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string CssClass => string.Join(' ', new[]
+    {
+        "bghgjjyj",
+        "_button",
+        Inline ? "inline" : null,
+        Primary ? "primary" : null,
+        Gradate ? "gradate" : null,
+        Danger ? "danger" : null,
+        Rounded ? "rounded" : null,
+        Full ? "full" : null,
+        CssClassAdditional,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private string? ResolvedTo => string.IsNullOrEmpty(To)
+        ? null
+        : To.StartsWith("/", StringComparison.Ordinal)
+            ? To
+            : "/" + To;
+
+    protected override void OnParametersSet()
+    {
+        if (Link && (string.IsNullOrWhiteSpace(To) ||
+                     !To.StartsWith("/", StringComparison.Ordinal) ||
+                     To.StartsWith("//", StringComparison.Ordinal) ||
+                     To.Contains('\\')))
+        {
+            throw new InvalidOperationException("A link button requires a rooted Misskey application path.");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !disposed)
+        {
+            try
+            {
+                IJSObjectReference created = await RippleInterop.AttachAsync(
+                    element,
+                    Autofocus,
+                    lifetime.Token);
+                if (disposed)
+                {
+                    await DisposeAttachmentAsync(created);
+                }
+                else
+                {
+                    attachment = created;
+                }
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachment is null)
+        {
+            lifetime.Dispose();
+            return;
+        }
+
+        try
+        {
+            await DisposeAttachmentAsync(attachment);
+        }
+        finally
+        {
+            lifetime.Dispose();
+        }
+    }
+
+    private async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try
+        {
+            await handle.InvokeVoidAsync("dispose", cleanup.Token);
+            await handle.DisposeAsync().AsTask().WaitAsync(cleanup.Token);
+        }
+        catch (OperationCanceledException) when (
+            disposed && (lifetime.IsCancellationRequested || cleanup.IsCancellationRequested))
+        {
+        }
+        catch (JSDisconnectedException) when (disposed)
+        {
+        }
+    }
+}

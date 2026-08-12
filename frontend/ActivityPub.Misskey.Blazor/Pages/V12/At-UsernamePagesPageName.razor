@@ -1,0 +1,12 @@
+@page "/@{Username}/pages/{PageName}"
+<V12RoutePage Route=@("/@:username/pages/:pageName") />
+
+@code {
+    [Parameter]
+    public string? PageName { get; set; }
+}
+
+@code {
+    [Parameter]
+    public string? Username { get; set; }
+}

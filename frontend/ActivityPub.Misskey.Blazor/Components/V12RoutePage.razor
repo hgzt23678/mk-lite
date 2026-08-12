@@ -1,0 +1,51 @@
+@inject IMisskeyLocalizer Localizer
+
+<PageTitle>@Route</PageTitle>
+<HeadContent>
+    <meta name="misskey:page-icon" content="fas fa-file" />
+</HeadContent>
+
+<MkStickyContainer>
+    <Header>
+        <MkPageHeader Metadata="HeaderMetadata" />
+    </Header>
+    <ChildContent>
+        <div class="_fullinfo">
+            <i class="fas fa-code" aria-hidden="true"></i>
+            <div>@Localizer.Translate("notFoundDescription")</div>
+            <code>@Route</code>
+        </div>
+    </ChildContent>
+</MkStickyContainer>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Route { get; set; } = string.Empty;
+
+    [Parameter] public string? Acct { get; set; }
+    [Parameter] public string? Page { get; set; }
+    [Parameter] public string? Username { get; set; }
+    [Parameter] public string? PageName { get; set; }
+    [Parameter] public string? InitUser { get; set; }
+    [Parameter] public string? InitPageName { get; set; }
+    [Parameter] public string? FileId { get; set; }
+    [Parameter] public string? Token { get; set; }
+    [Parameter] public string? ChannelId { get; set; }
+    [Parameter] public string? ClipId { get; set; }
+    [Parameter] public string? Tag { get; set; }
+    [Parameter] public string? PostId { get; set; }
+    [Parameter] public string? Host { get; set; }
+    [Parameter] public string? Session { get; set; }
+    [Parameter] public string? AntennaId { get; set; }
+    [Parameter] public string? Folder { get; set; }
+    [Parameter] public string? ListId { get; set; }
+    [Parameter] public string? UserAcct { get; set; }
+    [Parameter] public string? GroupId { get; set; }
+    [Parameter] public string? NoteId { get; set; }
+    [Parameter] public string? InitPageId { get; set; }
+    [Parameter] public string? Path { get; set; }
+    [Parameter] public string? Code { get; set; }
+    [Parameter] public string? WebhookId { get; set; }
+
+    private MkPageHeaderMetadata HeaderMetadata => new(Route);
+}

@@ -1,0 +1,37 @@
+@using ActivityPub.Misskey.Blazor.Client
+
+<MkA To="@PageHref" ActiveClass="active" class="vhpxefrj _block" tabindex="-1">
+    @if (ThumbnailUrl is not null)
+    {
+        <div class="thumbnail" style="background-image: url('@ThumbnailUrl')"></div>
+    }
+    <article>
+        <header>
+            <h1 title="@Page.Title">@Page.Title</h1>
+        </header>
+        @if (!string.IsNullOrWhiteSpace(Page.Summary))
+        {
+            <p title="@Page.Summary">@Summary</p>
+        }
+        <footer>
+            <img class="icon" src="@Page.User.AvatarUrl" alt="" />
+            <p>@DisplayName</p>
+        </footer>
+    </article>
+</MkA>
+
+@code {
+    [Parameter, EditorRequired]
+    public MisskeyPagePreviewViewModel Page { get; set; } = null!;
+
+    private string PageHref => $"/@{Uri.EscapeDataString(Page.User.Username)}/pages/{Uri.EscapeDataString(Page.Name)}";
+    private string Summary => Page.Summary!.Length > 85 ? Page.Summary[..85] + "…" : Page.Summary;
+    private string DisplayName => MisskeyScriptUtilities.GetUserName(Page.User.DisplayName, Page.User.Username);
+    private string? ThumbnailUrl => IsSafeImageUrl(Page.EyeCatchingImageThumbnailUrl) ? Page.EyeCatchingImageThumbnailUrl : null;
+
+    private static bool IsSafeImageUrl(string? value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) &&
+        (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) &&
+        string.IsNullOrEmpty(uri.UserInfo);
+}

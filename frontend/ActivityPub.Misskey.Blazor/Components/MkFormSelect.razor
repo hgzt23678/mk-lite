@@ -1,0 +1,439 @@
+@implements IAsyncDisposable
+@inject IFormInputInterop InputInterop
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+
+<div class="@RootClass" style="@RootStyle" @attributes="AttributesWithoutClassAndStyle">
+    <div class="label" @onclick="FocusAsync">@Label</div>
+    <div @ref="containerElement"
+         class="@InputContainerClass"
+         @onclick="OpenMenuAsync"
+         @onclick:preventDefault="true">
+        <div @ref="prefixElement" class="prefix">@Prefix</div>
+        <select @ref="selectElement"
+                class="select"
+                value="@currentValue"
+                disabled="@Disabled"
+                required="@Required"
+                readonly="@ReadOnly"
+                placeholder="@Placeholder"
+                data-mk-autofocus="@(Autofocus ? "true" : null)"
+                @onfocus="OnFocus"
+                @onblur="OnBlur"
+                @oninput="OnNativeInputAsync">
+            @if (Items.Count > 0)
+            {
+                @foreach (MkFormSelectItem item in Items)
+                {
+                    if (item.IsGroup)
+                    {
+                        <optgroup @key="item" label="@item.Text" disabled="@item.Disabled">
+                            @foreach (MkFormSelectItem option in item.Items!)
+                            {
+                                <option @key="option"
+                                        value="@option.Value"
+                                        disabled="@option.Disabled"
+                                        selected="@(string.Equals(option.Value, currentValue, StringComparison.Ordinal))">@option.Text</option>
+                            }
+                        </optgroup>
+                    }
+                    else
+                    {
+                        <option @key="item"
+                                value="@item.Value"
+                                disabled="@item.Disabled"
+                                selected="@(string.Equals(item.Value, currentValue, StringComparison.Ordinal))">@item.Text</option>
+                    }
+                }
+            }
+            else
+            {
+                @ChildContent
+            }
+        </select>
+        <div @ref="suffixElement" class="suffix"><i class="fas fa-chevron-down"></i></div>
+    </div>
+    <div class="caption">@Caption</div>
+
+    @if (ManualSave && changed)
+    {
+        <MkButton Primary="true" CssClassAdditional="save" OnClick="SaveAsync">
+            <i class="fas fa-save"></i> @Localizer.Translate("save")
+        </MkButton>
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference containerElement;
+    private ElementReference selectElement;
+    private ElementReference prefixElement;
+    private ElementReference suffixElement;
+    private IJSObjectReference? attachment;
+    private Task? attachmentTask;
+    private Guid? menuId;
+    private string currentValue = string.Empty;
+    private string? lastIncomingValue;
+    private bool focused;
+    private bool changed;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public string Value { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> ValueChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<ChangeEventArgs> Changed { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<MkFormSelectItem> Items { get; set; } = [];
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? Label { get; set; }
+
+    [Parameter]
+    public RenderFragment? Prefix { get; set; }
+
+    [Parameter]
+    public RenderFragment? Caption { get; set; }
+
+    [Parameter]
+    public bool Required { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public string? Placeholder { get; set; }
+
+    [Parameter]
+    public bool Autofocus { get; set; }
+
+    [Parameter]
+    public bool Inline { get; set; }
+
+    [Parameter]
+    public bool ManualSave { get; set; }
+
+    [Parameter]
+    public bool Small { get; set; }
+
+    [Parameter]
+    public bool Large { get; set; }
+
+    [Parameter]
+    public string? CssClassAdditional { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "vblkjoeq",
+        CssClassAdditional,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string RootStyle => string.Join(' ', new[]
+    {
+        $"--mk-form-select-height: {HeightPx};",
+        AdditionalStyle
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string InputContainerClass => string.Join(' ', new[]
+    {
+        "input",
+        Inline ? "inline" : null,
+        Disabled ? "disabled" : null,
+        focused ? "focused" : null
+    }.Where(value => value is not null));
+
+    private string HeightPx => Small ? "36px" : Large ? "40px" : "38px";
+
+    private string? AdditionalClass => ReadAdditionalAttribute("class");
+
+    private string? AdditionalStyle => ReadAdditionalAttribute("style");
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnInitialized() => Overlays.Changed += OnOverlaysChanged;
+
+    protected override void OnParametersSet()
+    {
+        ValidateItems(Items);
+        if (!string.Equals(lastIncomingValue, Value, StringComparison.Ordinal))
+        {
+            currentValue = Value;
+            lastIncomingValue = Value;
+            changed = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        attachmentTask = AttachAsync();
+        await attachmentTask;
+    }
+
+    private async Task AttachAsync()
+    {
+        try
+        {
+            IJSObjectReference result = await InputInterop.AttachAsync(
+                selectElement,
+                prefixElement,
+                suffixElement,
+                Autofocus,
+                lifetime.Token);
+            if (disposed)
+            {
+                await DisposeAttachmentAsync(result);
+                return;
+            }
+
+            attachment = result;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private Task OnFocus(FocusEventArgs args)
+    {
+        _ = args;
+        focused = true;
+        return Task.CompletedTask;
+    }
+
+    private Task OnBlur(FocusEventArgs args)
+    {
+        _ = args;
+        if (menuId is null)
+        {
+            focused = false;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task OpenMenuAsync(MouseEventArgs args)
+    {
+        _ = args;
+        if (Items.Count == 0 || menuId is not null)
+        {
+            return Task.CompletedTask;
+        }
+
+        focused = true;
+        menuId = Overlays.ShowPopupMenu(
+            containerElement,
+            BuildMenuItems(Items),
+            matchSourceWidth: true);
+        return Task.CompletedTask;
+    }
+
+    private IReadOnlyList<MisskeyMenuItem> BuildMenuItems(IReadOnlyList<MkFormSelectItem> items)
+    {
+        var menu = new List<MisskeyMenuItem>();
+        foreach (MkFormSelectItem item in items)
+        {
+            if (item.IsGroup)
+            {
+                menu.Add(new MisskeyMenuItem(MisskeyMenuItemKind.Label, item.Text));
+                AddOptions(menu, item.Items!);
+            }
+            else
+            {
+                AddOption(menu, item);
+            }
+        }
+
+        return menu;
+    }
+
+    private void AddOptions(List<MisskeyMenuItem> menu, IReadOnlyList<MkFormSelectItem> options)
+    {
+        foreach (MkFormSelectItem option in options)
+        {
+            AddOption(menu, option);
+        }
+    }
+
+    private void AddOption(List<MisskeyMenuItem> menu, MkFormSelectItem option)
+    {
+        string value = option.Value!;
+        menu.Add(new MisskeyMenuItem(
+            MisskeyMenuItemKind.Action,
+            option.Text,
+            Action: () => SelectAsync(value),
+            Disabled: option.Disabled,
+            Active: string.Equals(value, currentValue, StringComparison.Ordinal)));
+    }
+
+    private Task OnNativeInputAsync(ChangeEventArgs args) =>
+        SelectAsync(args.Value?.ToString() ?? string.Empty, args);
+
+    private async Task SelectAsync(string value, ChangeEventArgs? args = null)
+    {
+        currentValue = value;
+        changed = true;
+        await Changed.InvokeAsync(args ?? new ChangeEventArgs { Value = value });
+        if (!ManualSave)
+        {
+            await PublishAsync();
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private Task SaveAsync(MouseEventArgs args)
+    {
+        _ = args;
+        return PublishAsync();
+    }
+
+    private async Task PublishAsync()
+    {
+        changed = false;
+        lastIncomingValue = currentValue;
+        await ValueChanged.InvokeAsync(currentValue);
+    }
+
+    private async Task FocusAsync(MouseEventArgs args)
+    {
+        _ = args;
+        if (attachment is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await attachment.InvokeVoidAsync("focus", lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private void OnOverlaysChanged()
+    {
+        if (menuId is not Guid id || Overlays.Entries.Any(entry => entry.Id == id))
+        {
+            return;
+        }
+
+        menuId = null;
+        focused = false;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private static void ValidateItems(IReadOnlyList<MkFormSelectItem> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        foreach (MkFormSelectItem item in items)
+        {
+            if (string.IsNullOrWhiteSpace(item.Text))
+            {
+                throw new ArgumentException("A select item must have text.", nameof(items));
+            }
+
+            if (item.IsGroup)
+            {
+                if (item.Items!.Any(option => option.IsGroup))
+                {
+                    throw new ArgumentException("Nested select groups are not supported by HTML.", nameof(items));
+                }
+
+                ValidateItems(item.Items!);
+            }
+            else if (item.Value is null)
+            {
+                throw new ArgumentException("A select option must have a value.", nameof(items));
+            }
+        }
+    }
+
+    private string? ReadAdditionalAttribute(string name) =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue(name, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        Overlays.Changed -= OnOverlaysChanged;
+        if (menuId is Guid id)
+        {
+            Overlays.Close(id);
+            menuId = null;
+        }
+
+        await lifetime.CancelAsync();
+        if (attachmentTask is not null)
+        {
+            try
+            {
+                await attachmentTask;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        if (attachment is not null)
+        {
+            await DisposeAttachmentAsync(attachment);
+        }
+
+        lifetime.Dispose();
+    }
+
+    private async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try
+        {
+            await handle.InvokeVoidAsync("dispose", cleanup.Token);
+            await handle.DisposeAsync().AsTask().WaitAsync(cleanup.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

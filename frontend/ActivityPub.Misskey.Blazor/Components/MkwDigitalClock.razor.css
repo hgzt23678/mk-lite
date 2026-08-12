@@ -1,0 +1,9 @@
+.mkw-digitalClock {
+    padding: 16px 0;
+    text-align: center;
+}
+
+.mkw-digitalClock > .label {
+    font-size: 65%;
+    opacity: 0.7;
+}

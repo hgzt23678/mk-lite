@@ -1,0 +1,212 @@
+@implements IAsyncDisposable
+@inject IRippleEffectInterop RippleInterop
+
+<div @ref="element"
+     class="@CssClass"
+     style="@RootStyle"
+     aria-hidden="true"
+     @attributes="AttributesWithoutClassAndStyle">
+    <svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+        <circle fill="none" cx="64" cy="64">
+            <animate attributeName="r"
+                     begin="0s" dur="0.5s"
+                     values="4; 32"
+                     calcMode="spline"
+                     keyTimes="0; 1"
+                     keySplines="0.165, 0.84, 0.44, 1"
+                     repeatCount="1" />
+            <animate attributeName="stroke-width"
+                     begin="0s" dur="0.5s"
+                     values="16; 0"
+                     calcMode="spline"
+                     keyTimes="0; 1"
+                     keySplines="0.3, 0.61, 0.355, 1"
+                     repeatCount="1" />
+        </circle>
+        <g fill="none" fill-rule="evenodd">
+            @foreach (RippleParticle particle in particles)
+            {
+                <circle @key="particle.Id" fill="@particle.Color">
+                    <animate attributeName="r"
+                             begin="0s" dur="0.8s"
+                             values="@FormatValues(particle.Size, 0)"
+                             calcMode="spline"
+                             keyTimes="0; 1"
+                             keySplines="0.165, 0.84, 0.44, 1"
+                             repeatCount="1" />
+                    <animate attributeName="cx"
+                             begin="0s" dur="0.8s"
+                             values="@FormatValues(particle.XA, particle.XB)"
+                             calcMode="spline"
+                             keyTimes="0; 1"
+                             keySplines="0.3, 0.61, 0.355, 1"
+                             repeatCount="1" />
+                    <animate attributeName="cy"
+                             begin="0s" dur="0.8s"
+                             values="@FormatValues(particle.YA, particle.YB)"
+                             calcMode="spline"
+                             keyTimes="0; 1"
+                             keySplines="0.3, 0.61, 0.355, 1"
+                             repeatCount="1" />
+                </circle>
+            }
+        </g>
+    </svg>
+</div>
+
+@code {
+    private static readonly string[] Colors = ["#FF1493", "#00FFFF", "#FFE202"];
+    private readonly CancellationTokenSource lifetime = new();
+    private readonly List<RippleParticle> particles = [];
+    private ElementReference element;
+    private DotNetObjectReference<MkRipple>? receiver;
+    private IJSObjectReference? attachment;
+    private bool ended;
+    private bool disposed;
+
+    [Parameter]
+    public double X { get; set; }
+
+    [Parameter]
+    public double Y { get; set; }
+
+    [Parameter]
+    public bool Particle { get; set; } = true;
+
+    [Parameter]
+    public EventCallback End { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string CssClass => string.Join(' ', new[] { "vswabwbm", AdditionalClass }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string RootStyle => string.Join(' ', new[]
+    {
+        FormattableString.Invariant($"top: {Y - 64:0.########}px;"),
+        FormattableString.Invariant($"left: {X - 64:0.########}px;"),
+        AdditionalStyle
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass => ReadAdditionalAttribute("class");
+
+    private string? AdditionalStyle => ReadAdditionalAttribute("style");
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnInitialized()
+    {
+        if (!Particle)
+        {
+            return;
+        }
+
+        const double origin = 64;
+        for (int index = 0; index < 12; index++)
+        {
+            double angle = Random.Shared.NextDouble() * Math.PI * 2;
+            double position = Random.Shared.NextDouble() * 16;
+            double velocity = 16 + (Random.Shared.NextDouble() * 48);
+            particles.Add(new RippleParticle(
+                index,
+                4 + (Random.Shared.NextDouble() * 8),
+                origin + (Math.Sin(angle) * position),
+                origin + (Math.Cos(angle) * position),
+                origin + (Math.Sin(angle) * (position + velocity)),
+                origin + (Math.Cos(angle) * (position + velocity)),
+                Colors[Random.Shared.Next(Colors.Length)]));
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || disposed)
+        {
+            return;
+        }
+
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            IJSObjectReference created = await RippleInterop.AttachAsync(element, receiver, lifetime.Token);
+            if (disposed)
+            {
+                await created.InvokeVoidAsync("dispose");
+                await created.DisposeAsync();
+                return;
+            }
+
+            attachment = created;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public async Task NotifyEnded()
+    {
+        if (ended || disposed)
+        {
+            return;
+        }
+
+        ended = true;
+        await End.InvokeAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private string? ReadAdditionalAttribute(string key) =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue(key, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private static string FormatValues(double from, double to) => string.Create(
+        CultureInfo.InvariantCulture,
+        $"{from:0.########}; {to:0.########}");
+
+    private sealed record RippleParticle(
+        int Id,
+        double Size,
+        double XA,
+        double YA,
+        double XB,
+        double YB,
+        string Color);
+}

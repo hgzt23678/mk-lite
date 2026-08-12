@@ -1,0 +1,17 @@
+https://localhost:8443 {
+	tls internal
+	reverse_proxy api:8080 api-canary:8080 {
+		lb_policy least_conn
+		lb_retries 3
+		lb_try_duration 3s
+		lb_try_interval 100ms
+		health_uri /health/ready
+		health_interval 1s
+		health_timeout 2s
+		health_headers {
+			Host localhost
+		}
+		fail_duration 10s
+		max_fails 1
+	}
+}

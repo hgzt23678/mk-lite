@@ -1,0 +1,359 @@
+@implements IAsyncDisposable
+@inject IWidgetsInterop Browser
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+
+<div @ref="root" class="vjoppmmu">
+    @if (Edit)
+    {
+        <header>
+            <MkFormSelect Value="@widgetAdderSelected"
+                          ValueChanged="SelectWidget"
+                          Items="@WidgetOptions"
+                          CssClassAdditional="mk-widget-select"
+                          style="margin-bottom: var(--margin)">
+                <Label>@Localizer.Translate("selectWidget")</Label>
+            </MkFormSelect>
+            <MkButton Inline="true" Primary="true" CssClassAdditional="mk-widget-add" OnClick="AddWidgetAsync">
+                <i class="fas fa-plus"></i> @Localizer.Translate("add")
+            </MkButton>
+            <MkButton Inline="true" OnClick="ExitAsync">@Localizer.Translate("close")</MkButton>
+        </header>
+        <div>
+            @foreach (MisskeyWidgetModel widget in VisibleWidgets)
+            {
+                <div @key="widget.Id" class="customize-container" data-widget-id="@widget.Id">
+                    <button class="config _button"
+                            type="button"
+                            aria-label="@Localizer.Translate("settings")"
+                            @onclick="() => ConfigureWidget(widget)">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                    <button class="remove _button"
+                            type="button"
+                            aria-label="@Localizer.Translate("remove")"
+                            @onclick="() => RemoveWidgetAsync(widget)">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    <div class="handle" draggable="true">
+                        <MkwWidgetHost Widget="widget"
+                                       CssClass="widget"
+                                       DataChanged="data => UpdateWidgetAsync(widget.Id, data)" />
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        @foreach (MisskeyWidgetModel widget in VisibleWidgets)
+        {
+            <MkwWidgetHost @key="widget.Id"
+                           Widget="widget"
+                           CssClass="widget"
+                           DataChanged="data => UpdateWidgetAsync(widget.Id, data)" />
+        }
+    }
+</div>
+
+@code {
+    public static readonly IReadOnlyList<string> SupportedWidgetNames =
+    [
+        "timeline",
+        "calendar",
+        "clock",
+        "digitalClock",
+        "postForm",
+        "memo",
+        "unixClock",
+        "trends"
+    ];
+
+    private static readonly HashSet<string> SupportedWidgetNameSet = new(
+        SupportedWidgetNames,
+        StringComparer.Ordinal);
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference root;
+    private DotNetObjectReference<MkWidgets>? receiver;
+    private IJSObjectReference? attachment;
+    private string widgetAdderSelected = string.Empty;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<MisskeyWidgetModel> Widgets { get; set; } = [];
+
+    [Parameter]
+    public bool Edit { get; set; }
+
+    [Parameter]
+    public EventCallback<MisskeyWidgetModel> AddWidget { get; set; }
+
+    [Parameter]
+    public EventCallback<MisskeyWidgetModel> RemoveWidget { get; set; }
+
+    [Parameter]
+    public EventCallback<MisskeyWidgetUpdate> UpdateWidget { get; set; }
+
+    [Parameter]
+    public EventCallback<IReadOnlyList<MisskeyWidgetModel>> UpdateWidgets { get; set; }
+
+    [Parameter]
+    public EventCallback Exit { get; set; }
+
+    private IReadOnlyList<MisskeyWidgetModel> VisibleWidgets => Widgets
+        .Where(widget => SupportedWidgetNameSet.Contains(widget.Name))
+        .ToArray();
+
+    private IReadOnlyList<MkFormSelectItem> WidgetOptions => SupportedWidgetNames
+        .Select(name => MkFormSelectItem.Option(name, Localizer.Translate($"_widgets.{name}")))
+        .ToArray();
+
+    protected override void OnParametersSet()
+    {
+        ArgumentNullException.ThrowIfNull(Widgets);
+        if (Widgets.Any(widget => string.IsNullOrWhiteSpace(widget.Id) || string.IsNullOrWhiteSpace(widget.Name)) ||
+            Widgets.GroupBy(widget => widget.Id, StringComparer.Ordinal).Any(group => group.Count() > 1))
+        {
+            throw new ArgumentException("The Misskey widget collection is invalid.", nameof(Widgets));
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || disposed)
+        {
+            return;
+        }
+
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            attachment = await Browser.AttachAsync(root, receiver, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private void SelectWidget(string value) => widgetAdderSelected =
+        SupportedWidgetNameSet.Contains(value) ? value : string.Empty;
+
+    private async Task AddWidgetAsync(MouseEventArgs args)
+    {
+        _ = args;
+        if (!SupportedWidgetNameSet.Contains(widgetAdderSelected))
+        {
+            return;
+        }
+
+        var widget = new MisskeyWidgetModel
+        {
+            Name = widgetAdderSelected,
+            Id = Guid.NewGuid().ToString(),
+            Place = null,
+            Data = new Dictionary<string, JsonElement>(StringComparer.Ordinal)
+        };
+        widgetAdderSelected = string.Empty;
+        await AddWidget.InvokeAsync(widget);
+    }
+
+    private Task ExitAsync(MouseEventArgs args)
+    {
+        _ = args;
+        return Exit.InvokeAsync();
+    }
+
+    private Task RemoveWidgetAsync(MisskeyWidgetModel widget) => RemoveWidget.InvokeAsync(widget);
+
+    private Task UpdateWidgetAsync(string id, IReadOnlyDictionary<string, JsonElement> data) =>
+        UpdateWidget.InvokeAsync(new MisskeyWidgetUpdate(id, data));
+
+    [JSInvokable]
+    public Task ReorderWidget(string sourceId, string targetId, bool after)
+    {
+        if (disposed || string.Equals(sourceId, targetId, StringComparison.Ordinal))
+        {
+            return Task.CompletedTask;
+        }
+
+        List<MisskeyWidgetModel> reordered = VisibleWidgets.ToList();
+        int sourceIndex = reordered.FindIndex(widget => string.Equals(widget.Id, sourceId, StringComparison.Ordinal));
+        int targetIndex = reordered.FindIndex(widget => string.Equals(widget.Id, targetId, StringComparison.Ordinal));
+        if (sourceIndex < 0 || targetIndex < 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        MisskeyWidgetModel source = reordered[sourceIndex];
+        reordered.RemoveAt(sourceIndex);
+        targetIndex = reordered.FindIndex(widget => string.Equals(widget.Id, targetId, StringComparison.Ordinal));
+        reordered.Insert(Math.Clamp(targetIndex + (after ? 1 : 0), 0, reordered.Count), source);
+        return UpdateWidgets.InvokeAsync(reordered);
+    }
+
+    private void ConfigureWidget(MisskeyWidgetModel widget)
+    {
+        Overlays.ShowFormDialog(new MisskeyFormDialogOptions(
+            widget.Name,
+            ConfigurationForm(widget),
+            result => ApplyConfigurationAsync(widget, result)));
+    }
+
+    private async Task ApplyConfigurationAsync(MisskeyWidgetModel widget, MisskeyFormDialogResult result)
+    {
+        if (result.Canceled || result.Result is null)
+        {
+            return;
+        }
+
+        await UpdateWidgetAsync(widget.Id, MisskeyWidgetData.Merge(widget, result.Result));
+    }
+
+    private IReadOnlyList<MisskeyFormDialogItem> ConfigurationForm(MisskeyWidgetModel widget) => widget.Name switch
+    {
+        "calendar" =>
+        [
+            BooleanField(widget, "transparent", false)
+        ],
+        "timeline" =>
+        [
+            BooleanField(widget, "showHeader", true),
+            NumberField(widget, "height", 300, step: 50)
+        ],
+        "clock" => ClockForm(widget),
+        "digitalClock" => DigitalClockForm(widget),
+        "postForm" => [],
+        "memo" =>
+        [
+            BooleanField(widget, "showHeader", true)
+        ],
+        "unixClock" => UnixClockForm(widget),
+        _ => throw new InvalidOperationException("Unsupported widgets cannot be configured.")
+    };
+
+    private IReadOnlyList<MisskeyFormDialogItem> ClockForm(MisskeyWidgetModel widget) =>
+    [
+        BooleanField(widget, "transparent", false),
+        RadioField(widget, "size", MisskeyWidgetData.String(widget, "size", "medium"),
+        [
+            new(Localizer.Translate("small"), "small"),
+            new(Localizer.Translate("medium"), "medium"),
+            new(Localizer.Translate("large"), "large")
+        ]),
+        RadioField(widget, "thickness", MisskeyWidgetData.Number(widget, "thickness", 0.2),
+        [
+            new("thin", 0.1),
+            new("medium", 0.2),
+            new("thick", 0.3)
+        ]),
+        RadioField(widget, "graduations", MisskeyWidgetData.String(widget, "graduations", "numbers"),
+        [
+            new("None", "none"),
+            new("Dots", "dots"),
+            new("Numbers", "numbers")
+        ]),
+        BooleanField(widget, "fadeGraduations", true),
+        RadioField(widget, "sAnimation", MisskeyWidgetData.String(widget, "sAnimation", "elastic"),
+        [
+            new("None", "none"),
+            new("Elastic", "elastic"),
+            new("Ease out", "easeOut")
+        ]),
+        BooleanField(widget, "twentyFour", false),
+        RadioField(widget, "label", MisskeyWidgetData.String(widget, "label", "none"),
+        [
+            new("None", "none"),
+            new("Time", "time"),
+            new("TZ", "tz"),
+            new("Time + TZ", "timeAndTz")
+        ]),
+        TimezoneField(widget)
+    ];
+
+    private IReadOnlyList<MisskeyFormDialogItem> DigitalClockForm(MisskeyWidgetModel widget) =>
+    [
+        BooleanField(widget, "transparent", false),
+        NumberField(widget, "fontSize", 1.5, step: 0.1),
+        BooleanField(widget, "showMs", true),
+        BooleanField(widget, "showLabel", true),
+        TimezoneField(widget)
+    ];
+
+    private IReadOnlyList<MisskeyFormDialogItem> UnixClockForm(MisskeyWidgetModel widget) =>
+    [
+        BooleanField(widget, "transparent", false),
+        NumberField(widget, "fontSize", 1.5, step: 0.1),
+        BooleanField(widget, "showMs", true),
+        BooleanField(widget, "showLabel", true)
+    ];
+
+    private static MisskeyFormDialogItem BooleanField(
+        MisskeyWidgetModel widget,
+        string name,
+        bool fallback) => new(name, "boolean")
+        {
+            DefaultValue = MisskeyWidgetData.Boolean(widget, name, fallback)
+        };
+
+    private static MisskeyFormDialogItem NumberField(
+        MisskeyWidgetModel widget,
+        string name,
+        double fallback,
+        double step) => new(name, "number")
+        {
+            DefaultValue = MisskeyWidgetData.Number(widget, name, fallback),
+            Step = step
+        };
+
+    private static MisskeyFormDialogItem RadioField(
+        MisskeyWidgetModel widget,
+        string name,
+        object? defaultValue,
+        IReadOnlyList<MisskeyFormDialogOption> options)
+    {
+        _ = widget;
+        return new(name, "radio")
+        {
+            DefaultValue = defaultValue,
+            Options = options
+        };
+    }
+
+    private static MisskeyFormDialogItem TimezoneField(MisskeyWidgetModel widget) => new("timezone", "enum")
+    {
+        DefaultValue = MisskeyWidgetData.String(widget, "timezone", null),
+        Options = MisskeyWidgetTimezone.All
+            .Select(timezone => new MisskeyFormDialogOption(timezone.Name, timezone.Name.ToLowerInvariant()))
+            .Append(new MisskeyFormDialogOption("(auto)", null))
+            .ToArray()
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+        await Browser.DisposeAsync();
+    }
+}

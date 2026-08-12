@@ -1,0 +1,20 @@
+<button @ref="element"
+        class="_button button @(Action.Highlighted ? "highlighted" : null)"
+        type="button"
+        title="@Action.Text"
+        data-tooltip="@Action.Text"
+        aria-label="@Action.Text"
+        @onclick:stopPropagation="true"
+        @ontouchstart:stopPropagation="true"
+        @onclick="InvokeAsync">
+    <i class="@Action.Icon" aria-hidden="true"></i>
+</button>
+
+@code {
+    private ElementReference element;
+
+    [Parameter, EditorRequired]
+    public MkPageHeaderAction Action { get; set; } = default!;
+
+    private Task InvokeAsync(MouseEventArgs args) => Action.InvokeAsync(element, args);
+}

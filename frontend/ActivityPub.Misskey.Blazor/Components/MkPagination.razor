@@ -1,0 +1,730 @@
+@typeparam TItem
+@implements IAsyncDisposable
+@inject IPaginationInterop Browser
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyLocalizer Localizer
+
+@if (fetching)
+{
+    <MkLoading @attributes="AdditionalAttributes" />
+}
+else if (error)
+{
+    <MkError Retry="RefreshAsync" @attributes="AdditionalAttributes" />
+}
+else if (items.Count == 0)
+{
+    <div class="@MergeClass("empty")" @attributes="AttributesWithoutClass">
+        @if (EmptyContent is not null)
+        {
+            @EmptyContent
+        }
+        else
+        {
+            <div class="_fullinfo">
+                <img src="/client-assets/about-icon.png" class="_ghost" />
+                <div>@Localizer.Translate("nothing")</div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div @ref="root" class="@AdditionalClass" @attributes="AttributesWithoutClass">
+        @if (Options.Reversed && more)
+        {
+            <div class="cxiknjgy _gap">
+                @if (!moreFetching)
+                {
+                    <MkButton class="button"
+                              Disabled="@moreFetching"
+                              style="cursor: pointer;"
+                              Primary="true"
+                              OnClick="LoadMoreAheadAsync">
+                        @Localizer.Translate("loadMore")
+                    </MkButton>
+                }
+                else
+                {
+                    <MkLoading class="loading" />
+                }
+            </div>
+        }
+        @if (ChildContent is not null)
+        {
+            @ChildContent(items)
+        }
+        @if (!Options.Reversed && more)
+        {
+            <div class="cxiknjgy _gap">
+                @if (!moreFetching)
+                {
+                    <MkButton class="button"
+                              data-pagination-auto-load
+                              Disabled="@moreFetching"
+                              style="cursor: pointer;"
+                              Primary="true"
+                              OnClick="LoadMoreAsync">
+                        @Localizer.Translate("loadMore")
+                    </MkButton>
+                }
+                else
+                {
+                    <MkLoading class="loading" />
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private const int SecondFetchLimit = 30;
+    private readonly CancellationTokenSource lifetime = new();
+    private readonly List<TItem> items = [];
+    private readonly List<TItem> queue = [];
+    private ElementReference root;
+    private DotNetObjectReference<MkPagination<TItem>>? receiver;
+    private IJSObjectReference? browserAttachment;
+    private IMisskeyPaginationSource<TItem>? observedSource;
+    private object? observedRefreshKey;
+    private PaginationScrollSnapshot? pendingScrollRestore;
+    private int offset;
+    private long loadGeneration;
+    private bool fetching = true;
+    private bool moreFetching;
+    private bool more;
+    private bool backed;
+    private bool isBackTop;
+    private bool error;
+    private bool initialized;
+    private bool hasRendered;
+    private bool? infiniteScroll;
+    private bool? attachmentAutoLoad;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public IMisskeyPaginationSource<TItem> Source { get; set; } = default!;
+
+    [Parameter]
+    public bool DisableAutoLoad { get; set; }
+
+    [Parameter]
+    public int DisplayLimit { get; set; } = 30;
+
+    [Parameter]
+    public object? RefreshKey { get; set; }
+
+    [Parameter]
+    public RenderFragment<IReadOnlyList<TItem>>? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? EmptyContent { get; set; }
+
+    [Parameter]
+    public EventCallback<int> QueueChanged { get; set; }
+
+    [Parameter]
+    public EventCallback Loaded { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    public IReadOnlyList<TItem> Items => items;
+    public IReadOnlyList<TItem> QueuedItems => queue;
+    public bool Backed => backed;
+    public bool More => more;
+    public bool IsFetching => fetching;
+    public bool IsFetchingMore => moreFetching;
+
+    private MisskeyPaginationOptions Options => Source.Options;
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private string MergeClass(string required) => string.Join(' ', new[] { required, AdditionalClass }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    protected override async Task OnParametersSetAsync()
+    {
+        ArgumentNullException.ThrowIfNull(Source);
+        if (DisplayLimit < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(DisplayLimit));
+        }
+
+        bool sourceChanged = !ReferenceEquals(observedSource, Source);
+        bool refreshChanged = !Equals(observedRefreshKey, RefreshKey);
+        observedSource = Source;
+        observedRefreshKey = RefreshKey;
+        if (!initialized || sourceChanged || refreshChanged)
+        {
+            initialized = true;
+            await InitializeAsync(clearItems: false);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        hasRendered = true;
+        if (disposed)
+        {
+            return;
+        }
+
+        bool contentVisible = !fetching && !error && items.Count > 0;
+        if (!contentVisible)
+        {
+            await DisposeBrowserAttachmentAsync();
+            return;
+        }
+
+        if (pendingScrollRestore is not null)
+        {
+            PaginationScrollSnapshot snapshot = pendingScrollRestore;
+            pendingScrollRestore = null;
+            try
+            {
+                await Browser.RestoreScrollAsync(
+                    root,
+                    snapshot,
+                    snapshot.AtBottom && Options.Reversed,
+                    lifetime.Token);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        if (infiniteScroll is null)
+        {
+            try
+            {
+                infiniteScroll = await DeviceState.ReadAsync(
+                    "enableInfiniteScroll",
+                    true,
+                    lifetime.Token);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (JSDisconnectedException)
+            {
+                infiniteScroll = true;
+            }
+        }
+
+        bool desiredAutoLoad = infiniteScroll.Value && !DisableAutoLoad && !Options.Reversed;
+        if (browserAttachment is not null && attachmentAutoLoad != desiredAutoLoad)
+        {
+            await DisposeBrowserAttachmentAsync();
+        }
+
+        if (browserAttachment is null)
+        {
+            receiver ??= DotNetObjectReference.Create(this);
+            try
+            {
+                browserAttachment = await Browser.AttachAsync(
+                    root,
+                    receiver,
+                    desiredAutoLoad,
+                    lifetime.Token);
+                attachmentAutoLoad = desiredAutoLoad;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+
+    public Task ReloadAsync() => InvokeAsync(() => InitializeAsync(clearItems: true));
+
+    public Task RefreshAsync() => InvokeAsync(() => InitializeAsync(clearItems: false));
+
+    public Task LoadMoreAsync() => InvokeAsync(LoadMoreCoreAsync);
+
+    public Task LoadMoreAheadAsync() => InvokeAsync(LoadMoreAheadCoreAsync);
+
+    public Task PrependAsync(TItem item) => InvokeAsync(() => PrependCoreAsync(item));
+
+    public Task UpsertAsync(TItem item) => InvokeAsync(async () =>
+    {
+        string id = Source.GetId(item);
+        int itemIndex = items.FindIndex(existing =>
+            string.Equals(Source.GetId(existing), id, StringComparison.Ordinal));
+        if (itemIndex >= 0)
+        {
+            items[itemIndex] = item;
+            StateHasChanged();
+            return;
+        }
+
+        int queueIndex = queue.FindIndex(existing =>
+            string.Equals(Source.GetId(existing), id, StringComparison.Ordinal));
+        if (queueIndex >= 0)
+        {
+            queue[queueIndex] = item;
+            StateHasChanged();
+            return;
+        }
+
+        await PrependCoreAsync(item);
+    });
+
+    public Task AppendAsync(TItem item) => InvokeAsync(() =>
+    {
+        items.Add(item);
+        StateHasChanged();
+    });
+
+    public Task RemoveItemAsync(Func<TItem, bool> finder)
+    {
+        ArgumentNullException.ThrowIfNull(finder);
+        return InvokeAsync(async () =>
+        {
+            int index = items.FindIndex(item => finder(item));
+            if (index >= 0)
+            {
+                items.RemoveAt(index);
+            }
+
+            int queued = queue.RemoveAll(item => finder(item));
+            if (queued > 0)
+            {
+                await QueueChanged.InvokeAsync(queue.Count);
+            }
+
+            if (index >= 0 || queued > 0)
+            {
+                StateHasChanged();
+            }
+        });
+    }
+
+    public Task UpdateItemAsync(string id, Func<TItem, TItem> replacer)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ArgumentNullException.ThrowIfNull(replacer);
+        return InvokeAsync(() =>
+        {
+            int index = items.FindIndex(item => string.Equals(Source.GetId(item), id, StringComparison.Ordinal));
+            if (index >= 0)
+            {
+                items[index] = replacer(items[index]);
+                StateHasChanged();
+            }
+        });
+    }
+
+    public void Activate() => isBackTop = false;
+
+    public Task ShowQueuedAsync() => InvokeAsync(async () =>
+    {
+        try
+        {
+            await Browser.ScrollToTopAsync(root, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        await FlushQueueAsync();
+    });
+
+    public async Task DeactivateAsync()
+    {
+        try
+        {
+            isBackTop = await Browser.IsWindowAtTopAsync(lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task NotifyAutoLoadAsync() => LoadMoreAsync();
+
+    [JSInvokable]
+    public Task NotifyReachedTopAsync() => InvokeAsync(FlushQueueAsync);
+
+    private async Task InitializeAsync(bool clearItems)
+    {
+        long generation = checked(++loadGeneration);
+        await DisposeBrowserAttachmentAsync();
+        if (clearItems)
+        {
+            items.Clear();
+        }
+        if (queue.Count > 0)
+        {
+            queue.Clear();
+            await QueueChanged.InvokeAsync(0);
+        }
+        fetching = true;
+        pendingScrollRestore = null;
+        if (hasRendered)
+        {
+            StateHasChanged();
+        }
+
+        int limit = Options.EffectiveLimit;
+        try
+        {
+            IReadOnlyList<TItem> response = await Source.FetchAsync(
+                new MisskeyPaginationRequest(Options.NoPaging ? limit : limit + 1),
+                lifetime.Token);
+            if (disposed || generation != loadGeneration)
+            {
+                return;
+            }
+
+            List<TItem> loaded = [.. response];
+            MarkInitialAdvertisement(loaded);
+            if (!Options.NoPaging && loaded.Count > limit)
+            {
+                loaded.RemoveAt(loaded.Count - 1);
+                more = true;
+            }
+            else
+            {
+                more = false;
+            }
+
+            if (Options.Reversed)
+            {
+                loaded.Reverse();
+            }
+            items.Clear();
+            items.AddRange(loaded);
+            offset = loaded.Count;
+            error = false;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception)
+        {
+            if (generation == loadGeneration)
+            {
+                error = true;
+            }
+        }
+        finally
+        {
+            if (generation == loadGeneration)
+            {
+                fetching = false;
+                if (hasRendered)
+                {
+                    StateHasChanged();
+                }
+                await Loaded.InvokeAsync();
+            }
+        }
+    }
+
+    private async Task LoadMoreCoreAsync()
+    {
+        if (!CanFetchMore())
+        {
+            return;
+        }
+
+        moreFetching = true;
+        backed = true;
+        StateHasChanged();
+        try
+        {
+            string cursor = Options.Reversed
+                ? Source.GetId(items[0])
+                : Source.GetId(items[^1]);
+            MisskeyPaginationRequest request = Options.OffsetMode
+                ? new(SecondFetchLimit + 1, Offset: offset)
+                : Options.Reversed
+                    ? new(SecondFetchLimit + 1, SinceId: cursor)
+                    : new(SecondFetchLimit + 1, UntilId: cursor);
+            IReadOnlyList<TItem> response = await Source.FetchAsync(request, lifetime.Token);
+            List<TItem> loaded = [.. response];
+            MarkMoreAdvertisement(loaded);
+            more = TrimMoreSentinel(loaded);
+            offset += loaded.Count;
+            if (Options.Reversed)
+            {
+                pendingScrollRestore = await TryCaptureScrollAsync();
+                loaded.Reverse();
+                items.InsertRange(0, loaded);
+            }
+            else
+            {
+                items.AddRange(loaded);
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception)
+        {
+        }
+        finally
+        {
+            moreFetching = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadMoreAheadCoreAsync()
+    {
+        if (!CanFetchMore())
+        {
+            return;
+        }
+
+        moreFetching = true;
+        StateHasChanged();
+        try
+        {
+            string cursor = Options.Reversed
+                ? Source.GetId(items[0])
+                : Source.GetId(items[^1]);
+            MisskeyPaginationRequest request = Options.OffsetMode
+                ? new(SecondFetchLimit + 1, Offset: offset)
+                : Options.Reversed
+                    ? new(SecondFetchLimit + 1, UntilId: cursor)
+                    : new(SecondFetchLimit + 1, SinceId: cursor);
+            IReadOnlyList<TItem> response = await Source.FetchAsync(request, lifetime.Token);
+            List<TItem> loaded = [.. response];
+            more = TrimMoreSentinel(loaded);
+            offset += loaded.Count;
+            if (Options.Reversed)
+            {
+                pendingScrollRestore = await TryCaptureScrollAsync();
+                loaded.Reverse();
+                items.InsertRange(0, loaded);
+            }
+            else
+            {
+                items.AddRange(loaded);
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception)
+        {
+        }
+        finally
+        {
+            moreFetching = false;
+            StateHasChanged();
+        }
+    }
+
+    private bool CanFetchMore() =>
+        more && !fetching && !moreFetching && items.Count > 0;
+
+    private bool TrimMoreSentinel(List<TItem> loaded)
+    {
+        if (loaded.Count > SecondFetchLimit)
+        {
+            loaded.RemoveAt(loaded.Count - 1);
+            return true;
+        }
+        return false;
+    }
+
+    private void MarkInitialAdvertisement(List<TItem> loaded)
+    {
+        int index = Options.Reversed ? loaded.Count - 2 : 3;
+        if (index >= 0 && index < loaded.Count)
+        {
+            loaded[index] = Source.MarkAdvertisement(loaded[index]);
+        }
+    }
+
+    private void MarkMoreAdvertisement(List<TItem> loaded)
+    {
+        int index = Options.Reversed ? loaded.Count - 9 : 10;
+        if (index >= 0 && index < loaded.Count)
+        {
+            loaded[index] = Source.MarkAdvertisement(loaded[index]);
+        }
+    }
+
+    private async Task PrependCoreAsync(TItem item)
+    {
+        if (Options.Reversed)
+        {
+            if (!fetching && !error && items.Count > 0)
+            {
+                bool atBottom = false;
+                try
+                {
+                    atBottom = await Browser.IsBottomVisibleAsync(root, 32, lifetime.Token);
+                }
+                catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (JSDisconnectedException)
+                {
+                }
+
+                if (atBottom)
+                {
+                    while (items.Count >= DisplayLimit)
+                    {
+                        items.RemoveAt(0);
+                    }
+                    more = true;
+                    pendingScrollRestore = await TryCaptureScrollAsync();
+                }
+            }
+
+            items.Add(item);
+            StateHasChanged();
+            return;
+        }
+
+        if (fetching || error || items.Count == 0)
+        {
+            items.Insert(0, item);
+            StateHasChanged();
+            return;
+        }
+
+        bool isTop = isBackTop;
+        if (!isTop)
+        {
+            try
+            {
+                isTop = await Browser.IsTopVisibleAsync(root, lifetime.Token);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (JSDisconnectedException)
+            {
+                isTop = true;
+            }
+        }
+
+        if (isTop)
+        {
+            PrependAtTop(item);
+        }
+        else
+        {
+            queue.Add(item);
+            await QueueChanged.InvokeAsync(queue.Count);
+        }
+        StateHasChanged();
+    }
+
+    private void PrependAtTop(TItem item)
+    {
+        items.Insert(0, item);
+        while (items.Count >= DisplayLimit)
+        {
+            items.RemoveAt(items.Count - 1);
+            more = true;
+        }
+    }
+
+    private async Task FlushQueueAsync()
+    {
+        if (queue.Count == 0)
+        {
+            return;
+        }
+
+        TItem[] pending = [.. queue];
+        queue.Clear();
+        foreach (TItem item in pending)
+        {
+            PrependAtTop(item);
+        }
+        await QueueChanged.InvokeAsync(0);
+        StateHasChanged();
+    }
+
+    private async Task<PaginationScrollSnapshot?> TryCaptureScrollAsync()
+    {
+        try
+        {
+            return await Browser.CaptureScrollAsync(root, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch (JSDisconnectedException)
+        {
+            return null;
+        }
+    }
+
+    private async ValueTask DisposeBrowserAttachmentAsync()
+    {
+        if (browserAttachment is null)
+        {
+            return;
+        }
+
+        IJSObjectReference current = browserAttachment;
+        browserAttachment = null;
+        attachmentAutoLoad = null;
+        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try
+        {
+            await current.InvokeVoidAsync("dispose", cleanup.Token);
+            await current.DisposeAsync().AsTask().WaitAsync(cleanup.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        loadGeneration++;
+        lifetime.Cancel();
+        await DisposeBrowserAttachmentAsync();
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+}

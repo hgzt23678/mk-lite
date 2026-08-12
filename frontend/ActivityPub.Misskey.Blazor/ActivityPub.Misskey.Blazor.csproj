@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <AssemblyName>ActivityPub.Misskey.Blazor</AssemblyName>
+    <RootNamespace>ActivityPub.Misskey.Blazor</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../src/ActivityPub.MisskeyApi/ActivityPub.MisskeyApi.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="wwwroot/data/locales/catalog.json"
+                      LogicalName="ActivityPub.Misskey.Blazor.LocaleCatalog.json" />
+    <EmbeddedResource Include="wwwroot/themes/catalog.json"
+                      LogicalName="ActivityPub.Misskey.Blazor.ThemeCatalog.json" />
+    <EmbeddedResource Include="wwwroot/data/emojilist.json"
+                      LogicalName="ActivityPub.Misskey.Blazor.EmojiList.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ActivityPub.Misskey.Blazor.Tests" />
+  </ItemGroup>
+</Project>

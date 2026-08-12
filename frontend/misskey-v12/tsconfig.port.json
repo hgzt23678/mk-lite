@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "noEmitOnError": true,
+    "noImplicitAny": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "moduleResolution": "Bundler",
+    "target": "ES2022"
+  },
+  "include": [
+    "src/activitypub-runtime.ts",
+    "src/activitypub-auth.ts",
+    "src/activitypub-runtime.test.ts",
+    "@types/global.d.ts"
+  ]
+}

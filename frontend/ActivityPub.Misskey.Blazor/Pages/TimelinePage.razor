@@ -1,0 +1,30 @@
+@page "/timeline"
+@page "/timeline/{KindSlug}"
+@attribute [Authorize]
+
+<PageTitle>@Title</PageTitle>
+
+<MisskeyTimelinePage InitialKind="Kind" />
+
+@code {
+    [Parameter]
+    public string? KindSlug { get; set; }
+
+    private TimelineKind Kind => KindSlug?.ToLowerInvariant() switch
+    {
+        null or "" => TimelineKind.Home,
+        "local" => TimelineKind.Local,
+        "global" => TimelineKind.Global,
+        "hybrid" => TimelineKind.Hybrid,
+        _ => TimelineKind.Home
+    };
+
+    private string Title => Kind switch
+    {
+        TimelineKind.Local => "ローカルタイムライン",
+        TimelineKind.Global => "グローバルタイムライン",
+        TimelineKind.Hybrid => "ソーシャルタイムライン",
+        _ => "ホームタイムライン"
+    };
+
+}

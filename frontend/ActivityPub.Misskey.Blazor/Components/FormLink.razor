@@ -1,0 +1,136 @@
+<div class="@RootClass" @attributes="AttributesWithoutClass">
+    @if (External)
+    {
+        <a class="main _button" href="@ResolvedHref" target="_blank" rel="noopener noreferrer">
+            @LinkContent("fas fa-external-link-alt")
+        </a>
+    }
+    else
+    {
+        <a class="@InternalClass"
+           href="@ResolvedHref"
+           target="@InternalTarget"
+           rel="@InternalRelationship"
+           data-enhance-nav="@EnhanceNavigation"
+           data-misskey-behavior="@Behavior">
+            @LinkContent("fas fa-chevron-right")
+        </a>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string? To { get; set; }
+
+    [Parameter]
+    public bool Active { get; set; }
+
+    [Parameter]
+    public bool External { get; set; }
+
+    [Parameter]
+    public bool Inline { get; set; }
+
+    [Parameter]
+    public string? Behavior { get; set; }
+
+    [Parameter]
+    public RenderFragment? Icon { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? Suffix { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "ffcbddfc",
+        Inline ? "inline" : null,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string InternalClass => Active ? "main _button active" : "main _button";
+    private string? ResolvedHref => External ? SafeExternal(To) : SafeInternal(To);
+    private string? InternalTarget => string.Equals(Behavior, "window", StringComparison.Ordinal) ? "_blank" : null;
+    private string? InternalRelationship => InternalTarget is null ? null : "noopener noreferrer";
+    private string? EnhanceNavigation => string.Equals(Behavior, "browser", StringComparison.Ordinal) ? "false" : null;
+
+    private string? AdditionalClass =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        if (Behavior is not null and not "window" and not "browser" and not "modalWindow")
+        {
+            throw new ArgumentOutOfRangeException(nameof(Behavior));
+        }
+    }
+
+    private RenderFragment LinkContent(string rightIcon) => builder =>
+    {
+        int sequence = 0;
+        builder.OpenElement(sequence++, "span");
+        builder.AddAttribute(sequence++, "class", "icon");
+        builder.AddContent(sequence++, Icon);
+        builder.CloseElement();
+        builder.OpenElement(sequence++, "span");
+        builder.AddAttribute(sequence++, "class", "text");
+        builder.AddContent(sequence++, ChildContent);
+        builder.CloseElement();
+        builder.OpenElement(sequence++, "span");
+        builder.AddAttribute(sequence++, "class", "right");
+        builder.OpenElement(sequence++, "span");
+        builder.AddAttribute(sequence++, "class", "text");
+        builder.AddContent(sequence++, Suffix);
+        builder.CloseElement();
+        builder.OpenElement(sequence++, "i");
+        builder.AddAttribute(sequence++, "class", $"{rightIcon} icon");
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
+    private static string? SafeExternal(string? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (!Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) ||
+            uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp ||
+            !string.IsNullOrEmpty(uri.UserInfo))
+        {
+            throw new InvalidOperationException("External form links must use an absolute HTTP(S) URL without userinfo.");
+        }
+        return uri.AbsoluteUri;
+    }
+
+    private static string? SafeInternal(string? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (!value.StartsWith("/", StringComparison.Ordinal) ||
+            value.StartsWith("//", StringComparison.Ordinal) ||
+            value.Contains('\\') ||
+            value.Any(char.IsControl))
+        {
+            throw new InvalidOperationException("Internal form links must use a rooted application path.");
+        }
+        return value.StartsWith("/", StringComparison.Ordinal) ? value : "/" + value;
+    }
+}

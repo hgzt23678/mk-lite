@@ -1,0 +1,107 @@
+@implements IAsyncDisposable
+@inject IMisskeyStreamConnectionStatus ConnectionStatus
+@inject IPizzaxDeviceState DeviceState
+@inject IStreamIndicatorInterop Browser
+@inject IMisskeyLocalizer Localizer
+
+@if (hasDisconnected && quiet)
+{
+    <div class="nsbbhtug" @onclick="ResetDisconnected">
+        <div>@Localizer.Translate("disconnectedFromServer")</div>
+        <div class="command">
+            <button class="_textButton" @onclick="ReloadAsync">@Localizer.Translate("reload")</button>
+            <button class="_textButton">@Localizer.Translate("doNothing")</button>
+        </div>
+    </div>
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private bool hasDisconnected;
+    private bool quiet;
+    private bool initialized;
+    private bool disposed;
+
+    protected override void OnInitialized()
+    {
+        hasDisconnected = ConnectionStatus.IsDisconnected;
+        ConnectionStatus.Disconnected += OnDisconnected;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || initialized || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            string behavior = await DeviceState.ReadAsync(
+                "serverDisconnectedBehavior",
+                "quiet",
+                lifetime.Token);
+            quiet = string.Equals(behavior, "quiet", StringComparison.Ordinal);
+            initialized = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private void OnDisconnected(object? sender, EventArgs eventArgs)
+    {
+        _ = sender;
+        _ = eventArgs;
+        if (disposed)
+        {
+            return;
+        }
+
+        _ = InvokeAsync(() =>
+        {
+            if (!disposed)
+            {
+                hasDisconnected = true;
+                StateHasChanged();
+            }
+        });
+    }
+
+    private void ResetDisconnected()
+    {
+        hasDisconnected = false;
+        ConnectionStatus.Reset();
+    }
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            await Browser.ReloadAsync(lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        ConnectionStatus.Disconnected -= OnDisconnected;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

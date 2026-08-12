@@ -1,0 +1,140 @@
+@implements IAsyncDisposable
+@inject IElementSizeInterop ElementSize
+
+<div @ref="root" class="@RootClass" @attributes="AttributesWithoutClass">
+    @foreach (MisskeyTabOption option in Options)
+    {
+        bool active = string.Equals(Value, option.Value, StringComparison.Ordinal);
+        <button @key="OptionKey(option)"
+                class="@(active ? "_button active" : "_button")"
+                disabled="@active"
+                @onclick="() => SelectAsync(option.Value)">@option.Label</button>
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference root;
+    private DotNetObjectReference<MkTab>? receiver;
+    private IJSObjectReference? observation;
+    private bool narrow;
+    private bool disposed;
+
+    [Parameter]
+    public string? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<string?> ValueChanged { get; set; }
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<MisskeyTabOption> Options { get; set; } = [];
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "pxhvhrfw",
+        narrow ? "max-width_500px" : null,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        ArgumentNullException.ThrowIfNull(Options);
+        if (Options.Count == 0 || Options.Any(option => option is null || string.IsNullOrEmpty(option.Label)) ||
+            Options.Select(option => option.Value).Distinct(StringComparer.Ordinal).Count() != Options.Count)
+        {
+            throw new ArgumentException("MkTab requires non-empty options with unique values.", nameof(Options));
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || disposed)
+        {
+            return;
+        }
+
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            IJSObjectReference created = await ElementSize.ObserveAsync(root, receiver, lifetime.Token);
+            if (disposed)
+            {
+                await created.InvokeVoidAsync("dispose");
+                await created.DisposeAsync();
+                return;
+            }
+
+            observation = created;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task UpdateElementSize(double width, double viewportWidth)
+    {
+        _ = viewportWidth;
+        if (disposed || !double.IsFinite(width) || width is < 0 or > 100_000)
+        {
+            return Task.CompletedTask;
+        }
+
+        bool next = width <= 500;
+        if (next == narrow)
+        {
+            return Task.CompletedTask;
+        }
+
+        narrow = next;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        lifetime.Cancel();
+        if (observation is not null)
+        {
+            try
+            {
+                await observation.InvokeVoidAsync("dispose");
+                await observation.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private Task SelectAsync(string? value) => string.Equals(Value, value, StringComparison.Ordinal)
+        ? Task.CompletedTask
+        : ValueChanged.InvokeAsync(value);
+
+    private static string OptionKey(MisskeyTabOption option) => option.Value ?? "__null__";
+}

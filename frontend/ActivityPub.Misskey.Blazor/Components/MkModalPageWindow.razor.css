@@ -1,0 +1,63 @@
+.hrmcaedk {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    contain: content;
+    border-radius: var(--radius);
+    --root-margin: 24px;
+}
+
+@media (max-width: 500px) {
+    .hrmcaedk {
+        --root-margin: 16px;
+    }
+}
+
+.hrmcaedk > .header {
+    display: flex;
+    flex-shrink: 0;
+    height: 52px;
+    line-height: 52px;
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: var(--windowHeader);
+    -webkit-backdrop-filter: var(--blur, blur(15px));
+    backdrop-filter: var(--blur, blur(15px));
+}
+
+.hrmcaedk > .header > button {
+    height: 52px;
+    width: 52px;
+}
+
+.hrmcaedk > .header > button:hover {
+    color: var(--fgHighlighted);
+}
+
+@media (max-width: 500px) {
+    .hrmcaedk > .header {
+        height: 42px;
+        line-height: 42px;
+        padding-left: 16px;
+    }
+
+    .hrmcaedk > .header > button {
+        height: 42px;
+        width: 42px;
+    }
+}
+
+.hrmcaedk > .header > .title {
+    flex: 1;
+}
+
+.hrmcaedk > .header > .title > .icon {
+    margin-right: 0.5em;
+}
+
+.hrmcaedk > .body {
+    overflow: auto;
+    background: var(--bg);
+}

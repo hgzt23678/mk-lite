@@ -1,0 +1,22 @@
+.ewlycnyt {
+    position: relative;
+    padding: 32px;
+    min-width: 320px;
+    max-width: 480px;
+    box-sizing: border-box;
+    text-align: center;
+    background: var(--panel);
+    border-radius: var(--radius);
+}
+
+.ewlycnyt > .title {
+    font-weight: bold;
+}
+
+.ewlycnyt > .version {
+    margin: 1em 0;
+}
+
+.ewlycnyt ::deep > .gotIt {
+    margin: 8px 0 0 0;
+}

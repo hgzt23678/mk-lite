@@ -1,0 +1,37 @@
+<button @ref="element"
+        tabindex="@TabIndex"
+        class="@CssClass"
+        type="button"
+        role="menuitem"
+        @onmouseenter="OnMouseEnterAsync">
+    @if (!string.IsNullOrWhiteSpace(Item.Icon))
+    {
+        <i class="fa-fw @Item.Icon"></i>
+    }
+    <span>@Item.Text</span>
+    <span class="caret"><i class="fas fa-caret-right fa-fw"></i></span>
+</button>
+
+@code {
+    private ElementReference element;
+
+    [Parameter, EditorRequired]
+    public MisskeyMenuItem Item { get; set; } = null!;
+
+    [Parameter]
+    public int TabIndex { get; set; }
+
+    [Parameter]
+    public bool ChildShowing { get; set; }
+
+    [Parameter]
+    public EventCallback<ElementReference> Hovered { get; set; }
+
+    private string CssClass => ChildShowing ? "_button item parent childShowing" : "_button item parent";
+
+    private Task OnMouseEnterAsync(MouseEventArgs args)
+    {
+        _ = args;
+        return Hovered.InvokeAsync(element);
+    }
+}

@@ -1,0 +1,123 @@
+@page "/__test/components/note-view"
+@rendermode InteractiveServer
+
+<main data-contract="note-view-slice">
+    <section data-contract="note-view-host" style="width: 720px;">
+        <NoteView Note="note"
+                  Pinned="true"
+                  class="contract-note"
+                  data-fallthrough="note-view" />
+    </section>
+    <section data-contract="renote-host" style="width: 420px;">
+        <NoteView Note="renote"
+                  class="contract-renote" />
+    </section>
+</main>
+
+@code {
+    private static readonly NoteAuthorViewModel alice = new(
+        "9alice",
+        "alice",
+        "alice",
+        "Alice",
+        "/static-assets/favicon.png",
+        IsBot: false);
+
+    private static readonly NoteAuthorViewModel bob = new(
+        "9bob",
+        "bob",
+        "bob@remote.example",
+        "Bob",
+        "/static-assets/user-unknown.png",
+        IsBot: false);
+
+    private static readonly NoteViewModel reply = CreateNote(
+        "9reply",
+        bob,
+        "reply preview");
+
+    private static readonly NoteViewModel quote = CreateNote(
+        "9quote",
+        bob,
+        "quoted note");
+
+    private static readonly NoteViewModel note = CreateNote(
+        "9dummqy0w3",
+        alice,
+        "main note :party_parrot:") with
+    {
+        ContentWarning = "閲覧注意",
+        ReplyId = reply.Id,
+        Reply = reply,
+        RepliesCount = 2,
+        RenotesCount = 3,
+        ReactionsCount = 4,
+        Reactions = new Dictionary<string, long>(StringComparer.Ordinal) { ["👍"] = 4 },
+        Media =
+        [
+            new NoteMediaViewModel(
+                "9media",
+                "image/png",
+                "/static-assets/favicon.png",
+                "/static-assets/favicon.png",
+                "Misskey icon",
+                null,
+                64,
+                64,
+                Sensitive: false)
+        ],
+        Poll = new NotePollViewModel(
+            "9poll",
+            null,
+            Expired: false,
+            Multiple: false,
+            VotedByViewer: false,
+            OwnVotes: [],
+            Options:
+            [
+                new NotePollOptionViewModel("yes", 2),
+                new NotePollOptionViewModel("no", 1)
+            ]),
+        Renote = quote,
+        RenoteId = quote.Id,
+        IsHidden = true,
+        Emojis = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["party_parrot"] = "/static-assets/favicon.png"
+        }
+    };
+
+    private static readonly NoteViewModel renote = CreateNote(
+        "9renote",
+        alice,
+        string.Empty) with
+    {
+        Renote = quote,
+        RenoteId = quote.Id
+    };
+
+    private static NoteViewModel CreateNote(
+        string id,
+        NoteAuthorViewModel author,
+        string text) => new(
+            Guid.NewGuid(),
+            id,
+            new DateTimeOffset(2026, 8, 4, 12, 0, 0, TimeSpan.Zero),
+            author,
+            text,
+            ContentWarning: null,
+            ActivityPub.Domain.Visibility.Public,
+            ReplyId: null,
+            RepliesCount: 0,
+            RenotesCount: 0,
+            ReactionsCount: 0,
+            ReactedByViewer: false,
+            new Dictionary<string, long>(StringComparer.Ordinal),
+            ViewerReaction: null,
+            Media: [],
+            Mentions: [],
+            Hashtags: [],
+            new Dictionary<string, string>(StringComparer.Ordinal),
+            Poll: null,
+            Renote: null);
+}

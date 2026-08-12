@@ -1,0 +1,81 @@
+@implements IDisposable
+@inject IMisskeyOverlayService Overlays
+@inject IMisskeyLocalizer Localizer
+
+<MkModalWindow @ref="dialog"
+               OverlayId="Id"
+               Width="370"
+               Height="400"
+               AccessibleLabel="@Localizer.Translate("login")"
+               CloseRequested="OnCloseRequestedAsync"
+               Closed="OnClosedAsync">
+    <Header>@Localizer.Translate("login")</Header>
+    <ChildContent>
+        <MkSignin ReturnUrl="@ReturnUrl"
+                  ErrorCode="@ErrorCode"
+                  AutoSet="@AutoSet"
+                  Message="@Message"
+                  Login="OnLoginAsync"
+                  ForgotPassword="OpenForgotPasswordAsync" />
+    </ChildContent>
+</MkModalWindow>
+
+@code {
+    private MkModalWindow? dialog;
+
+    [Parameter, EditorRequired]
+    public Guid Id { get; set; }
+
+    [Parameter]
+    public string ReturnUrl { get; set; } = "/";
+
+    [Parameter]
+    public string? ErrorCode { get; set; }
+
+    [Parameter]
+    public bool AutoSet { get; set; }
+
+    [Parameter]
+    public string? Message { get; set; }
+
+    [Parameter]
+    public EventCallback Done { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    [Parameter]
+    public EventCallback Cancelled { get; set; }
+
+    [CascadingParameter(Name = "MisskeyLocaleRevision")]
+    private long LocaleRevision { get; set; }
+
+    private bool completed;
+
+    protected override void OnInitialized() => Overlays.RegisterCloseHandler(Id, BeginCloseAsync);
+
+    private Task BeginCloseAsync() => dialog?.BeginCloseAsync() ?? Task.CompletedTask;
+
+    private async Task OnLoginAsync()
+    {
+        completed = true;
+        await Done.InvokeAsync();
+        await BeginCloseAsync();
+    }
+
+    private Task OnCloseRequestedAsync() => completed ? Task.CompletedTask : Cancelled.InvokeAsync();
+
+    private Task OpenForgotPasswordAsync()
+    {
+        Overlays.ShowForgotPassword();
+        return Task.CompletedTask;
+    }
+
+    private Task OnClosedAsync()
+    {
+        Overlays.Close(Id);
+        return Closed.InvokeAsync();
+    }
+
+    public void Dispose() => Overlays.UnregisterCloseHandler(Id);
+}

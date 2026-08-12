@@ -1,0 +1,50 @@
+@page "/__test/components/emoji-picker-window"
+@rendermode InteractiveServer
+
+<main data-contract="mk-emoji-picker-window">
+    @if (visible)
+    {
+        <MkEmojiPickerWindow @key="generation"
+                             ShowPinned="false"
+                             AsReactionPicker="true"
+                             CustomEmojis="customEmojis"
+                             Chosen="OnChosen"
+                             Closed="OnClosed" />
+    }
+    <button type="button" data-contract="open" @onclick="Open">open</button>
+    <output data-contract="state"
+            data-chosen="@chosen"
+            data-chosen-count="@chosenCount"
+            data-closed="@closedCount"></output>
+</main>
+
+@code {
+    private readonly IReadOnlyList<EmojiPickerCustomEmoji> customEmojis =
+    [
+        new("party", "/static-assets/favicon.png", "fun", ["tada"])
+    ];
+    private int generation = 1;
+    private bool visible = true;
+    private string? chosen;
+    private int chosenCount;
+    private int closedCount;
+
+    private Task OnChosen(string value)
+    {
+        chosen = value;
+        chosenCount++;
+        return Task.CompletedTask;
+    }
+
+    private void OnClosed()
+    {
+        visible = false;
+        closedCount++;
+    }
+
+    private void Open()
+    {
+        generation++;
+        visible = true;
+    }
+}

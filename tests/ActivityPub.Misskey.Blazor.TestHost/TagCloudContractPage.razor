@@ -1,0 +1,21 @@
+@page "/__test/components/tag-cloud"
+@rendermode InteractiveServer
+
+<main data-contract="tag-cloud">
+    @if (visible)
+    {
+        <div style="width: 420px;">
+            <MkTagCloud>
+                <li><a href="/tags/misskey">#misskey</a></li>
+                <li><a href="/tags/activitypub">#activitypub</a></li>
+            </MkTagCloud>
+        </div>
+    }
+    <button type="button" data-contract="toggle" @onclick="Toggle">toggle</button>
+</main>
+
+@code {
+    private bool visible = true;
+
+    private void Toggle() => visible = !visible;
+}

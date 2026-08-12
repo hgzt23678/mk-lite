@@ -1,0 +1,94 @@
+.mkw-calendar {
+    padding: 16px 0;
+}
+
+.mkw-calendar::after {
+    display: block;
+    clear: both;
+    content: "";
+}
+
+.mkw-calendar > .calendar {
+    float: left;
+    width: 60%;
+    text-align: center;
+}
+
+.mkw-calendar > .calendar.isHoliday > .day {
+    color: #ef95a0;
+}
+
+.mkw-calendar > .calendar > .month-and-year,
+.mkw-calendar > .calendar > .week-day {
+    margin: 0;
+    font-size: 0.9em;
+    line-height: 18px;
+}
+
+.mkw-calendar > .calendar > .month-and-year > .year,
+.mkw-calendar > .calendar > .month-and-year > .month {
+    margin: 0 4px;
+}
+
+.mkw-calendar > .calendar > .day {
+    margin: 10px 0;
+    font-size: 1.75em;
+    line-height: 32px;
+}
+
+.mkw-calendar > .info {
+    display: block;
+    float: left;
+    box-sizing: border-box;
+    width: 40%;
+    padding: 0 16px 0 0;
+}
+
+.mkw-calendar > .info > div {
+    margin-bottom: 8px;
+}
+
+.mkw-calendar > .info > div:last-child {
+    margin-bottom: 4px;
+}
+
+.mkw-calendar > .info > div > p {
+    margin: 0 0 2px;
+    font-size: 0.75em;
+    line-height: 18px;
+    opacity: 0.8;
+}
+
+.mkw-calendar > .info > div > p > b {
+    margin-left: 2px;
+}
+
+.mkw-calendar > .info > div > .meter {
+    width: 100%;
+    overflow: hidden;
+    background: var(--X11);
+    border-radius: 8px;
+}
+
+.mkw-calendar > .info > div > .meter > .val {
+    height: 4px;
+    transition: width 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.mkw-calendar > .info > div:nth-child(1) > .meter > .val {
+    background: #f7796c;
+}
+
+.mkw-calendar > .info > div:nth-child(2) > .meter > .val {
+    background: #a1de41;
+}
+
+.mkw-calendar > .info > div:nth-child(3) > .meter > .val {
+    background: #41ddde;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mkw-calendar > .info > div > .meter > .val {
+        transition-duration: 0s;
+    }
+}

@@ -1,0 +1,9 @@
+@if (Pagination is not null)
+{
+    <MkUserFollowList Pagination="Pagination" />
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public IMisskeyPaginationSource<UserFollowRelationListItem> Pagination { get; set; } = default!;
+}

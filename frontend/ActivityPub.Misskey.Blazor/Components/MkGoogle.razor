@@ -1,0 +1,69 @@
+@implements IAsyncDisposable
+@inject IGoogleSearchInterop Browser
+@inject IMisskeyLocalizer Localizer
+
+<div class="mk-google">
+    <input @ref="input" value="@Q" type="search" placeholder="@Q" />
+    <button @ref="button"><i class="fas fa-search"></i> @Localizer.Translate("searchByGoogle")</button>
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference input;
+    private ElementReference button;
+    private IJSObjectReference? attachment;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public string Q { get; set; } = string.Empty;
+
+    [CascadingParameter(Name = "MisskeyLocaleRevision")]
+    private long LocaleRevision { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            attachment = await Browser.AttachAsync(input, button, lifetime.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose", cleanup.Token);
+                await attachment.DisposeAsync().AsTask().WaitAsync(cleanup.Token);
+            }
+            catch (OperationCanceledException) when (cleanup.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        lifetime.Dispose();
+    }
+}

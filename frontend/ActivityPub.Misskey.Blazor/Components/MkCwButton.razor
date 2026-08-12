@@ -1,0 +1,57 @@
+<button class="@RootClass"
+        aria-expanded="@(Expanded ? "true" : "false")"
+        @attributes="AttributesWithoutClassAndExpandedState"
+        @onclick="ToggleAsync">
+    <b>@(Expanded ? "隠す" : "もっと見る")</b>
+    @if (!Expanded)
+    {
+        <span>@Label</span>
+    }
+</button>
+
+@code {
+    [Parameter]
+    public bool Expanded { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> ExpandedChanged { get; set; }
+
+    [Parameter, EditorRequired]
+    public NoteViewModel Note { get; set; } = null!;
+
+    [Parameter]
+    public string? CssClassAdditional { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string Label => string.Join(" / ", new[]
+    {
+        string.IsNullOrEmpty(Note.Text) ? null : $"{MisskeyStringLength.Count(Note.Text)}文字",
+        Note.Media.Count == 0 ? null : $"{Note.Media.Count}ファイル",
+        Note.Poll is null ? null : "アンケート"
+    }.Where(value => value is not null));
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "nrvgflfu",
+        "_button",
+        CssClassAdditional,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndExpandedState => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute =>
+                !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(attribute.Key, "aria-expanded", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private Task ToggleAsync() => ExpandedChanged.InvokeAsync(!Expanded);
+}

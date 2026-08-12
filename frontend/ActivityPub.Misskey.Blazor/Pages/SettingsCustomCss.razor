@@ -1,0 +1,117 @@
+@implements IAsyncDisposable
+@using ActivityPub.Misskey.Blazor.BrowserInterop
+@inject ICustomCssInterop CustomCss
+@inject IMisskeyLocalizer Localizer
+
+<div class="_formRoot settings-local-page">
+    @if (!loaded)
+    {
+        <MkLoading />
+    }
+    else
+    {
+        <MkInfo Warn="true" CssClassAdditional="_formBlock">
+            @Localizer.Translate("customCssWarn")
+        </MkInfo>
+        <MkFormTextarea Value="@localCustomCss"
+                        ValueChanged="SaveAsync"
+                        ManualSave="true"
+                        Tall="true"
+                        Code="true"
+                        CssClassAdditional="_monospace _formBlock"
+                        style="tab-size: 2;">
+            <Label>CSS</Label>
+        </MkFormTextarea>
+        @if (!string.IsNullOrWhiteSpace(error))
+        {
+            <MkInfo Warn="true" CssClassAdditional="_formBlock">@error</MkInfo>
+        }
+        else if (saved)
+        {
+            <MkInfo CssClassAdditional="_formBlock">@Localizer.Translate("saved")</MkInfo>
+        }
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private string localCustomCss = string.Empty;
+    private string? error;
+    private bool loaded;
+    private bool saved;
+    private bool disposed;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            localCustomCss = await CustomCss.ReadStoredAsync(lifetime.Token) ?? string.Empty;
+            Validate(localCustomCss);
+            await CustomCss.ApplyAsync(localCustomCss, lifetime.Token);
+            loaded = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (InvalidOperationException exception)
+        {
+            error = exception.Message;
+            loaded = true;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SaveAsync(string value)
+    {
+        try
+        {
+            Validate(value);
+            localCustomCss = value;
+            await CustomCss.WriteStoredAsync(value, lifetime.Token);
+            await CustomCss.ApplyAsync(value, lifetime.Token);
+            error = null;
+            saved = true;
+        }
+        catch (ArgumentException exception)
+        {
+            error = exception.Message;
+            saved = false;
+        }
+        catch (InvalidOperationException exception)
+        {
+            error = exception.Message;
+            saved = false;
+        }
+    }
+
+    private static void Validate(string css)
+    {
+        ArgumentNullException.ThrowIfNull(css);
+        if (css.Length > 100_000 || css.Contains("@import", StringComparison.OrdinalIgnoreCase) ||
+            css.Contains("url(", StringComparison.OrdinalIgnoreCase) ||
+            css.Contains("expression(", StringComparison.OrdinalIgnoreCase) ||
+            css.Contains("javascript:", StringComparison.OrdinalIgnoreCase) ||
+            css.Contains('<') || css.Contains('>'))
+        {
+            throw new ArgumentException("Custom CSS may not load remote resources, scripts, or markup.", nameof(css));
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

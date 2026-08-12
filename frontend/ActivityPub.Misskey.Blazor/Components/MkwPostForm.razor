@@ -1,0 +1,12 @@
+<MkPostForm CssClass="@RootClass" Fixed="true" Autofocus="false" />
+
+@code {
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "_panel mkw-postForm",
+        CssClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+}

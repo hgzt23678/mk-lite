@@ -1,0 +1,28 @@
+.user-info-page {
+    min-height: 320px;
+    padding: 24px;
+    border-radius: 12px;
+    background-color: var(--panel);
+    color: var(--fg);
+}
+
+.user-info-summary {
+    padding: 0;
+    background: transparent;
+}
+
+.user-info-values {
+    padding: 8px 16px;
+    border-radius: 8px;
+    background-color: var(--panel);
+}
+
+.user-info-follow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: 8px;
+    background-color: var(--buttonBg);
+}

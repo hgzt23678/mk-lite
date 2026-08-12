@@ -1,0 +1,210 @@
+@implements IDisposable
+@inject IMisskeyOverlayService Overlays
+@inject IMisskeyTransientFeedbackService Feedback
+
+<UserPreviewDirectiveHost />
+
+@foreach (MisskeyOverlayEntry entry in Overlays.Entries)
+{
+    if (entry.Kind == MisskeyOverlayKind.PopupMenu)
+    {
+        <MkPopupMenu @key="entry.Id"
+                     Id="entry.Id"
+                     Src="entry.Source"
+                     Items="entry.MenuItems"
+                     ViaKeyboard="entry.OpenedViaKeyboard"
+                     MatchSourceWidth="entry.MatchSourceWidth"
+                     Align="@entry.PopupAlign"
+                     Width="entry.PopupWidth"
+                     Closed="@(entry.PopupClosed ?? (() => Task.CompletedTask))" />
+    }
+    else if (entry.Kind == MisskeyOverlayKind.PostForm)
+    {
+        <MkPostFormDialog @key="entry.Id"
+                          Id="entry.Id"
+                          InitialText="@(entry.PostForm?.InitialText)"
+                          Reply="@(entry.PostForm?.Reply)"
+                          Renote="@(entry.PostForm?.Renote)"
+                          Instant="@(entry.PostForm?.Instant == true)" />
+    }
+    else if (entry.Kind == MisskeyOverlayKind.SignIn)
+    {
+        <MkSigninDialog @key="entry.Id"
+                        Id="entry.Id"
+                        ReturnUrl="@(entry.Authentication?.ReturnUrl ?? "/")"
+                        ErrorCode="@entry.Authentication?.ErrorCode" />
+    }
+    else if (entry.Kind == MisskeyOverlayKind.SignUp)
+    {
+        <MkSignupDialog @key="entry.Id"
+                        Id="entry.Id"
+                        ReturnUrl="@(entry.Authentication?.ReturnUrl ?? "/")"
+                        ErrorCode="@entry.Authentication?.ErrorCode" />
+    }
+    else if (entry.Kind == MisskeyOverlayKind.ForgotPassword)
+    {
+        <MkForgotPassword @key="entry.Id" Id="entry.Id" />
+    }
+    else if (entry.Kind == MisskeyOverlayKind.Alert && entry.Alert is not null)
+    {
+        <MkAlertDialog @key="entry.Id"
+                       OverlayId="entry.Id"
+                       Type="@entry.Alert.Type"
+                       Title="@entry.Alert.Title"
+                       Text="@entry.Alert.Text"
+                       AccessibleLabel="@entry.Alert.AccessibleLabel"
+                       AcknowledgementLabel="@entry.Alert.AcknowledgementLabel" />
+    }
+    else if (entry.Kind == MisskeyOverlayKind.Dialog && entry.Dialog is not null)
+    {
+        <MkDialog @key="entry.Id"
+                  OverlayId="entry.Id"
+                  Type="@entry.Dialog.Type"
+                  Title="@entry.Dialog.Title"
+                  Text="@entry.Dialog.Text"
+                  Input="@entry.Dialog.Input"
+                  Select="@entry.Dialog.Select"
+                  Icon="@entry.Dialog.Icon"
+                  Actions="@entry.Dialog.Actions"
+                  ShowOkButton="@entry.Dialog.ShowOkButton"
+                  ShowCancelButton="@entry.Dialog.ShowCancelButton"
+                  CancelableByBgClick="@entry.Dialog.CancelableByBgClick"
+                  AccessibleLabel="@entry.Dialog.AccessibleLabel"
+                  Done="@(entry.Dialog.Done ?? (_ => Task.CompletedTask))" />
+    }
+    else if (entry.Kind == MisskeyOverlayKind.FormDialog && entry.FormDialog is not null)
+    {
+        <MkFormDialog @key="entry.Id"
+                      OverlayId="entry.Id"
+                      Title="@entry.FormDialog.Title"
+                      Form="@entry.FormDialog.Form"
+                      Done="@(entry.FormDialog.Done ?? (_ => Task.CompletedTask))" />
+    }
+    else if (entry.Kind == MisskeyOverlayKind.ImageViewer && entry.ImageViewer is not null)
+    {
+        <MkImageViewer @key="entry.Id"
+                       OverlayId="entry.Id"
+                       Image="entry.ImageViewer.Image" />
+    }
+    else if (entry.Kind == MisskeyOverlayKind.LaunchPad && entry.LaunchPad is not null)
+    {
+        <MkLaunchPad @key="entry.Id"
+                     Id="entry.Id"
+                     Source="entry.LaunchPad.Source"
+                     Items="entry.LaunchPad.Items"
+                     Closed="@(entry.LaunchPad.Closed ?? (() => Task.CompletedTask))" />
+    }
+}
+
+@foreach (MisskeyContextMenuEntry entry in Overlays.ContextMenus)
+{
+    <MkContextMenu @key="entry.Id"
+                   Id="entry.Id"
+                   X="entry.X"
+                   Y="entry.Y"
+                   Items="entry.Items"
+                   Closed="@(entry.Closed ?? (() => Task.CompletedTask))" />
+}
+
+@foreach (MisskeyVisibilityPickerEntry entry in Overlays.VisibilityPickers)
+{
+    <MkVisibilityPicker @key="entry.Id"
+                        Id="entry.Id"
+                        Source="entry.Source"
+                        CurrentVisibility="entry.CurrentVisibility"
+                        CurrentLocalOnly="entry.CurrentLocalOnly"
+                        Changed="entry.Changed" />
+}
+
+@foreach (MisskeyEmojiPickerEntry entry in Overlays.EmojiPickers)
+{
+    <MkEmojiPickerDialog @key="entry.Id"
+                         Id="entry.Id"
+                         Source="entry.Source"
+                         Chosen="entry.Chosen"
+                         AsReactionPicker="entry.AsReactionPicker"
+                         CustomEmojis="entry.CustomEmojis" />
+}
+
+@foreach (MisskeyAutocompleteEntry entry in Overlays.Autocompletes)
+{
+    <MkAutocomplete @key="entry.Id"
+                    Id="@entry.Id"
+                    Type="@entry.Type"
+                    Query="@entry.Query"
+                    X="@entry.X"
+                    Y="@entry.Y"
+                    Textarea="@entry.Textarea"
+                    Chosen="@entry.Chosen"
+                    Closed="@(() => { Overlays.Close(entry.Id); return Task.CompletedTask; })" />
+}
+
+@foreach (MisskeyUsersTooltipEntry entry in Overlays.UserTooltips)
+{
+    <MkUsersTooltip @key="entry.Id"
+                    Id="entry.Id"
+                    Target="entry.Source"
+                    UserIds="entry.UserIds"
+                    Users="entry.Users"
+                    Count="entry.Count"
+                    Showing="entry.Showing" />
+}
+
+@foreach (MisskeyReactionTooltipEntry entry in Overlays.ReactionTooltips)
+{
+    <MkReactionsViewerDetails @key="entry.Id"
+                              Id="@entry.Id"
+                              Target="@entry.Source"
+                              Reaction="@entry.Reaction"
+                              CustomEmojis="@entry.Emojis"
+                              Users="@entry.Users"
+                              Count="@entry.Count"
+                              Showing="@entry.Showing" />
+}
+
+@foreach (MisskeySimpleReactionTooltipEntry entry in Overlays.SimpleReactionTooltips)
+{
+    <MkReactionTooltip @key="entry.Id"
+                       Target="@entry.Source"
+                       Reaction="@entry.Reaction"
+                       CustomEmojis="@entry.Emojis"
+                       Showing="@entry.Showing"
+                       Closed="@(() => Overlays.Close(entry.Id))" />
+}
+
+@foreach (MisskeyUserPreviewEntry entry in Overlays.UserPreviews)
+{
+    <MkUserPreview @key="entry.Id"
+                   Id="entry.Id"
+                   HostId="@entry.HostId"
+                   SourceId="@entry.SourceId"
+                   Query="@entry.Query"
+                   Generation="entry.Generation"
+                   Showing="entry.Showing" />
+}
+
+@foreach (MisskeyTransientFeedbackEntry entry in Feedback.Entries)
+{
+    <MkSuccessFeedback @key="entry.Id" Id="entry.Id" Announcement="@entry.Announcement" />
+}
+
+@foreach (MisskeyToastEntry entry in Feedback.Toasts)
+{
+    <MkToast @key="entry.Id" Message="@entry.Message" Closed="@(() => Feedback.Close(entry.Id))" />
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        Overlays.Changed += OnChanged;
+        Feedback.Changed += OnChanged;
+    }
+
+    private void OnChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Overlays.Changed -= OnChanged;
+        Feedback.Changed -= OnChanged;
+    }
+}

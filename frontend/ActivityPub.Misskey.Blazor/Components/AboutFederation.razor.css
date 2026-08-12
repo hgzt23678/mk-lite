@@ -1,0 +1,14 @@
+.taeiyria > .query {
+    background: var(--bg);
+    margin-bottom: 16px;
+}
+
+.dqokceoi {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    grid-gap: 12px;
+}
+
+.dqokceoi > .instance:hover {
+    text-decoration: none;
+}

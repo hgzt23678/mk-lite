@@ -1,0 +1,158 @@
+@inject IMisskeyOverlayService Overlays
+@inject MisskeyFrontendRuntimeConfiguration Runtime
+@inject NavigationManager Navigation
+@inject IMisskeyLocalizer Localizer
+
+<div class="@RootClass" @attributes="AttributesWithoutClass">
+    @if (Narrow is false)
+    {
+        <div class="wide">
+            <div class="content">
+                <NavLink href="/" Match="NavLinkMatch.All" class="link" ActiveClass="active"><i class="fas fa-home icon"></i>@Localizer.Translate("home")</NavLink>
+                <NavLink href="/explore" class="link" ActiveClass="active"><i class="fas fa-hashtag icon"></i>@Localizer.Translate("explore")</NavLink>
+                <NavLink href="/featured" class="link" ActiveClass="active"><i class="fas fa-fire-alt icon"></i>@Localizer.Translate("featured")</NavLink>
+                <NavLink href="/channels" class="link" ActiveClass="active"><i class="fas fa-satellite-dish icon"></i>@Localizer.Translate("channel")</NavLink>
+                @if (HasPageInfo)
+                {
+                    <div class="page active link">
+                        <div class="title">
+                            @if (!string.IsNullOrWhiteSpace(PageIcon))
+                            {
+                                <i class="icon @PageIcon"></i>
+                            }
+                            else if (PageAvatar is not null)
+                            {
+                                <MkAvatar User="@PageAvatar"
+                                          CssClass="avatar"
+                                          DisablePreview="true"
+                                          ShowIndicator="true" />
+                            }
+                            @if (!string.IsNullOrWhiteSpace(PageTitle))
+                            {
+                                <span class="text">@PageTitle</span>
+                            }
+                            else if (PageUserName is not null)
+                            {
+                                <MkUserName User="@PageUserName" NoWrap="false" CssClass="text" />
+                            }
+                        </div>
+                        @if (PageAction.HasDelegate)
+                        {
+                            <button class="_button action" type="button" @onclick="PageAction"></button>
+                        }
+                    </div>
+                }
+                <div class="right">
+                    <button class="_button search" type="button" @onclick="Search"><i class="fas fa-search icon"></i><span>@Localizer.Translate("search")</span></button>
+                    <button class="_buttonPrimary signup" type="button" @onclick="SignUp">@Localizer.Translate("signup")</button>
+                    <button class="_button login" type="button" @onclick="SignIn">@Localizer.Translate("login")</button>
+                </div>
+            </div>
+        </div>
+    }
+    else if (Narrow is true)
+    {
+        <div class="narrow">
+            <button @ref="menuButton" class="menu _button" type="button" aria-label="@Localizer.Translate("menu")" aria-expanded="@(MenuExpanded ? "true" : "false")" aria-controls="visitor-navigation-tray" @onclick="OpenMenuAsync">
+                <i class="fas fa-bars icon"></i>
+            </button>
+            @if (HasPageInfo)
+            {
+                <div class="title">
+                    @if (!string.IsNullOrWhiteSpace(PageIcon))
+                    {
+                        <i class="icon @PageIcon"></i>
+                    }
+                    else if (PageAvatar is not null)
+                    {
+                        <MkAvatar User="@PageAvatar"
+                                  CssClass="avatar"
+                                  DisablePreview="true"
+                                  ShowIndicator="true" />
+                    }
+                    @if (!string.IsNullOrWhiteSpace(PageTitle))
+                    {
+                        <span class="text">@PageTitle</span>
+                    }
+                    else if (PageUserName is not null)
+                    {
+                        <MkUserName User="@PageUserName" NoWrap="false" CssClass="text" />
+                    }
+                </div>
+            }
+            @if (HasPageInfo && PageAction.HasDelegate)
+            {
+                <button class="action _button" type="button" @onclick="PageAction"></button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private ElementReference menuButton;
+
+    [Parameter]
+    public bool? Narrow { get; set; }
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter]
+    public string? PageTitle { get; set; }
+
+    [Parameter]
+    public string? PageIcon { get; set; }
+
+    [Parameter]
+    public NoteAuthorViewModel? PageAvatar { get; set; }
+
+    [Parameter]
+    public NoteAuthorViewModel? PageUserName { get; set; }
+
+    [Parameter]
+    public EventCallback PageAction { get; set; }
+
+    [Parameter]
+    public bool MenuExpanded { get; set; }
+
+    [Parameter]
+    public EventCallback<ElementReference> OpenMenu { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private Task OpenMenuAsync() => OpenMenu.InvokeAsync(menuButton);
+
+    private bool HasPageInfo => !string.IsNullOrWhiteSpace(PageTitle) ||
+        !string.IsNullOrWhiteSpace(PageIcon) ||
+        PageAvatar is not null ||
+        PageUserName is not null ||
+        PageAction.HasDelegate;
+    private string RootClass => string.Join(' ', new[] { "sqxihjet", CssClass, AdditionalClass }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private void SignIn()
+        => Overlays.ShowSignIn(CurrentReturnUrl);
+
+    private void SignUp() => Overlays.ShowSignUp(CurrentReturnUrl);
+
+    private void Search() => Navigation.NavigateTo("/search");
+
+    private string CurrentReturnUrl
+    {
+        get
+        {
+            string relative = Navigation.ToBaseRelativePath(Navigation.Uri);
+            return "/" + relative.TrimStart('/');
+        }
+    }
+}

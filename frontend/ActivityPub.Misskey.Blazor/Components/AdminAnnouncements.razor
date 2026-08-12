@@ -1,0 +1,93 @@
+@inject IAdminPresentationService Admin
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+
+<div class="_gaps">
+    <section class="_panel _block" style="padding: 16px;">
+        <h2 style="margin: 0 0 12px 0;">@Localizer.Translate("announcements")</h2>
+        @if (fetching)
+        {
+            <MkLoading />
+        }
+        else
+        {
+            <div class="_gaps">
+                <div class="_formRoot" style="padding: 12px 0; border-bottom: solid 0.5px var(--divider);">
+                    <MkFormInput CssClassAdditional="_formBlock" Value="@title" ValueChanged="@(value => { title = value; })" Max="100">
+                        <Label>@Localizer.Translate("title")</Label>
+                    </MkFormInput>
+                    <MkFormTextarea CssClassAdditional="_formBlock" Value="@text" ValueChanged="@(value => { text = value; })" Max="1000">
+                        <Label>@Localizer.Translate("text")</Label>
+                    </MkFormTextarea>
+                    <MkButton Primary="true" Disabled="@(creating || string.IsNullOrWhiteSpace(title))" OnClick="CreateAsync">
+                        <i class="fas fa-plus"></i> @Localizer.Translate("add")
+                    </MkButton>
+                </div>
+                @foreach (AdminAnnouncementViewModel announcement in announcements)
+                {
+                    <div class="announcement _block" style="display: flex; gap: 12px; align-items: center; padding: 12px;">
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: bold;">@announcement.Title</div>
+                            <div style="opacity: 0.7; font-size: 0.9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">@announcement.Text</div>
+                        </div>
+                        <button class="_button" type="button" @onclick="() => DeleteAsync(announcement.Id)">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                }
+                @if (announcements.Count == 0)
+                {
+                    <p style="opacity: 0.6;">@Localizer.Translate("none")</p>
+                }
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private IReadOnlyList<AdminAnnouncementViewModel> announcements = [];
+    private bool fetching = true;
+    private bool creating;
+    private string title = string.Empty;
+    private string text = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+        announcements = await Admin.ListAnnouncementsAsync(CancellationToken.None);
+        fetching = false;
+        }
+        catch (ActivityPub.Misskey.Blazor.Identity.FrontendAuthenticationException exception)
+        {
+            Overlays.ShowSignIn("/admin", exception.ErrorCode);
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        if (creating)
+        {
+            return;
+        }
+
+        creating = true;
+        try
+        {
+            await Admin.CreateAnnouncementAsync(title, text, null, CancellationToken.None);
+            title = string.Empty;
+            text = string.Empty;
+            announcements = await Admin.ListAnnouncementsAsync(CancellationToken.None);
+        }
+        finally
+        {
+            creating = false;
+        }
+    }
+
+    private async Task DeleteAsync(string announcementId)
+    {
+        await Admin.DeleteAnnouncementAsync(announcementId, CancellationToken.None);
+        announcements = await Admin.ListAnnouncementsAsync(CancellationToken.None);
+    }
+}

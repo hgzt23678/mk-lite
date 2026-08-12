@@ -1,0 +1,29 @@
+@page "/__test/components/interop-disposal/{Mode}"
+@rendermode InteractiveServer
+
+<main data-contract="interop-disposal" data-mode="@Mode">
+    @if (Mode == "input")
+    {
+        <MkFormInput Value="alice" Autofocus="true" />
+    }
+    else if (Mode == "button")
+    {
+        <MkButton Primary="true">Continue</MkButton>
+    }
+    else if (Mode == "modal")
+    {
+        <MkModalWindow>
+            <Header>Dialog</Header>
+            <ChildContent>Contents</ChildContent>
+        </MkModalWindow>
+    }
+    else if (Mode == "signin")
+    {
+        <MkSignin />
+    }
+</main>
+
+@code {
+    [Parameter]
+    public string Mode { get; set; } = string.Empty;
+}

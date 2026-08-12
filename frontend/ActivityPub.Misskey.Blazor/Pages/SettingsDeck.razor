@@ -1,0 +1,104 @@
+@implements IAsyncDisposable
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyLocalizer Localizer
+
+<div class="_formRoot settings-local-page">
+    @if (!loaded)
+    {
+        <MkLoading />
+    }
+    else
+    {
+        <MkFormSwitch Value="@navWindow" ValueChanged="SaveNavWindowAsync">
+            @Localizer.Translate("defaultNavigationBehaviour"): @Localizer.Translate("openInWindow")
+        </MkFormSwitch>
+
+        <MkFormSwitch Value="@alwaysShowMainColumn" ValueChanged="SaveAlwaysShowMainColumnAsync" CssClassAdditional="_formBlock">
+            @Localizer.Translate("_deck.alwaysShowMainColumn")
+        </MkFormSwitch>
+
+        <MkFormRadios TValue="string"
+                      Value="@columnAlign"
+                      ValueChanged="SaveColumnAlignAsync"
+                      CssClassAdditional="_formBlock">
+            <Label>@Localizer.Translate("_deck.columnAlign")</Label>
+            <ChildContent>
+                <MkFormRadio TValue="string" ModelValue="@columnAlign" ModelValueChanged="SaveColumnAlignAsync" Value="@("left")">
+                    @Localizer.Translate("left")
+                </MkFormRadio>
+                <MkFormRadio TValue="string" ModelValue="@columnAlign" ModelValueChanged="SaveColumnAlignAsync" Value="@("center")">
+                    @Localizer.Translate("center")
+                </MkFormRadio>
+            </ChildContent>
+        </MkFormRadios>
+
+        @if (!string.IsNullOrWhiteSpace(status))
+        {
+            <MkInfo class="_formBlock">@status</MkInfo>
+        }
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private bool navWindow = true;
+    private bool alwaysShowMainColumn = true;
+    private string columnAlign = "left";
+    private string? status;
+    private bool loaded;
+    private bool disposed;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            navWindow = await DeviceState.ReadAsync("navWindow", true, lifetime.Token);
+            alwaysShowMainColumn = await DeviceState.ReadAsync("alwaysShowMainColumn", true, lifetime.Token);
+            columnAlign = await DeviceState.ReadAsync("columnAlign", "left", lifetime.Token);
+            columnAlign = columnAlign is "left" or "center" ? columnAlign : "left";
+            loaded = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task SaveNavWindowAsync(bool value)
+    {
+        navWindow = value;
+        await DeviceState.WriteAsync("navWindow", value, lifetime.Token);
+        status = Localizer.Translate("saved");
+    }
+
+    private async Task SaveAlwaysShowMainColumnAsync(bool value)
+    {
+        alwaysShowMainColumn = value;
+        await DeviceState.WriteAsync("alwaysShowMainColumn", value, lifetime.Token);
+        status = Localizer.Translate("saved");
+    }
+
+    private async Task SaveColumnAlignAsync(string value)
+    {
+        columnAlign = value is "left" or "center" ? value : "left";
+        await DeviceState.WriteAsync("columnAlign", columnAlign, lifetime.Token);
+        status = Localizer.Translate("saved");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

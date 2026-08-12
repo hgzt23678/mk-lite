@@ -1,0 +1,131 @@
+@implements IAsyncDisposable
+@inject IElementSizeInterop ElementSizeInterop
+
+<div @ref="root" class="@RootClass" @attributes="AttributesWithoutClass">
+    <MkAvatar CssClass="avatar" User="Note.Author" />
+    <div class="main">
+        <MkNoteHeader CssClass="header" Note="Note" Mini="true" />
+        <div class="body">
+            @if (Note.ContentWarning is not null)
+            {
+                <p class="cw">
+                    @if (Note.ContentWarning.Length > 0)
+                    {
+                        <MfmView CssClass="text"
+                                 Text="@(Note.ContentWarning!)"
+                                 Author="Note.Author"
+                                 CustomEmojis="Note.Emojis" />
+                    }
+                    <MkCwButton @bind-Expanded="showContent" Note="Note" />
+                </p>
+            }
+            <div class="content" style="@ContentVisibilityStyle">
+                <MkSubNoteContent class="text" Note="Note" />
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference root;
+    private DotNetObjectReference<MkNoteSimple>? receiver;
+    private IJSObjectReference? observation;
+    private double width;
+    private bool showContent;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public NoteViewModel Note { get; set; } = null!;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter]
+    public bool Pinned { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "yohlumlk",
+        width >= 350 ? "min-width_350px" : null,
+        width >= 500 ? "min-width_500px" : null,
+        CssClass,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private string? ContentVisibilityStyle => Note.ContentWarning is not null && !showContent
+        ? "display: none;"
+        : null;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            observation = await ElementSizeInterop.ObserveAsync(root, receiver, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task UpdateElementSize(double nextWidth, int viewportWidth)
+    {
+        _ = viewportWidth;
+        if (disposed || Math.Abs(width - nextWidth) < 0.5)
+        {
+            return Task.CompletedTask;
+        }
+
+        width = nextWidth;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (observation is not null)
+        {
+            try
+            {
+                await observation.InvokeVoidAsync("dispose");
+                await observation.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+}

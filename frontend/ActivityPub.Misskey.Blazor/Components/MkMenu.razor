@@ -1,0 +1,550 @@
+@implements IAsyncDisposable
+@inject IMenuInterop MenuInterop
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+@inject NavigationManager Navigation
+
+<div @ref="root" class="@RootClass" @attributes="AttributesWithoutClass">
+    <div @ref="itemsElement"
+         class="@MenuClass"
+         style="@MenuStyle"
+         role="menu"
+         aria-orientation="vertical">
+        @for (int index = 0; index < itemStates.Count; index++)
+        {
+            MenuItemState state = itemStates[index];
+            MisskeyMenuItem item = state.Item;
+            if (item.Kind == MisskeyMenuItemKind.Divider)
+            {
+                <div class="divider" role="separator"></div>
+            }
+            else if (item.Kind == MisskeyMenuItemKind.Label)
+            {
+                <span class="label item"><span>@item.Text</span></span>
+            }
+            else if (item.Kind == MisskeyMenuItemKind.Pending)
+            {
+                <span tabindex="@index" class="pending item"><span><MkEllipsis /></span></span>
+            }
+            else if (item.Kind == MisskeyMenuItemKind.Link)
+            {
+                <a href="@item.Href"
+                   tabindex="@index"
+                   class="_button item"
+                   role="menuitem"
+                   @onclick="() => CloseAsync(true)"
+                   @onmouseenter="ScheduleChildClose"
+                   @onmouseleave="CancelChildClose">
+                    @ItemContent(item)
+                </a>
+            }
+            else if (item.Kind == MisskeyMenuItemKind.ExternalLink)
+            {
+                <a href="@item.Href"
+                   target="@item.Target"
+                   download="@item.Download"
+                   rel="@ExternalRelation(item)"
+                   tabindex="@index"
+                   class="_button item"
+                   role="menuitem"
+                   @onclick="() => CloseAsync(true)"
+                   @onmouseenter="ScheduleChildClose"
+                   @onmouseleave="CancelChildClose">
+                    @ItemContent(item, allowAvatar: false)
+                </a>
+            }
+            else if (item.Kind == MisskeyMenuItemKind.User && item.User is not null)
+            {
+                <button tabindex="@index"
+                        class="@ItemClass(item)"
+                        type="button"
+                        role="menuitem"
+                        disabled="@(item.Active || item.Disabled)"
+                        @onclick="args => InvokeAsync(item, args)"
+                        @onmouseenter="ScheduleChildClose"
+                        @onmouseleave="CancelChildClose">
+                    <MkAvatar User="item.User" CssClass="avatar" DisableLink="true" />
+                    <MkUserName User="item.User" />
+                    @Indicator(item)
+                </button>
+            }
+            else if (item.Kind == MisskeyMenuItemKind.Switch)
+            {
+                <span tabindex="@index"
+                      class="item"
+                      @onmouseenter="ScheduleChildClose"
+                      @onmouseleave="CancelChildClose">
+                    <MkFormSwitch Value="state.SwitchValue"
+                                  ValueChanged="value => SetSwitchAsync(state, value)"
+                                  Disabled="item.Disabled"
+                                  CssClassAdditional="form-switch">@item.Text</MkFormSwitch>
+                </span>
+            }
+            else if (item.Kind == MisskeyMenuItemKind.Parent && item.Children is not null)
+            {
+                <MkMenuParentItem @key="item"
+                                  Item="item"
+                                  TabIndex="index"
+                                  ChildShowing="@(ReferenceEquals(childShowingItem, item))"
+                                  Hovered="target => ShowChildrenAsync(item, target)" />
+            }
+            else
+            {
+                <button tabindex="@index"
+                        class="@ItemClass(item)"
+                        type="button"
+                        role="menuitem"
+                        disabled="@(item.Active || item.Disabled)"
+                        @onclick="args => InvokeAsync(item, args)"
+                        @onmouseenter="ScheduleChildClose"
+                        @onmouseleave="CancelChildClose">
+                    @ItemContent(item)
+                </button>
+            }
+        }
+        @if (itemStates.Count == 0)
+        {
+            <span class="none item"><span>@Localizer.Translate("none")</span></span>
+        }
+    </div>
+    @if (childMenu is not null)
+    {
+        <div class="child">
+            <MkMenuChild @key="childGeneration"
+                         Items="childMenu"
+                         TargetElement="childTarget"
+                         RootElement="itemsElement"
+                         Closed="CloseChildAsync"
+                         Actioned="ChildActionedAsync" />
+        </div>
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private readonly List<MenuItemState> itemStates = [];
+    private ElementReference root;
+    private ElementReference itemsElement;
+    private DotNetObjectReference<MkMenu>? receiver;
+    private IJSObjectReference? attachment;
+    private Task? attachmentTask;
+    private IReadOnlyList<MisskeyMenuItem>? previousItems;
+    private IReadOnlyList<MisskeyMenuItem>? childMenu;
+    private MisskeyMenuItem? childShowingItem;
+    private ElementReference childTarget;
+    private CancellationTokenSource? childCloseRequest;
+    private long itemsGeneration;
+    private long childGeneration;
+    private bool childTargetChanged;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<MisskeyMenuItem> Items { get; set; } = [];
+
+    [Parameter]
+    public bool ViaKeyboard { get; set; }
+
+    [Parameter]
+    public bool AsDrawer { get; set; }
+
+    [Parameter]
+    public string? Align { get; set; }
+
+    [Parameter]
+    public double? Width { get; set; }
+
+    [Parameter]
+    public double? MaxHeight { get; set; }
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> Close { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string? RootClass => string.Join(' ', new[]
+    {
+        CssClass,
+        ReadAdditionalAttribute("class")
+    }.Where(value => !string.IsNullOrWhiteSpace(value))) is { Length: > 0 } cssClass ? cssClass : null;
+
+    private string MenuClass => string.Join(' ', new[]
+    {
+        "rrevdjwt",
+        "_popup",
+        "_shadow",
+        string.Equals(Align, "center", StringComparison.Ordinal) ? "center" : null,
+        AsDrawer ? "asDrawer" : null
+    }.Where(value => value is not null));
+
+    private string? MenuStyle => string.Join("; ", new[]
+    {
+        Width is not null && Width.Value != 0 && !AsDrawer ? $"width: {CssPixels(Width.Value)}" : null,
+        MaxHeight is not null && MaxHeight.Value != 0 ? $"max-height: {CssPixels(MaxHeight.Value)}" : null
+    }.Where(value => value is not null)) is { Length: > 0 } style ? style : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(previousItems, Items))
+        {
+            return;
+        }
+
+        previousItems = Items;
+        long generation = ++itemsGeneration;
+        itemStates.Clear();
+        foreach (MisskeyMenuItem? item in Items)
+        {
+            if (item is null)
+            {
+                continue;
+            }
+
+            var state = new MenuItemState(item);
+            itemStates.Add(state);
+            if (item.Kind == MisskeyMenuItemKind.Pending && item.PendingTask is not null)
+            {
+                _ = ResolvePendingAsync(state, item.PendingTask, generation);
+            }
+        }
+
+        CloseChild();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            attachmentTask = AttachAsync();
+            await attachmentTask;
+        }
+
+        if (childTargetChanged && attachment is not null)
+        {
+            childTargetChanged = false;
+            try
+            {
+                await attachment.InvokeVoidAsync("setChildTarget", lifetime.Token, childTarget);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+    }
+
+    private async Task AttachAsync()
+    {
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            IJSObjectReference handle = await MenuInterop.AttachAsync(
+                root,
+                itemsElement,
+                ViaKeyboard,
+                receiver,
+                lifetime.Token);
+            if (disposed)
+            {
+                await DisposeAttachmentAsync(handle);
+                return;
+            }
+
+            attachment = handle;
+            if (childMenu is not null)
+            {
+                childTargetChanged = true;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private async Task ResolvePendingAsync(
+        MenuItemState state,
+        Task<MisskeyMenuItem?> pending,
+        long generation)
+    {
+        MisskeyMenuItem? resolved;
+        try
+        {
+            resolved = await pending;
+        }
+        catch
+        {
+            return;
+        }
+
+        if (disposed || generation != itemsGeneration || resolved is null || !itemStates.Contains(state))
+        {
+            return;
+        }
+
+        state.Replace(resolved);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ShowChildrenAsync(MisskeyMenuItem item, ElementReference target)
+    {
+        CancelChildClose();
+        if (item.Children is null)
+        {
+            return;
+        }
+
+        if (AsDrawer)
+        {
+            Overlays.ShowPopupMenu(target, item.Children);
+            await CloseAsync(false);
+            return;
+        }
+
+        childTarget = target;
+        childMenu = item.Children;
+        childShowingItem = item;
+        childGeneration++;
+        childTargetChanged = true;
+    }
+
+    private void ScheduleChildClose(MouseEventArgs args)
+    {
+        _ = args;
+        childCloseRequest?.Cancel();
+        childCloseRequest?.Dispose();
+        childCloseRequest = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        _ = CloseChildAfterDelayAsync(childCloseRequest.Token);
+    }
+
+    private void CancelChildClose(MouseEventArgs? args = null)
+    {
+        _ = args;
+        childCloseRequest?.Cancel();
+        childCloseRequest?.Dispose();
+        childCloseRequest = null;
+    }
+
+    private async Task CloseChildAfterDelayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(300), cancellationToken);
+            if (!disposed)
+            {
+                await InvokeAsync(() =>
+                {
+                    CloseChild();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task CloseChildAsync()
+    {
+        CloseChild();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ChildActionedAsync()
+    {
+        CloseChild();
+        await CloseAsync(true);
+    }
+
+    private void CloseChild()
+    {
+        CancelChildClose();
+        childMenu = null;
+        childShowingItem = null;
+        childTargetChanged = false;
+        if (attachment is not null)
+        {
+            _ = ClearChildTargetAsync();
+        }
+    }
+
+    private async Task ClearChildTargetAsync()
+    {
+        try
+        {
+            await attachment!.InvokeVoidAsync("clearChildTarget", lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private async Task InvokeAsync(MisskeyMenuItem item, MouseEventArgs args)
+    {
+        if (item.MouseAction is not null)
+        {
+            await item.MouseAction(args);
+        }
+        else if (item.Action is not null)
+        {
+            await item.Action();
+        }
+        else if (!string.IsNullOrWhiteSpace(item.Href))
+        {
+            Navigation.NavigateTo(item.Href);
+        }
+
+        await CloseAsync(true);
+    }
+
+    private async Task SetSwitchAsync(MenuItemState state, bool value)
+    {
+        state.SwitchValue = value;
+        if (state.Item.SwitchChanged is not null)
+        {
+            await state.Item.SwitchChanged(value);
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private RenderFragment ItemContent(MisskeyMenuItem item, bool allowAvatar = true) => builder =>
+    {
+        int sequence = 0;
+        if (!string.IsNullOrWhiteSpace(item.Icon))
+        {
+            builder.OpenElement(sequence++, "i");
+            builder.AddAttribute(sequence++, "class", $"fa-fw {item.Icon}");
+            builder.CloseElement();
+        }
+
+        if (allowAvatar && item.Avatar is not null)
+        {
+            builder.OpenComponent<MkAvatar>(sequence++);
+            builder.AddAttribute(sequence++, nameof(MkAvatar.User), item.Avatar);
+            builder.AddAttribute(sequence++, nameof(MkAvatar.CssClass), "avatar");
+            builder.AddAttribute(sequence++, nameof(MkAvatar.DisableLink), true);
+            builder.CloseComponent();
+        }
+
+        builder.OpenElement(sequence++, "span");
+        builder.AddContent(sequence++, item.Text);
+        builder.CloseElement();
+        builder.AddContent(sequence, Indicator(item));
+    };
+
+    private static RenderFragment Indicator(MisskeyMenuItem item) => builder =>
+    {
+        if (!item.Indicate)
+        {
+            return;
+        }
+
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", "indicator");
+        builder.OpenElement(2, "i");
+        builder.AddAttribute(3, "class", "fas fa-circle");
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
+    private Task CloseAsync(bool actioned) => Close.InvokeAsync(actioned);
+
+    [JSInvokable]
+    public Task NotifyClose() => CloseAsync(false);
+
+    [JSInvokable]
+    public Task NotifyChildOutside() => CloseChildAsync();
+
+    private static string ItemClass(MisskeyMenuItem item) =>
+        $"_button item{(item.Danger ? " danger" : string.Empty)}{(item.Active ? " active" : string.Empty)}";
+
+    private static string? ExternalRelation(MisskeyMenuItem item) =>
+        string.Equals(item.Target, "_blank", StringComparison.OrdinalIgnoreCase)
+            ? "noopener noreferrer"
+            : null;
+
+    private static string CssPixels(double value) =>
+        value.ToString("0.###", CultureInfo.InvariantCulture) + "px";
+
+    private string? ReadAdditionalAttribute(string name) =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue(name, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        itemsGeneration++;
+        CancelChildClose();
+        await lifetime.CancelAsync();
+        if (attachmentTask is not null)
+        {
+            try
+            {
+                await attachmentTask;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        if (attachment is not null)
+        {
+            await DisposeAttachmentAsync(attachment);
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        try
+        {
+            await handle.InvokeVoidAsync("dispose");
+            await handle.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private sealed class MenuItemState(MisskeyMenuItem item)
+    {
+        public MisskeyMenuItem Item { get; private set; } = item;
+
+        public bool SwitchValue { get; set; } = item.SwitchValue;
+
+        public void Replace(MisskeyMenuItem value)
+        {
+            Item = value;
+            SwitchValue = value.SwitchValue;
+        }
+    }
+}

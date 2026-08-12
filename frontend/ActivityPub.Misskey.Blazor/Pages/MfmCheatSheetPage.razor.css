@@ -1,0 +1,28 @@
+.mwysmxbg {
+    background: var(--bg);
+}
+
+.mwysmxbg > .intro {
+    padding: 16px;
+}
+
+.mwysmxbg > .section > .title {
+    position: sticky;
+    z-index: 1;
+    top: var(--stickyTop, 0px);
+    padding: 16px;
+    font-weight: bold;
+    -webkit-backdrop-filter: var(--blur, blur(10px));
+    backdrop-filter: var(--blur, blur(10px));
+    background-color: var(--X16);
+}
+
+.mwysmxbg > .section > .content > p {
+    margin: 0;
+    padding: 16px;
+}
+
+.mwysmxbg > .section > .content > .preview {
+    border-top: solid 0.5px var(--divider);
+    padding: 16px;
+}

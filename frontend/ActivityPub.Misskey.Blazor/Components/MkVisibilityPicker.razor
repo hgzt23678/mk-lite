@@ -1,0 +1,262 @@
+@implements IAsyncDisposable
+@inject IVisibilityPickerInterop ModalInterop
+@inject IMisskeyOverlayService Overlays
+@inject IMisskeyLocalizer Localizer
+
+<div @ref="modal"
+     class="@ModalClass"
+     role="presentation"
+     @onkeydown="OnKeyDown">
+    <div class="bg _modalBg" @onclick="BeginClose"></div>
+    <div @ref="content" class="content" @onclick="BeginClose">
+        <div class="gqyayizv _popup"
+             role="menu"
+             aria-label="@Localizer.Translate("visibility")"
+             @onclick:stopPropagation="true">
+            <button class="_button @(visibility == Visibility.Public ? "active" : null)" type="button" data-index="1" role="menuitemradio" aria-checked="@AriaChecked(visibility == Visibility.Public)" @onclick="() => Choose(Visibility.Public)">
+                <div><i class="fas fa-globe"></i></div>
+                <div><span>@Localizer.Translate("_visibility.public")</span><span>@Localizer.Translate("_visibility.publicDescription")</span></div>
+            </button>
+            <button class="_button @(visibility == Visibility.Unlisted ? "active" : null)" type="button" data-index="2" role="menuitemradio" aria-checked="@AriaChecked(visibility == Visibility.Unlisted)" @onclick="() => Choose(Visibility.Unlisted)">
+                <div><i class="fas fa-home"></i></div>
+                <div><span>@Localizer.Translate("_visibility.home")</span><span>@Localizer.Translate("_visibility.homeDescription")</span></div>
+            </button>
+            <button class="_button @(visibility == Visibility.FollowersOnly ? "active" : null)" type="button" data-index="3" role="menuitemradio" aria-checked="@AriaChecked(visibility == Visibility.FollowersOnly)" @onclick="() => Choose(Visibility.FollowersOnly)">
+                <div><i class="fas fa-unlock"></i></div>
+                <div><span>@Localizer.Translate("_visibility.followers")</span><span>@Localizer.Translate("_visibility.followersDescription")</span></div>
+            </button>
+            <button class="_button @(visibility == Visibility.MentionedOnly ? "active" : null)" type="button" disabled="@localOnly" data-index="4" role="menuitemradio" aria-checked="@AriaChecked(visibility == Visibility.MentionedOnly)" @onclick="() => Choose(Visibility.MentionedOnly)">
+                <div><i class="fas fa-envelope"></i></div>
+                <div><span>@Localizer.Translate("_visibility.specified")</span><span>@Localizer.Translate("_visibility.specifiedDescription")</span></div>
+            </button>
+            <div class="divider"></div>
+            <button class="_button localOnly @(localOnly ? "active" : null)" type="button" data-index="5" role="menuitemcheckbox" aria-checked="@AriaChecked(localOnly)" @onclick="ToggleLocalOnly">
+                <div><i class="fas fa-biohazard"></i></div>
+                <div><span>@Localizer.Translate("_visibility.localOnly")</span><span>@Localizer.Translate("_visibility.localOnlyDescription")</span></div>
+                <div><i class="@(localOnly ? "fas fa-toggle-on" : "fas fa-toggle-off")"></i></div>
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private ElementReference modal;
+    private ElementReference content;
+    private readonly CancellationTokenSource lifetime = new();
+    private DotNetObjectReference<MkVisibilityPicker>? receiver;
+    private IJSObjectReference? attachment;
+    private Task? attachmentTask;
+    private Visibility visibility;
+    private bool localOnly;
+    private bool isDrawer;
+    private bool isClosing;
+    private bool closedNotified;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public Guid Id { get; set; }
+
+    [Parameter, EditorRequired]
+    public ElementReference Source { get; set; }
+
+    [Parameter]
+    public Visibility CurrentVisibility { get; set; }
+
+    [Parameter]
+    public bool CurrentLocalOnly { get; set; }
+
+    [Parameter, EditorRequired]
+    public Func<Visibility, bool, Task> Changed { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    [CascadingParameter(Name = "MisskeyLocaleRevision")]
+    private long LocaleRevision { get; set; }
+
+    private string ModalClass => string.Join(' ', new[]
+    {
+        "qzhlnise",
+        isDrawer ? "drawer" : "popup",
+        isDrawer ? "modal-drawer-enter-active" : "modal-popup-enter-active",
+        isClosing ? isDrawer ? "modal-drawer-leave-to" : "modal-popup-leave-to" : null
+    }.Where(value => value is not null));
+
+    private static string AriaChecked(bool value) => value ? "true" : "false";
+
+    protected override void OnInitialized()
+    {
+        visibility = CurrentVisibility;
+        localOnly = CurrentLocalOnly;
+        Overlays.RegisterCloseHandler(Id, BeginClose);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        attachmentTask = AttachAsync();
+        await attachmentTask;
+    }
+
+    private async Task AttachAsync()
+    {
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            ModalAttachment result = await ModalInterop.AttachAsync(
+                Source,
+                modal,
+                content,
+                receiver,
+                lifetime.Token);
+            if (disposed)
+            {
+                await DisposeAttachmentAsync(result.Handle);
+                return;
+            }
+
+            attachment = result.Handle;
+            isDrawer = result.IsDrawer;
+            if (isClosing)
+            {
+                await CloseAttachmentAsync();
+                return;
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            if (!disposed)
+            {
+                Overlays.Close(Id);
+            }
+        }
+    }
+
+    private async Task Choose(Visibility value)
+    {
+        visibility = value;
+        await Changed(visibility, localOnly);
+        await BeginClose();
+    }
+
+    private async Task ToggleLocalOnly()
+    {
+        localOnly = !localOnly;
+        await Changed(visibility, localOnly);
+    }
+
+    private Task OnKeyDown(KeyboardEventArgs args) => args.Key == "Escape" ? BeginClose() : Task.CompletedTask;
+
+    private async Task BeginClose()
+    {
+        if (isClosing)
+        {
+            return;
+        }
+
+        isClosing = true;
+        await InvokeAsync(StateHasChanged);
+        if (attachment is null)
+        {
+            return;
+        }
+
+        await CloseAttachmentAsync();
+    }
+
+    private async Task CloseAttachmentAsync()
+    {
+        if (attachment is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await attachment.InvokeVoidAsync("close");
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            if (!disposed)
+            {
+                Overlays.Close(Id);
+            }
+        }
+    }
+
+    [JSInvokable]
+    public async Task NotifyClosed()
+    {
+        if (closedNotified)
+        {
+            return;
+        }
+
+        closedNotified = true;
+        try
+        {
+            await Closed.InvokeAsync();
+        }
+        finally
+        {
+            Overlays.Close(Id);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        Overlays.UnregisterCloseHandler(Id);
+        await lifetime.CancelAsync();
+        if (attachmentTask is not null)
+        {
+            try
+            {
+                await attachmentTask;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        if (attachment is not null)
+        {
+            await DisposeAttachmentAsync(attachment);
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        try
+        {
+            await handle.InvokeVoidAsync("dispose");
+            await handle.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

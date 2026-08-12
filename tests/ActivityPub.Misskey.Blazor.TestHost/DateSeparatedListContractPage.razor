@@ -1,0 +1,61 @@
+@page "/__test/components/date-separated-list"
+@rendermode InteractiveServer
+@using System.Globalization
+
+<main data-contract="date-separated-list">
+    <button type="button" data-contract="prepend" @onclick="Prepend">prepend</button>
+    <button type="button" data-contract="reverse" @onclick="Reverse">reverse</button>
+    <MkDateSeparatedList TItem="DateListFixtureItem"
+                         Items="items"
+                         GetId="GetId"
+                         GetCreatedAt="GetCreatedAt"
+                         ShouldInsertAdvertisement="ShouldInsertAdvertisement"
+                         Ad="true"
+                         NoGap="true"
+                         class="contract-list"
+                         aria-live="polite">
+        <ChildContent Context="item">
+            <article @key="item.Id"
+                     class="contract-item"
+                     data-date-item="@item.Id"
+                     style="height: 48px;">
+                @item.Id
+            </article>
+        </ChildContent>
+        <AdvertisementContent Context="item">
+            <aside @key="item.Id" class="a" data-ad-item="@item.Id">advertisement</aside>
+        </AdvertisementContent>
+    </MkDateSeparatedList>
+</main>
+
+@code {
+    private readonly List<DateListFixtureItem> items =
+    [
+        new("a", DateTimeOffset.Parse("2026-04-03T12:00:00Z", CultureInfo.InvariantCulture)),
+        new("b", DateTimeOffset.Parse("2026-04-02T12:00:00Z", CultureInfo.InvariantCulture), true),
+        new("c", DateTimeOffset.Parse("2026-03-02T12:00:00Z", CultureInfo.InvariantCulture))
+    ];
+
+    private void Prepend()
+    {
+        if (items.All(item => item.Id != "live"))
+        {
+            items.Insert(
+                0,
+                new("live", DateTimeOffset.Parse("2026-04-04T12:00:00Z", CultureInfo.InvariantCulture)));
+        }
+    }
+
+    private void Reverse() => items.Reverse();
+
+    private static string GetId(DateListFixtureItem item) => item.Id;
+
+    private static DateTimeOffset GetCreatedAt(DateListFixtureItem item) => item.CreatedAt;
+
+    private static bool ShouldInsertAdvertisement(DateListFixtureItem item) => item.ShouldInsertAdvertisement;
+
+    private sealed record DateListFixtureItem(
+        string Id,
+        DateTimeOffset CreatedAt,
+        bool ShouldInsertAdvertisement = false);
+}

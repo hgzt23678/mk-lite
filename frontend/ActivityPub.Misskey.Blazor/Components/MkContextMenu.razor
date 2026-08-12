@@ -1,0 +1,197 @@
+@implements IAsyncDisposable
+@inject IContextMenuInterop ContextMenuInterop
+@inject IMisskeyOverlayService Overlays
+
+<div @ref="root"
+     class="nvlagfpb fade-enter-active"
+     @oncontextmenu="IgnoreContextMenu"
+     @oncontextmenu:preventDefault="true"
+     @oncontextmenu:stopPropagation="true">
+    <MkMenu Items="Items"
+            Align="left"
+            Close="OnMenuCloseAsync" />
+</div>
+
+@code {
+    private ElementReference root;
+    private readonly CancellationTokenSource lifetime = new();
+    private DotNetObjectReference<MkContextMenu>? receiver;
+    private IJSObjectReference? attachment;
+    private Task? attachmentTask;
+    private bool isClosing;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public Guid Id { get; set; }
+
+    [Parameter, EditorRequired]
+    public double X { get; set; }
+
+    [Parameter, EditorRequired]
+    public double Y { get; set; }
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<MisskeyMenuItem> Items { get; set; } = [];
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    protected override void OnInitialized() => Overlays.RegisterCloseHandler(Id, BeginCloseAsync);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        attachmentTask = AttachAsync();
+        await attachmentTask;
+    }
+
+    private async Task AttachAsync()
+    {
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            IJSObjectReference handle = await ContextMenuInterop.AttachAsync(
+                root,
+                X,
+                Y,
+                receiver,
+                lifetime.Token);
+            if (disposed)
+            {
+                await DisposeAttachmentAsync(handle);
+                return;
+            }
+
+            attachment = handle;
+            if (isClosing)
+            {
+                await CloseAttachmentAsync();
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            if (!disposed)
+            {
+                Overlays.Close(Id);
+            }
+        }
+    }
+
+    private Task OnMenuCloseAsync(bool actioned)
+    {
+        _ = actioned;
+        return BeginCloseAsync();
+    }
+
+    private static void IgnoreContextMenu(MouseEventArgs _)
+    {
+    }
+
+    private async Task BeginCloseAsync()
+    {
+        if (isClosing)
+        {
+            return;
+        }
+
+        isClosing = true;
+        if (attachment is null)
+        {
+            // OnAfterRenderAsync can still be importing the context menu module.  Removing this
+            // component here would dispose the DotNetObjectReference while JS interop is
+            // serializing it.  AttachAsync observes isClosing and closes immediately after the
+            // handle has been established.
+            return;
+        }
+
+        await CloseAttachmentAsync();
+    }
+
+    private async Task CloseAttachmentAsync()
+    {
+        if (attachment is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await attachment.InvokeVoidAsync("close", lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            if (!disposed)
+            {
+                Overlays.Close(Id);
+            }
+        }
+    }
+
+    [JSInvokable]
+    public async Task NotifyClosed()
+    {
+        try
+        {
+            await Closed.InvokeAsync();
+        }
+        finally
+        {
+            Overlays.Close(Id);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        Overlays.UnregisterCloseHandler(Id);
+        await lifetime.CancelAsync();
+        if (attachmentTask is not null)
+        {
+            try
+            {
+                await attachmentTask;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        if (attachment is not null)
+        {
+            await DisposeAttachmentAsync(attachment);
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        try
+        {
+            await handle.InvokeVoidAsync("dispose");
+            await handle.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

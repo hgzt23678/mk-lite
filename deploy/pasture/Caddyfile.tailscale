@@ -1,0 +1,21 @@
+:80 {
+	@tailnet_frontend {
+		host {$AP_TAILSCALE_HOST}
+	}
+	handle @tailnet_frontend {
+		reverse_proxy api:8080 {
+			header_up Host {$AP_TAILSCALE_HOST}:{$AP_TAILSCALE_PORT}
+			header_up X-Forwarded-Host {$AP_TAILSCALE_HOST}:{$AP_TAILSCALE_PORT}
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Port {$AP_TAILSCALE_PORT}
+		}
+	}
+
+	handle {
+		reverse_proxy api:8080 {
+			header_up Host activitypub
+			header_up X-Forwarded-Host activitypub
+			header_up X-Forwarded-Proto http
+		}
+	}
+}

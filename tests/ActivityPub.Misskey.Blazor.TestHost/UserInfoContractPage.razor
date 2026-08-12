@@ -1,0 +1,50 @@
+@page "/__test/components/user-info"
+
+<main data-contract="user-info" style="display: grid; gap: 24px; max-width: 360px; padding: 24px;">
+    <section data-card="followable">
+        <MkUserInfo User="followable" class="user" data-user-card="followable" />
+    </section>
+    <section data-card="self-or-anonymous">
+        <MkUserInfo User="selfOrAnonymous" class="user" data-user-card="self-or-anonymous" />
+    </section>
+</main>
+
+@code {
+    private static readonly NoteAuthorViewModel author = new(
+        "alice-id",
+        "alice",
+        "alice@xn--bcher-kva.example",
+        "Alice :wave:",
+        "/static-assets/favicon.png",
+        IsBot: false,
+        IsCat: true,
+        OnlineStatus: "active",
+        Emojis: new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["wave"] = "/static-assets/favicon.png"
+        });
+
+    private static readonly UserPreviewViewModel followable = new(
+        Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+        "alice-id",
+        author,
+        "Hello **Fediverse** :wave:",
+        "/static-assets/icons/512.png",
+        NotesCount: 73,
+        FollowingCount: 19,
+        FollowersCount: 31,
+        IsLocked: false,
+        CanFollow: true,
+        IsFollowing: false,
+        HasPendingFollowRequestFromYou: false,
+        IsFollowed: true);
+
+    private static readonly UserPreviewViewModel selfOrAnonymous = followable with
+    {
+        Id = "self-id",
+        User = author with { Id = "self-id", Username = "self", Acct = "self", DisplayName = "Self" },
+        Description = string.Empty,
+        BannerUrl = "https://tracker.invalid/banner.png",
+        CanFollow = false
+    };
+}

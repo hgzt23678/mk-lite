@@ -1,0 +1,16 @@
+.meijqfqm {
+	position: relative;
+	overflow: clip;
+	display: grid;
+	place-items: center;
+
+	> .canvas {
+		display: block;
+	}
+
+	> .tags {
+		position: absolute;
+		top: 999px;
+		left: 999px;
+	}
+}

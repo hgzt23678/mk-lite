@@ -1,0 +1,11 @@
+.tdflqwzn {
+    margin: 4px -2px 0 -2px;
+}
+
+.tdflqwzn:empty {
+    display: none;
+}
+
+.tdflqwzn.isMe > span {
+    cursor: default !important;
+}

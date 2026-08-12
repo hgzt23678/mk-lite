@@ -1,0 +1,91 @@
+@page "/__test/components/form-dialog"
+@rendermode InteractiveServer
+@inject IMisskeyOverlayService Overlays
+
+<main data-contract="mk-form-dialog">
+    <button type="button" data-contract="open" @onclick="Open">open</button>
+    <output data-contract="action">@actionResult</output>
+    <output data-contract="result">@formResult</output>
+    <MkFormFolder data-contract="form-folder">
+        <Icon><i class="fas fa-cog"></i></Icon>
+        <Label>詳細設定</Label>
+        <Suffix>1項目</Suffix>
+        <ChildContent>
+            <button type="button" data-contract="folder-value" @onclick="IncrementFolderValue">@folderValue</button>
+        </ChildContent>
+    </MkFormFolder>
+</main>
+
+@code {
+    private string? actionResult;
+    private string? formResult;
+    private int folderValue;
+
+    private IReadOnlyList<MisskeyFormDialogItem> form = [];
+
+    protected override void OnInitialized()
+    {
+        form =
+        [
+            new("title", "string") { Label = "タイトル", Required = false, DefaultValue = "before" },
+            new("enabled", "boolean") { Label = "有効", DefaultValue = false },
+            new("sound", "enum")
+            {
+                Label = "サウンド",
+                DefaultValue = null,
+                Options = [new("なし", null), new("ベル", "bell")]
+            },
+            new("layout", "radio")
+            {
+                Label = "レイアウト",
+                DefaultValue = 1,
+                Options = [new("1列", 1), new("2列", 2)]
+            },
+            new("volume", "range")
+            {
+                Label = "音量",
+                DefaultValue = 0.5,
+                Min = 0,
+                Max = 1,
+                Step = 0.1,
+                TextConverter = value => $"{value * 100:0}%"
+            },
+            new("listen", "button")
+            {
+                Content = "試聴",
+                Action = context =>
+                {
+                    actionResult = $"{context.Values["title"]}|{context.Values["sound"]}";
+                    return InvokeAsync(StateHasChanged);
+                }
+            },
+            new("private", "object") { Hidden = true, DefaultValue = new Dictionary<string, object?>() }
+        ];
+    }
+
+    private void Open() => Overlays.ShowFormDialog(new MisskeyFormDialogOptions(
+        "設定",
+        form,
+        OnDone));
+
+    private Task OnDone(MisskeyFormDialogResult result)
+    {
+        if (result.Canceled || result.Result is null)
+        {
+            formResult = "canceled";
+        }
+        else
+        {
+            formResult = string.Join('|',
+                result.Result["title"],
+                result.Result["enabled"],
+                result.Result["sound"],
+                result.Result["layout"],
+                result.Result["volume"]);
+        }
+
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private void IncrementFolderValue() => folderValue++;
+}

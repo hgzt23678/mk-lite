@@ -1,0 +1,225 @@
+@implements IAsyncDisposable
+@inject IMediaGalleryInterop GalleryInterop
+
+<div class="@RootClass" @attributes="AttributesWithoutClass">
+    @foreach (NoteMediaViewModel media in Media.Where(IsRenderableBanner))
+    {
+        <MkMediaBanner @key="media.Id" Media="media" />
+    }
+    @if (PreviewMedia.Count > 0)
+    {
+        <div class="gird-container">
+            <div @ref="gallery" data-count="@PreviewMedia.Count">
+                @foreach (NoteMediaViewModel media in PreviewMedia)
+                {
+                    if (media.MediaType.StartsWith("video/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <MkMediaVideo @key="media.Id" Video="media" />
+                    }
+                    else
+                    {
+                        <MkMediaImage @key="media.Id"
+                                      Image="media"
+                                      Raw="Raw"
+                                      OpenRequested="ImageOpenCallback"
+                                      class="image"
+                                      data-id="@media.Id" />
+                    }
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private static readonly HashSet<string> BrowserSafeTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/png",
+        "image/gif",
+        "image/jpeg",
+        "image/webp",
+        "image/apng",
+        "image/bmp",
+        "image/tiff",
+        "image/x-icon",
+        "audio/opus",
+        "video/ogg",
+        "audio/ogg",
+        "application/ogg",
+        "video/quicktime",
+        "video/mp4",
+        "audio/mp4",
+        "video/x-m4v",
+        "audio/x-m4a",
+        "video/3gpp",
+        "video/3gpp2",
+        "video/mpeg",
+        "audio/mpeg",
+        "video/webm",
+        "audio/webm",
+        "audio/aac",
+        "audio/x-flac",
+        "audio/vnd.wave"
+    };
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference gallery;
+    private CancellationTokenSource? attachmentLifetime;
+    private IJSObjectReference? attachment;
+    private string? gallerySignature;
+    private string? attachedSignature;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<NoteMediaViewModel> Media { get; set; } = [];
+
+    [Parameter]
+    public bool Raw { get; set; }
+
+    [Parameter]
+    public EventCallback<NoteMediaViewModel> ImageOpenRequested { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private IReadOnlyList<NoteMediaViewModel> PreviewMedia => Media.Where(IsRenderablePreview).ToArray();
+    private IReadOnlyList<MediaGalleryItem> GalleryImages => PreviewMedia
+        .Where(media => media.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        .Select(media => new MediaGalleryItem(
+            media.Id,
+            SameOriginMediaUrl.Normalize(media.Url)!,
+            SameOriginMediaUrl.Normalize(media.PreviewUrl)!,
+            media.Width.GetValueOrDefault(1),
+            media.Height.GetValueOrDefault(1),
+            media.Description ?? media.Id))
+        .ToArray();
+    private EventCallback<NoteMediaViewModel> ImageOpenCallback => ImageOpenRequested.HasDelegate
+        ? EventCallback.Factory.Create(this, (NoteMediaViewModel image) => ImageOpenRequested.InvokeAsync(image))
+        : default;
+    private string RootClass => string.Join(' ', new[] { "hoawjimk", AdditionalClass }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        string nextSignature = string.Join('\u001e', Media.Select(media =>
+            $"{media.Id}\u001f{media.MediaType}\u001f{media.Url}\u001f{media.PreviewUrl}\u001f{media.Width}\u001f{media.Height}"));
+        nextSignature = $"{nextSignature}\u001e{ImageOpenRequested.HasDelegate}";
+        if (string.Equals(nextSignature, gallerySignature, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        gallerySignature = nextSignature;
+        attachmentLifetime?.Cancel();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _ = firstRender;
+        if (disposed || string.Equals(attachedSignature, gallerySignature, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        await DetachAsync().ConfigureAwait(false);
+        attachedSignature = gallerySignature;
+        IReadOnlyList<MediaGalleryItem> images = GalleryImages;
+        if (ImageOpenRequested.HasDelegate || images.Count == 0)
+        {
+            return;
+        }
+
+        var request = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        attachmentLifetime = request;
+        string signature = gallerySignature!;
+        try
+        {
+            IJSObjectReference created = await GalleryInterop.AttachAsync(
+                gallery,
+                images,
+                request.Token).ConfigureAwait(false);
+            if (disposed || request.IsCancellationRequested ||
+                !string.Equals(signature, gallerySignature, StringComparison.Ordinal))
+            {
+                await DisposeHandleAsync(created).ConfigureAwait(false);
+                return;
+            }
+            attachment = created;
+        }
+        catch (OperationCanceledException) when (request.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private static bool IsPreviewable(NoteMediaViewModel media)
+    {
+        if (string.Equals(media.MediaType, "image/svg+xml", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return (media.MediaType.StartsWith("video/", StringComparison.OrdinalIgnoreCase) ||
+                media.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)) &&
+            BrowserSafeTypes.Contains(media.MediaType);
+    }
+
+    private static bool IsRenderableBanner(NoteMediaViewModel media) =>
+        !IsPreviewable(media) && SameOriginMediaUrl.Normalize(media.Url) is not null;
+
+    private static bool IsRenderablePreview(NoteMediaViewModel media) =>
+        IsPreviewable(media) &&
+        SameOriginMediaUrl.Normalize(media.Url) is not null &&
+        SameOriginMediaUrl.Normalize(media.PreviewUrl) is not null;
+
+    private async ValueTask DetachAsync()
+    {
+        if (attachmentLifetime is not null)
+        {
+            await attachmentLifetime.CancelAsync();
+            attachmentLifetime.Dispose();
+            attachmentLifetime = null;
+        }
+
+        if (attachment is not null)
+        {
+            await DisposeHandleAsync(attachment).ConfigureAwait(false);
+            attachment = null;
+        }
+    }
+
+    private static async ValueTask DisposeHandleAsync(IJSObjectReference handle)
+    {
+        try
+        {
+            await handle.InvokeVoidAsync("dispose").ConfigureAwait(false);
+            await handle.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        await DetachAsync().ConfigureAwait(false);
+        lifetime.Dispose();
+    }
+}

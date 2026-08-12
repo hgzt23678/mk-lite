@@ -1,0 +1,119 @@
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+
+<MkContainer ShowHeader="@ShowHeader"
+             Scrollable="true"
+             class="@RootClass"
+             style="@HeightStyle">
+    <Header>
+        <button @ref="source"
+                class="_button"
+                type="button"
+                aria-expanded="@menuOpened.ToString().ToLowerInvariant()"
+                @onclick="ChooseAsync">
+            <i class="@TimelineIcon"></i>
+            <span style="margin-left: 8px;">@TimelineLabel</span>
+            <i class="@(menuOpened ? "fas fa-angle-up" : "fas fa-angle-down")" style="margin-left: 8px;"></i>
+        </button>
+    </Header>
+    <ChildContent>
+        <div><TimelineView Kind="TimelineKind" /></div>
+    </ChildContent>
+</MkContainer>
+
+@code {
+    private ElementReference source;
+    private Guid? menuId;
+    private bool menuOpened;
+
+    [Parameter, EditorRequired]
+    public MisskeyWidgetModel Widget { get; set; } = null!;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter]
+    public EventCallback<IReadOnlyDictionary<string, JsonElement>> DataChanged { get; set; }
+
+    private bool ShowHeader => MisskeyWidgetData.Boolean(Widget, "showHeader", true);
+    private double Height => Math.Clamp(MisskeyWidgetData.Number(Widget, "height", 300), 100, 2_000);
+    private string Source => MisskeyWidgetData.String(Widget, "src", "home") ?? "home";
+    private string RootClass => string.Join(' ', new[] { "mkw-timeline", CssClass }.Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string HeightStyle => $"height: {Height.ToString("0.################", CultureInfo.InvariantCulture)}px;";
+    private TimelineKind TimelineKind => Source switch
+    {
+        "local" => TimelineKind.Local,
+        "social" => TimelineKind.Hybrid,
+        "global" => TimelineKind.Global,
+        _ => TimelineKind.Home
+    };
+    private string TimelineIcon => Source switch
+    {
+        "local" => "fas fa-comments",
+        "social" => "fas fa-share-alt",
+        "global" => "fas fa-globe",
+        _ => "fas fa-home"
+    };
+    private string TimelineLabel => Localizer.Translate($"_timelines.{Source switch
+    {
+        "local" => "local",
+        "social" => "social",
+        "global" => "global",
+        _ => "home"
+    }}");
+
+    private Task ChooseAsync()
+    {
+        if (menuId is not null)
+        {
+            return Task.CompletedTask;
+        }
+
+        menuOpened = true;
+        menuId = Overlays.ShowPopupMenu(
+            source,
+            [
+                TimelineItem("home", "fas fa-home"),
+                TimelineItem("local", "fas fa-comments"),
+                TimelineItem("social", "fas fa-share-alt"),
+                TimelineItem("global", "fas fa-globe")
+            ],
+            closed: OnMenuClosedAsync);
+        return Task.CompletedTask;
+    }
+
+    private MisskeyMenuItem TimelineItem(string value, string icon) => new(
+        MisskeyMenuItemKind.Action,
+        Localizer.Translate($"_timelines.{value}"),
+        icon,
+        Action: () => SelectSourceAsync(value));
+
+    private async Task SelectSourceAsync(string value)
+    {
+        var data = new Dictionary<string, JsonElement>(Widget.Data, StringComparer.Ordinal)
+        {
+            ["src"] = JsonSerializer.SerializeToElement(value)
+        };
+        await DataChanged.InvokeAsync(data);
+        CloseMenu();
+    }
+
+    private Task OnMenuClosedAsync()
+    {
+        menuId = null;
+        menuOpened = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private void CloseMenu()
+    {
+        if (menuId is not Guid id)
+        {
+            return;
+        }
+
+        menuId = null;
+        menuOpened = false;
+        Overlays.Close(id);
+    }
+}

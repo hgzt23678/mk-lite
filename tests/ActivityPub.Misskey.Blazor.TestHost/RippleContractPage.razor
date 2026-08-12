@@ -1,0 +1,29 @@
+@page "/__test/components/ripple"
+@rendermode InteractiveServer
+
+<main data-contract="mk-ripple">
+    <button id="show-ripple" type="button" @onclick="ShowRipple">Ripple</button>
+    <output id="ripple-end-count">@endCount</output>
+    @if (showing)
+    {
+        <MkRipple X="160" Y="120" Particle="particles" End="OnEnded" data-fixture="ripple" />
+    }
+</main>
+
+@code {
+    private bool showing;
+    private bool particles = true;
+    private int endCount;
+
+    private void ShowRipple()
+    {
+        particles = true;
+        showing = true;
+    }
+
+    private void OnEnded()
+    {
+        endCount++;
+        showing = false;
+    }
+}

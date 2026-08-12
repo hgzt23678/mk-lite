@@ -1,0 +1,35 @@
+@page "/__test/components/media-gallery"
+
+<main data-contract="media-gallery" style="width: 640px;">
+    <MkMediaList Media="media" data-gallery-fallthrough="preserved" />
+</main>
+
+@code {
+    private static readonly IReadOnlyList<NoteMediaViewModel> media =
+    [
+        Image("first", "/static-assets/icons/512.png", "/static-assets/user-unknown.png", "first image"),
+        new(
+            "video",
+            "video/mp4",
+            "/static-assets/fixture.mp4",
+            "/static-assets/user-unknown.png",
+            "video",
+            null,
+            640,
+            360,
+            Sensitive: false),
+        Image("second", "/static-assets/splash.png", "/static-assets/splash.png", "second image"),
+        Image("third", "/static-assets/favicon.png", "/static-assets/favicon.png", "third image")
+    ];
+
+    private static NoteMediaViewModel Image(string id, string url, string preview, string description) => new(
+        id,
+        "image/png",
+        url,
+        preview,
+        description,
+        null,
+        512,
+        512,
+        Sensitive: false);
+}

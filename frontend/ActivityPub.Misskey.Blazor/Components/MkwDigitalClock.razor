@@ -1,0 +1,46 @@
+<div class="@RootClass" style="@RootStyle">
+    @if (ShowLabel)
+    {
+        <div class="label">@TimezoneAbbreviation</div>
+    }
+    <div class="time">
+        <MkDigitalClock ShowMilliseconds="@ShowMilliseconds" OffsetMinutes="@OffsetMinutes" />
+    </div>
+    @if (ShowLabel)
+    {
+        <div class="label">@OffsetLabel</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public MisskeyWidgetModel Widget { get; set; } = null!;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    private bool Transparent => MisskeyWidgetData.Boolean(Widget, "transparent", false);
+    private double FontSize => Math.Clamp(MisskeyWidgetData.Number(Widget, "fontSize", 1.5), 0.5, 10);
+    private bool ShowMilliseconds => MisskeyWidgetData.Boolean(Widget, "showMs", true);
+    private bool ShowLabel => MisskeyWidgetData.Boolean(Widget, "showLabel", true);
+    private string? Timezone => MisskeyWidgetData.String(Widget, "timezone", null);
+    private MisskeyWidgetTimezone? ResolvedTimezone => MisskeyWidgetTimezone.Find(Timezone);
+    private int? OffsetMinutes => Timezone is null ? null : ResolvedTimezone?.OffsetMinutes ?? 0;
+    private string TimezoneAbbreviation => ResolvedTimezone?.Abbreviation ?? "?";
+    private string RootClass => string.Join(' ', new[]
+    {
+        "mkw-digitalClock _monospace",
+        Transparent ? null : "_panel",
+        CssClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string RootStyle => $"font-size: {FontSize.ToString("0.################", CultureInfo.InvariantCulture)}em;";
+    private string OffsetLabel
+    {
+        get
+        {
+            int offset = OffsetMinutes ?? ResolvedTimezone?.OffsetMinutes ?? 0;
+            int absolute = Math.Abs(offset);
+            return $"{(offset >= 0 ? '+' : '-')}{absolute / 60:00}:{absolute % 60:00}";
+        }
+    }
+}

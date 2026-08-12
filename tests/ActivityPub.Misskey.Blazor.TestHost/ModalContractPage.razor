@@ -1,0 +1,91 @@
+@page "/__test/components/modal"
+@rendermode InteractiveServer
+@using System.Globalization
+
+<main data-contract="mk-modal">
+    <button type="button" data-contract="popup" @onclick="() => Show(MkModalType.Popup)">popup</button>
+    <button type="button" data-contract="dialog-top" @onclick="() => Show(MkModalType.DialogTop)">dialog top</button>
+    <button type="button" data-contract="drawer" @onclick="() => Show(MkModalType.Drawer)">drawer</button>
+    <button @ref="source"
+            type="button"
+            data-contract="source"
+            style="position: fixed; left: 80px; top: 96px; width: 80px; height: 32px;"
+            @onclick="() => Show(MkModalType.Popup)">source</button>
+
+    @if (renderModal)
+    {
+        <MkModal @key="generation"
+                 @ref="modal"
+                 Source="@ModalSource"
+                 PreferType="type"
+                 ZPriority="MkModalZPriority.High"
+                 Anchor="@(new MkModalAnchor("center", "bottom"))"
+                 TransparentBackground="true"
+                 Opening="OnOpening"
+                 Opened="OnOpened"
+                 Clicked="OnClicked"
+                 Escape="OnEscape"
+                 CloseRequested="OnCloseRequested"
+                 Closed="OnClosed"
+                 class="contract-modal"
+                 data-fallthrough="modal">
+            <ChildContent Context="context">
+                <section class="contract-surface _popup"
+                         data-modal-type="@context.Type"
+                         data-max-height="@Format(context.MaximumHeight)">
+                    <button type="button" data-mk-autofocus="true" data-contract="first">first</button>
+                    <button type="button" data-contract="last">last</button>
+                    <button type="button" data-contract="close" @onclick="Close">close</button>
+                </section>
+            </ChildContent>
+        </MkModal>
+    }
+
+    <output data-contract="events"
+            data-opening="@opening"
+            data-opened="@opened"
+            data-clicked="@clicked"
+            data-escape="@escaped"
+            data-close="@closeRequested"
+            data-closed="@closed"></output>
+</main>
+
+@code {
+    private ElementReference source;
+    private MkModal? modal;
+    private MkModalType type = MkModalType.Popup;
+    private int generation = 1;
+    private bool renderModal;
+    private int opening;
+    private int opened;
+    private int clicked;
+    private int escaped;
+    private int closeRequested;
+    private int closed;
+
+    private ElementReference? ModalSource => type == MkModalType.Popup ? source : null;
+
+    private void Show(MkModalType next)
+    {
+        type = next;
+        generation++;
+        renderModal = true;
+    }
+
+    private Task Close() => modal?.CloseAsync() ?? Task.CompletedTask;
+
+    private void OnOpening() => opening++;
+
+    private void OnOpened() => opened++;
+
+    private void OnClicked() => clicked++;
+
+    private void OnEscape() => escaped++;
+
+    private void OnCloseRequested() => closeRequested++;
+
+    private void OnClosed() => closed++;
+
+    private static string? Format(double? value) =>
+        value?.ToString("0.###", CultureInfo.InvariantCulture);
+}

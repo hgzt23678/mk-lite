@@ -1,0 +1,137 @@
+@implements IAsyncDisposable
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyLocalizer Localizer
+
+<div class="_formRoot settings-local-page">
+    @if (!loaded)
+    {
+        <MkLoading />
+    }
+    else
+    {
+        <MkFormTextarea Value="@items"
+                        ValueChanged="SaveItemsAsync"
+                        ManualSave="true"
+                        Tall="true"
+                        CssClassAdditional="_formBlock">
+            <Label>@Localizer.Translate("navbar")</Label>
+            <Caption>
+                <button type="button" class="_textButton" @onclick="AddDividerAsync">@Localizer.Translate("addItem")</button>
+            </Caption>
+        </MkFormTextarea>
+
+        <MkFormRadios TValue="string"
+                      Value="@menuDisplay"
+                      ValueChanged="SaveMenuDisplayAsync"
+                      CssClassAdditional="_formBlock">
+            <Label>@Localizer.Translate("display")</Label>
+            <ChildContent>
+                <MkFormRadio TValue="string" ModelValue="@menuDisplay" ModelValueChanged="SaveMenuDisplayAsync" Value="@("sideFull")">
+                    @Localizer.Translate("_menuDisplay.sideFull")
+                </MkFormRadio>
+                <MkFormRadio TValue="string" ModelValue="@menuDisplay" ModelValueChanged="SaveMenuDisplayAsync" Value="@("sideIcon")">
+                    @Localizer.Translate("_menuDisplay.sideIcon")
+                </MkFormRadio>
+                <MkFormRadio TValue="string" ModelValue="@menuDisplay" ModelValueChanged="SaveMenuDisplayAsync" Value="@("top")">
+                    @Localizer.Translate("_menuDisplay.top")
+                </MkFormRadio>
+            </ChildContent>
+        </MkFormRadios>
+
+        <MkButton Danger="true" CssClassAdditional="_formBlock" OnClick="ResetAsync">
+            <i class="fas fa-redo"></i> @Localizer.Translate("default")
+        </MkButton>
+
+        @if (!string.IsNullOrWhiteSpace(status))
+        {
+            <MkInfo class="_formBlock">@status</MkInfo>
+        }
+    }
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private static readonly string[] DefaultMenu =
+    [
+        "notifications", "favorites", "drive", "followRequests", "-",
+        "explore", "announcements", "search", "-", "ui"
+    ];
+    private string items = string.Empty;
+    private string menuDisplay = "sideFull";
+    private string? status;
+    private bool loaded;
+    private bool disposed;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            string[] menu = await DeviceState.ReadAsync("menu", DefaultMenu, lifetime.Token);
+            items = string.Join('\n', menu.Where(static item => !string.IsNullOrWhiteSpace(item)));
+            menuDisplay = await DeviceState.ReadAsync("menuDisplay", "sideFull", lifetime.Token);
+            menuDisplay = menuDisplay is "sideFull" or "sideIcon" or "top" ? menuDisplay : "sideFull";
+            loaded = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task SaveItemsAsync(string value)
+    {
+        items = value;
+        string[] normalized = NormalizeItems(value);
+        await DeviceState.WriteAsync("menu", normalized, lifetime.Token);
+        status = Localizer.Translate("saved");
+    }
+
+    private async Task AddDividerAsync(MouseEventArgs args)
+    {
+        _ = args;
+        string value = string.IsNullOrWhiteSpace(items) ? "-" : items + "\n-";
+        await SaveItemsAsync(value);
+    }
+
+    private async Task SaveMenuDisplayAsync(string value)
+    {
+        menuDisplay = value is "sideFull" or "sideIcon" or "top" ? value : "sideFull";
+        await DeviceState.WriteAsync("menuDisplay", menuDisplay, lifetime.Token);
+        status = Localizer.Translate("saved");
+    }
+
+    private async Task ResetAsync(MouseEventArgs args)
+    {
+        _ = args;
+        items = string.Join('\n', DefaultMenu);
+        menuDisplay = "sideFull";
+        await DeviceState.WriteAsync("menu", DefaultMenu, lifetime.Token);
+        await DeviceState.WriteAsync("menuDisplay", menuDisplay, lifetime.Token);
+        status = Localizer.Translate("saved");
+    }
+
+    private static string[] NormalizeItems(string value) => value
+        .Replace("\r\n", "\n", StringComparison.Ordinal)
+        .Replace('\r', '\n')
+        .Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+        .Where(item => item.Length <= 128 && !item.Any(char.IsControl))
+        .Take(128)
+        .ToArray();
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

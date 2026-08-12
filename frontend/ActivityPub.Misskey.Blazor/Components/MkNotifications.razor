@@ -1,0 +1,269 @@
+@implements IAsyncDisposable
+@inject INotificationPresentationService Notifications
+@inject INotificationSubscriptionService Subscription
+@inject INotificationsInterop Browser
+@inject IMisskeyLocalizer Localizer
+@inject ILogger<MkNotifications> Logger
+
+<MkPagination @ref="pagingComponent"
+              TItem="NotificationViewModel"
+              Source="@source"
+              RefreshKey="@filterSignature"
+              @attributes="AdditionalAttributes">
+    <EmptyContent>
+        <div class="_fullinfo">
+            <img src="/client-assets/about-icon.png" class="_ghost" />
+            <div>@Localizer.Translate("noNotifications")</div>
+        </div>
+    </EmptyContent>
+    <ChildContent Context="notificationItems">
+        <MkDateSeparatedList TItem="NotificationViewModel"
+                             Items="@notificationItems"
+                             GetId="GetNotificationId"
+                             GetCreatedAt="GetNotificationCreatedAt"
+                             ShouldInsertAdvertisement="NeverInsertAdvertisement"
+                             NoGap="true"
+                             class="elsfgstc">
+            <ChildContent Context="notification">
+                @if (UsesFullNote(notification.Type))
+                {
+                    <NoteView @key="notification.Id" Note="@RequireFullNote(notification)" />
+                }
+                else
+                {
+                    <MkNotification @key="notification.Id"
+                                    Notification="@notification"
+                                    WithTime="true"
+                                    Full="true"
+                                    class="_panel notification" />
+                }
+            </ChildContent>
+        </MkDateSeparatedList>
+    </ChildContent>
+</MkPagination>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private MkPagination<NotificationViewModel>? pagingComponent;
+    private NotificationPaginationSource source = default!;
+    private CancellationTokenSource? subscriptionLifetime;
+    private Task? subscriptionTask;
+    private IReadOnlySet<MisskeyNotificationType>? pendingIncludedTypes;
+    private IReadOnlySet<MisskeyNotificationType>? pendingExcludedTypes;
+    private long pendingCursor;
+    private string filterSignature = string.Empty;
+    private bool streamNeedsStart;
+    private bool disposed;
+
+    [Parameter]
+    public IReadOnlySet<MisskeyNotificationType>? IncludeTypes { get; set; }
+
+    [Parameter]
+    public IReadOnlySet<MisskeyNotificationType>? ExcludeTypes { get; set; }
+
+    [Parameter]
+    public bool UnreadOnly { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        string nextSignature = CreateFilterSignature(IncludeTypes, ExcludeTypes, UnreadOnly);
+        if (source is not null && string.Equals(filterSignature, nextSignature, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        await StopSubscriptionAsync().ConfigureAwait(false);
+        HashSet<MisskeyNotificationType>? included = CopyTypes(IncludeTypes);
+        HashSet<MisskeyNotificationType>? excluded = CopyTypes(ExcludeTypes);
+        source = new NotificationPaginationSource(Notifications, included, excluded, UnreadOnly);
+        filterSignature = nextSignature;
+        long cursor;
+        try
+        {
+            cursor = await Subscription.GetLatestCursorAsync(lifetime.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogWarning(exception, "The Misskey notification stream could not be initialized.");
+            return;
+        }
+
+        subscriptionLifetime = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        pendingCursor = cursor;
+        pendingIncludedTypes = included;
+        pendingExcludedTypes = excluded;
+        streamNeedsStart = true;
+    }
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (streamNeedsStart && subscriptionLifetime is not null)
+        {
+            streamNeedsStart = false;
+            subscriptionTask = RunSubscriptionAsync(
+                pendingCursor,
+                pendingIncludedTypes,
+                pendingExcludedTypes,
+                subscriptionLifetime.Token);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task RunSubscriptionAsync(
+        long cursor,
+        IReadOnlySet<MisskeyNotificationType>? included,
+        IReadOnlySet<MisskeyNotificationType>? excluded,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await foreach (NotificationMutation mutation in Subscription.SubscribeAsync(
+                                       cursor,
+                                       included,
+                                       excluded,
+                                       cancellationToken).ConfigureAwait(false))
+                    {
+                        cursor = mutation.Cursor;
+                        if (mutation.Kind != NotificationMutationKind.Created ||
+                            mutation.Notification is not { } notification)
+                        {
+                            continue;
+                        }
+
+                        NotificationViewModel projected = await MarkVisibleNotificationReadAsync(
+                            notification,
+                            cancellationToken).ConfigureAwait(false);
+                        if (pagingComponent is not null)
+                        {
+                            await pagingComponent.UpsertAsync(projected).ConfigureAwait(false);
+                        }
+                    }
+
+                    return;
+                }
+                catch (NotificationCursorException exception) when (
+                    string.Equals(exception.ErrorCode, "STREAM_CURSOR_EXPIRED", StringComparison.Ordinal) ||
+                    string.Equals(exception.ErrorCode, "STREAM_SLOW_CONSUMER", StringComparison.Ordinal))
+                {
+                    cursor = await Subscription.GetLatestCursorAsync(cancellationToken).ConfigureAwait(false);
+                    if (pagingComponent is not null)
+                    {
+                        await pagingComponent.ReloadAsync().ConfigureAwait(false);
+                    }
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (Exception exception)
+        {
+            Logger.LogWarning(exception, "The Misskey notification stream stopped unexpectedly.");
+        }
+    }
+
+    private async Task<NotificationViewModel> MarkVisibleNotificationReadAsync(
+        NotificationViewModel notification,
+        CancellationToken cancellationToken)
+    {
+        if (notification.IsRead ||
+            !await Browser.IsDocumentVisibleAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return notification;
+        }
+
+        bool marked = await Notifications.MarkReadAsync(
+            notification.InternalId,
+            cancellationToken).ConfigureAwait(false);
+        return marked ? notification with { IsRead = true } : notification;
+    }
+
+    private async Task StopSubscriptionAsync()
+    {
+        CancellationTokenSource? currentLifetime = subscriptionLifetime;
+        Task? currentTask = subscriptionTask;
+        subscriptionLifetime = null;
+        subscriptionTask = null;
+        streamNeedsStart = false;
+        if (currentLifetime is null)
+        {
+            return;
+        }
+
+        await currentLifetime.CancelAsync().ConfigureAwait(false);
+        if (currentTask is not null)
+        {
+            try
+            {
+                await currentTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        currentLifetime.Dispose();
+    }
+
+    private static HashSet<MisskeyNotificationType>? CopyTypes(
+        IReadOnlySet<MisskeyNotificationType>? types) =>
+        types is null ? null : new HashSet<MisskeyNotificationType>(types);
+
+    private static string CreateFilterSignature(
+        IReadOnlySet<MisskeyNotificationType>? included,
+        IReadOnlySet<MisskeyNotificationType>? excluded,
+        bool unreadOnly) => string.Join(
+            '|',
+            unreadOnly ? "unread" : "all",
+            string.Join(',', (included ?? new HashSet<MisskeyNotificationType>())
+                .OrderBy(value => value)
+                .Select(value => value.ToString())),
+            string.Join(',', (excluded ?? new HashSet<MisskeyNotificationType>())
+                .OrderBy(value => value)
+                .Select(value => value.ToString())));
+
+    private static bool UsesFullNote(MisskeyNotificationType type) => type is
+        MisskeyNotificationType.Reply or
+        MisskeyNotificationType.Quote or
+        MisskeyNotificationType.Mention;
+
+    private static NoteViewModel RequireFullNote(NotificationViewModel notification) =>
+        notification.FullNote ?? throw new NotificationPresentationException(
+            "NOTIFICATION_NOTE_PROJECTION_UNAVAILABLE");
+
+    private static string GetNotificationId(NotificationViewModel notification) => notification.Id;
+
+    private static DateTimeOffset GetNotificationCreatedAt(NotificationViewModel notification) =>
+        notification.CreatedAt;
+
+    private static bool NeverInsertAdvertisement(NotificationViewModel notification) => false;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync().ConfigureAwait(false);
+        await StopSubscriptionAsync().ConfigureAwait(false);
+        lifetime.Dispose();
+        await Browser.DisposeAsync().ConfigureAwait(false);
+    }
+}

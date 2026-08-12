@@ -1,0 +1,69 @@
+@namespace ActivityPub.Misskey.Blazor.Components
+
+<div class="@RootClass"
+     role="status"
+     aria-label="@AccessibleLabel"
+     aria-busy="true"
+     @attributes="AttributesWithoutClass">
+    <div class="_container_13vug_28">
+        <svg class="_spinner_13vug_35 _bg_13vug_48"
+             viewBox="0 0 168 168"
+             xmlns="http://www.w3.org/2000/svg"
+             aria-hidden="true">
+            <g transform="matrix(1.125,0,0,1.125,12,12)">
+                <circle cx="64"
+                        cy="64"
+                        r="64"
+                        style="fill:none;stroke:currentColor;stroke-width:21.33px;"></circle>
+            </g>
+        </svg>
+        <svg class="_spinner_13vug_35 _fg_13vug_52"
+             viewBox="0 0 168 168"
+             xmlns="http://www.w3.org/2000/svg"
+             aria-hidden="true">
+            <g transform="matrix(1.125,0,0,1.125,12,12)">
+                <path d="M128,64C128,28.654 99.346,0 64,0C99.346,0 128,28.654 128,64Z"
+                      style="fill:none;stroke:currentColor;stroke-width:21.33px;"></path>
+            </g>
+        </svg>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public bool Inline { get; set; }
+
+    [Parameter]
+    public bool Colored { get; set; } = true;
+
+    [Parameter]
+    public bool Mini { get; set; }
+
+    // The pinned component has no accessible text. Keeping its visual DOM intact while adding
+    // a status name is an intentional accessibility correction rather than a visual redesign.
+    [Parameter]
+    public string AccessibleLabel { get; set; } = "読み込み中";
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "_root_13vug_9",
+        Inline ? "_inline_13vug_18" : null,
+        Colored ? "_colored_13vug_15" : null,
+        Mini ? "_mini_13vug_23" : null,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+}

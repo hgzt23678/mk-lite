@@ -1,0 +1,39 @@
+@page "/__test/components/analog-clock"
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+
+<main data-contract="mk-analog-clock">
+    <button id="toggle-clock" type="button" @onclick="ToggleClock">Toggle</button>
+    <button id="leave-clock" type="button" @onclick="Leave">Leave</button>
+    <MkAnalogClock TwentyFourHour="@twentyFourHour"
+                   Graduations="@graduations"
+                   FadeGraduations="true"
+                   SecondHandAnimation="@secondHandAnimation"
+                   OffsetMinutes="0"
+                   class="fixture-clock"
+                   data-fixture="analog-clock" />
+    <MkAnalogClock TwentyFourHour="true"
+                   Graduations="AnalogClockGraduations.Numbers"
+                   FadeGraduations="false"
+                   SecondHandAnimation="AnalogClockSecondHandAnimation.EaseOut"
+                   Thickness="0.2"
+                   OffsetMinutes="0"
+                   class="fixture-clock-24" />
+</main>
+
+@code {
+    private bool twentyFourHour;
+    private AnalogClockGraduations graduations = AnalogClockGraduations.Dots;
+    private AnalogClockSecondHandAnimation secondHandAnimation = AnalogClockSecondHandAnimation.Elastic;
+
+    private void ToggleClock()
+    {
+        twentyFourHour = !twentyFourHour;
+        graduations = twentyFourHour ? AnalogClockGraduations.Numbers : AnalogClockGraduations.Dots;
+        secondHandAnimation = twentyFourHour
+            ? AnalogClockSecondHandAnimation.None
+            : AnalogClockSecondHandAnimation.Elastic;
+    }
+
+    private void Leave() => Navigation.NavigateTo("/__test/components/time");
+}

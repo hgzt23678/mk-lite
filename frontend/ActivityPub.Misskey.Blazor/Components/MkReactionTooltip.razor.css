@@ -1,0 +1,14 @@
+.beeadbfb {
+    text-align: center;
+}
+
+.beeadbfb > .icon {
+    display: block;
+    width: 60px;
+    font-size: 60px;
+    margin: 0 auto;
+}
+
+.beeadbfb > .name {
+    font-size: 0.9em;
+}

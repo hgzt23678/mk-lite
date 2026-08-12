@@ -1,0 +1,402 @@
+@implements IAsyncDisposable
+@inject IInstancePresentationService InstanceService
+@inject ICurrentAccountPresentationService CurrentAccount
+@inject IPizzaxDeviceState DeviceState
+@inject INavbarInterop NavbarInterop
+@inject NavigationManager Navigation
+@inject IMisskeyOverlayService Overlays
+@inject IMisskeyLocalizer Localizer
+
+<div @ref="rootElement" class="@RootClass">
+    <div class="body">
+        <div class="top">
+            <div class="banner" style="@BannerStyle"></div>
+            <button @ref="instanceButton"
+                    class="item _button instance"
+                    type="button"
+                    title="@(instance?.Name ?? Localizer.Translate("instance"))"
+                    aria-label="@(instance?.Name ?? Localizer.Translate("instance"))"
+                    @onclick="OpenInstance">
+                <img src="@InstanceIconUrl" alt="" class="icon" />
+            </button>
+        </div>
+        <div class="middle">
+            <a class="item index @ActiveClass(string.Empty, exact: true)"
+               href="/"
+               title="@Localizer.Translate("timeline")">
+                <i class="icon fas fa-home fa-fw"></i><span class="text">@Localizer.Translate("timeline")</span>
+            </a>
+            @foreach (NavigationItem item in menu)
+            {
+                if (item.Divider)
+                {
+                    <div class="divider"></div>
+                }
+                else if (item.Href is not null)
+                {
+                    <a class="item _button @item.Key @ActiveClass(item.Href)"
+                       href="@AppHref(item.Href)"
+                       title="@Localizer.Translate(item.TitleKey)">
+                        <i class="icon fa-fw @item.Icon"></i><span class="text">@Localizer.Translate(item.TitleKey)</span>
+                        @if (HasUnreadNotifications && item.Key == "notifications")
+                        {
+                            <span class="indicator" aria-label="@Localizer.Translate("notifications")"><i class="fas fa-circle"></i></span>
+                        }
+                    </a>
+                }
+                else
+                {
+                    <button class="item _button @item.Key"
+                            type="button"
+                            title="@Localizer.Translate(item.TitleKey)"
+                            @onclick="() => InvokeActionAsync(item.Key)">
+                        <i class="icon fa-fw @item.Icon"></i><span class="text">@Localizer.Translate(item.TitleKey)</span>
+                    </button>
+                }
+            }
+            @if (ShowControlPanel || CanShowMore || ShowSettings)
+            {
+                <div class="divider"></div>
+            }
+            @if (ShowControlPanel)
+            {
+                <a class="item @ActiveClass("admin")" href="/admin" title="@Localizer.Translate("controlPanel")">
+                    <i class="icon fas fa-door-open fa-fw"></i><span class="text">@Localizer.Translate("controlPanel")</span>
+                </a>
+            }
+            @if (CanShowMore)
+            {
+                <button class="item _button" type="button" title="@Localizer.Translate("more")" @onclick="OpenMore">
+                    <i class="icon fa fa-ellipsis-h fa-fw"></i><span class="text">@Localizer.Translate("more")</span>
+                </button>
+            }
+            @if (ShowSettings)
+            {
+                <a class="item @ActiveClass("settings")" href="/settings" title="@Localizer.Translate("settings")">
+                    <i class="icon fas fa-cog fa-fw"></i><span class="text">@Localizer.Translate("settings")</span>
+                </a>
+            }
+        </div>
+        <div class="bottom">
+            <button class="item _button post"
+                    type="button"
+                    title="@Localizer.Translate("note")"
+                    data-cy-open-post-form
+                    @onclick="Compose">
+                <i class="icon fas fa-pencil-alt fa-fw"></i><span class="text">@Localizer.Translate("note")</span>
+            </button>
+            <button @ref="accountButton"
+                    class="item _button account"
+                    type="button"
+                    title="@AccountTitle"
+                    aria-label="@AccountTitle"
+                    @onclick="OpenAccount">
+                @if (account is not null)
+                {
+                    <MkAvatar User="account" CssClass="avatar" />
+                    <MkAcct User="account" CssClass="text" />
+                }
+            </button>
+        </div>
+    </div>
+</div>
+
+<form @ref="logoutForm" class="navbar-logout" method="post" action="/auth/logout" hidden>
+    <AntiforgeryToken />
+</form>
+
+@code {
+    private const string AdminRole = "activitypub-admin";
+    private const string ModeratorRole = "activitypub-moderator";
+    private static readonly string[] DefaultMenu =
+    [
+        "notifications",
+        "favorites",
+        "drive",
+        "followRequests",
+        "-",
+        "explore",
+        "announcements",
+        "search",
+        "-",
+        "ui"
+    ];
+    private static readonly NavigationItem[] Definitions =
+    [
+        new("notifications", "notifications", "fas fa-bell", "my/notifications"),
+        new("messaging", "messaging", "fas fa-comments", "my/messaging"),
+        new("drive", "drive", "fas fa-cloud", "my/drive"),
+        new("followRequests", "followRequests", "fas fa-user-clock", "my/follow-requests"),
+        new("explore", "explore", "fas fa-hashtag", "explore"),
+        new("announcements", "announcements", "fas fa-broadcast-tower", "announcements"),
+        new("search", "search", "fas fa-search", "search"),
+        new("lists", "lists", "fas fa-list-ul", "my/lists"),
+        new("antennas", "antennas", "fas fa-satellite", "my/antennas"),
+        new("favorites", "favorites", "fas fa-star", "my/favorites"),
+        new("pages", "pages", "fas fa-file-alt", "pages"),
+        new("gallery", "gallery", "fas fa-icons", "gallery"),
+        new("clips", "clip", "fas fa-paperclip", "my/clips"),
+        new("channels", "channel", "fas fa-satellite-dish", "channels"),
+        new("ui", "switchUi", "fas fa-columns", "settings/general"),
+        new("reload", "reload", "fas fa-redo-alt", null)
+    ];
+    private static readonly IReadOnlyDictionary<string, NavigationItem> DefinitionsByKey = Definitions
+        .ToDictionary(item => item.Key, StringComparer.Ordinal);
+    private static readonly HashSet<string> AvailableRoutes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        string.Empty,
+        "timeline",
+        "timeline/home",
+        "timeline/local",
+        "timeline/global",
+        "timeline/hybrid",
+        "my/notifications",
+        "announcements",
+        "about-misskey"
+    };
+
+    private readonly CancellationTokenSource lifetime = new();
+    private IReadOnlyList<NavigationItem> menu = [];
+    private IReadOnlySet<string> configuredKeys = new HashSet<string>(StringComparer.Ordinal);
+    private InstanceSummaryViewModel? instance;
+    private NoteAuthorViewModel? account;
+    private ElementReference rootElement;
+    private ElementReference instanceButton;
+    private ElementReference accountButton;
+    private ElementReference logoutForm;
+    private bool isPrivileged;
+    private bool disposed;
+
+    [CascadingParameter]
+    public Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    [CascadingParameter(Name = "HasUnreadNotifications")]
+    private bool HasUnreadNotifications { get; set; }
+
+    [Parameter]
+    public string? AdditionalClass { get; set; }
+
+    public ElementReference RootElement => rootElement;
+
+    private string RootClass => string.Join(' ', new[] { "kmwsukvl", AdditionalClass }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string InstanceIconUrl =>
+        SameOriginMediaUrl.Normalize(instance?.IconUrl) ?? "/static-assets/favicon.ico";
+    private string? BannerStyle => SameOriginMediaUrl.CssBackgroundImage(instance?.BackgroundImageUrl);
+    private string AccountTitle => account is null
+        ? Localizer.Translate("account")
+        : $"{Localizer.Translate("account")}: @{account.Acct}";
+    private bool ShowControlPanel => isPrivileged && RouteAvailable("admin");
+    private bool ShowSettings => RouteAvailable("settings");
+    private IReadOnlyList<NavigationItem> MoreItems => Definitions
+        .Where(IsAvailable)
+        .Where(item => !configuredKeys.Contains(item.Key))
+        .ToArray();
+    private bool CanShowMore => MoreItems.Count > 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += LocationChanged;
+        instance = await InstanceService.GetAsync(lifetime.Token);
+        account = await CurrentAccount.GetAsync(lifetime.Token);
+        if (AuthenticationStateTask is not null)
+        {
+            AuthenticationState state = await AuthenticationStateTask;
+            isPrivileged = state.User.IsInRole(AdminRole) || state.User.IsInRole(ModeratorRole);
+        }
+
+        SetMenu(DefaultMenu);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            string[] storedMenu = await DeviceState.ReadAsync("menu", DefaultMenu, lifetime.Token);
+            SetMenu(storedMenu);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void SetMenu(IEnumerable<string> source)
+    {
+        string[] keys = source
+            .Where(value => !string.IsNullOrWhiteSpace(value) && value.Length <= 64 && !value.Any(char.IsControl))
+            .Take(64)
+            .ToArray();
+        configuredKeys = keys.Where(value => value != "-").ToHashSet(StringComparer.Ordinal);
+        var result = new List<NavigationItem>();
+        bool separatorPending = false;
+        foreach (string key in keys)
+        {
+            if (key == "-")
+            {
+                separatorPending = result.Count > 0;
+                continue;
+            }
+
+            if (!DefinitionsByKey.TryGetValue(key, out NavigationItem? item) || !IsAvailable(item) ||
+                result.Any(existing => !existing.Divider && existing.Key == item.Key))
+            {
+                continue;
+            }
+
+            if (separatorPending)
+            {
+                result.Add(NavigationItem.Separator);
+                separatorPending = false;
+            }
+            result.Add(item);
+        }
+
+        menu = result;
+    }
+
+    private static bool IsAvailable(NavigationItem item) =>
+        string.Equals(item.Key, "reload", StringComparison.Ordinal) ||
+        item.Href is not null && RouteAvailable(item.Href);
+
+    private static bool RouteAvailable(string path) => AvailableRoutes.Contains(path.Trim('/'));
+    private static string AppHref(string relativePath) => $"/{relativePath.TrimStart('/')}";
+
+    private string ActiveClass(string relativePath, bool exact = false)
+    {
+        string current = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
+        string expected = relativePath.Trim('/');
+        bool active = string.Equals(current, expected, StringComparison.OrdinalIgnoreCase) ||
+            !exact && expected.Length > 0 && current.StartsWith(expected + "/", StringComparison.OrdinalIgnoreCase);
+        return active ? "active" : string.Empty;
+    }
+
+    private void OpenInstance()
+    {
+        var items = new List<MisskeyMenuItem>
+        {
+            new(MisskeyMenuItemKind.Label, instance?.Name ?? Localizer.Translate("instance")),
+            MisskeyMenuItem.Divider,
+            new(
+                MisskeyMenuItemKind.Parent,
+                Localizer.Translate("help"),
+                "fas fa-question-circle",
+                Children:
+                [
+                    MisskeyMenuItem.ExternalLink(
+                        Localizer.Translate("document"),
+                        "fas fa-question-circle",
+                        "https://misskey-hub.net/help.html")
+                ]),
+            MisskeyMenuItem.Link(
+                Localizer.Translate("aboutMisskey"),
+                "fas fa-info-circle",
+                "/about-misskey")
+        };
+        Overlays.ShowPopupMenu(instanceButton, items, align: "left");
+    }
+
+    private void OpenMore()
+    {
+        IReadOnlyList<MisskeyMenuItem> items = MoreItems.Select(ToMenuItem).ToArray();
+        if (items.Count > 0)
+        {
+            Overlays.ShowLaunchPad(null, items);
+        }
+    }
+
+    private MisskeyMenuItem ToMenuItem(NavigationItem item) => item.Href is not null
+        ? MisskeyMenuItem.Link(Localizer.Translate(item.TitleKey), item.Icon, AppHref(item.Href))
+        : new(
+            MisskeyMenuItemKind.Action,
+            Localizer.Translate(item.TitleKey),
+            item.Icon,
+            Action: () => InvokeActionAsync(item.Key));
+
+    private void Compose() => Overlays.ShowPostForm();
+
+    private void OpenAccount()
+    {
+        if (account is null)
+        {
+            return;
+        }
+
+        Overlays.ShowPopupMenu(accountButton,
+        [
+            new(MisskeyMenuItemKind.User, User: account, Active: true),
+            MisskeyMenuItem.Divider,
+            new(
+                MisskeyMenuItemKind.Action,
+                Localizer.Translate("logout"),
+                "fas fa-sign-out-alt",
+                Action: LogoutAsync,
+                Danger: true)
+        ], align: "left");
+    }
+
+    private Task InvokeActionAsync(string key)
+    {
+        if (string.Equals(key, "reload", StringComparison.Ordinal))
+        {
+            Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task LogoutAsync()
+    {
+        try
+        {
+            await NavbarInterop.SubmitAsync(logoutForm, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private void LocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        if (!disposed)
+        {
+            _ = InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        Navigation.LocationChanged -= LocationChanged;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+
+    private sealed record NavigationItem(
+        string Key,
+        string TitleKey,
+        string Icon,
+        string? Href,
+        bool Divider = false)
+    {
+        public static NavigationItem Separator { get; } = new("-", string.Empty, string.Empty, null, true);
+    }
+}

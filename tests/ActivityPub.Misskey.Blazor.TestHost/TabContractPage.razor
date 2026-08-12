@@ -1,0 +1,26 @@
+@page "/__test/components/tab"
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+
+<main data-contract="mk-tab">
+    <button id="resize-tab" type="button" @onclick="() => narrow = !narrow">Resize</button>
+    <button id="leave-tab" type="button" @onclick="Leave">Leave</button>
+    <output id="tab-value">@(value ?? "null")</output>
+    <MkTab @bind-Value="value"
+           Options="@options"
+           style="@TabStyle"
+           data-fixture="tab" />
+</main>
+
+@code {
+    private readonly MisskeyTabOption[] options =
+    [
+        new(null, "Notes"),
+        new("replies", "Notes and replies"),
+        new("files", "With files")
+    ];
+    private string? value;
+    private bool narrow;
+    private string TabStyle => $"width: {(narrow ? 500 : 600)}px; margin-bottom: 16px";
+    private void Leave() => Navigation.NavigateTo("/__test/components/time");
+}

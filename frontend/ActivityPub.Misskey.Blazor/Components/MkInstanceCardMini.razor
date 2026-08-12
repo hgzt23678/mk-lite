@@ -1,0 +1,47 @@
+<div class="@RootClass"
+     style="@RootStyle"
+     @attributes="AttributesWithoutClassAndStyle">
+    @if (InstanceIconUrl is not null)
+    {
+        <img class="icon" src="@InstanceIconUrl" alt="" />
+    }
+    <div class="body">
+        <span class="host">@(Instance.Name ?? Instance.Host)</span>
+        <span class="sub _monospace"><b>@Instance.Host</b> / @SoftwareName @Instance.SoftwareVersion</span>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public FederationInstanceViewModel Instance { get; set; } = null!;
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "_root_gc11e_1",
+        Instance.IsNotResponding ? "yellow" : null,
+        Instance.IsBlocked ? "red" : null,
+        Instance.IsSuspended ? "gray" : null,
+        CssClass,
+        ReadAdditionalAttribute("class")
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string? RootStyle => ReadAdditionalAttribute("style");
+    private string? InstanceIconUrl => SameOriginMediaUrl.Normalize(Instance.IconUrl);
+    private string SoftwareName => string.IsNullOrEmpty(Instance.SoftwareName) ? "?" : Instance.SoftwareName;
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private string? ReadAdditionalAttribute(string name) =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue(name, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+}

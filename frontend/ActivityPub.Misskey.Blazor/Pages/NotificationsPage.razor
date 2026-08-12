@@ -1,0 +1,163 @@
+@page "/my/notifications"
+@attribute [Authorize]
+@inject INotificationPresentationService Notifications
+@inject IMisskeyOverlayService Overlays
+@inject IMisskeyLocalizer Localizer
+
+<PageTitle>@Localizer.Translate("notifications")</PageTitle>
+
+<MkStickyContainer>
+    <Header>
+        <MkPageHeader Metadata="HeaderMetadata"
+                      Actions="HeaderActions"
+                      Tabs="HeaderTabs"
+                      Tab="tab"
+                      TabChanged="ChangeTabAsync" />
+    </Header>
+    <ChildContent>
+        <MkSpacer ContentMax="800">
+            @if (tab is "all" or "unread")
+            {
+                <div>
+                    <MkNotifications @key="notificationRefreshKey"
+                                     class="notifications"
+                                     IncludeTypes="includeTypes"
+                                     UnreadOnly="UnreadOnly" />
+                </div>
+            }
+            else if (tab == "mentions")
+            {
+                <div>
+                    <MkNotificationNotes />
+                </div>
+            }
+            else if (tab == "directNotes")
+            {
+                <div>
+                    <MkNotificationNotes DirectOnly="true" />
+                </div>
+            }
+        </MkSpacer>
+    </ChildContent>
+</MkStickyContainer>
+
+@code {
+    private static readonly MisskeyNotificationType[] FilterTypes =
+    [
+        MisskeyNotificationType.Follow,
+        MisskeyNotificationType.Mention,
+        MisskeyNotificationType.Reply,
+        MisskeyNotificationType.Renote,
+        MisskeyNotificationType.Quote,
+        MisskeyNotificationType.Reaction,
+        MisskeyNotificationType.PollVote,
+        MisskeyNotificationType.ReceiveFollowRequest,
+        MisskeyNotificationType.FollowRequestAccepted,
+        MisskeyNotificationType.GroupInvited,
+        MisskeyNotificationType.App
+    ];
+
+    private IReadOnlySet<MisskeyNotificationType>? includeTypes;
+    private long notificationRefreshKey;
+    private string tab = "all";
+
+    private bool UnreadOnly => tab == "unread";
+
+    private MkPageHeaderMetadata HeaderMetadata => new(
+        Localizer.Translate("notifications"),
+        Icon: "fas fa-bell");
+
+    private IReadOnlyList<MkPageHeaderTab> HeaderTabs =>
+    [
+        new("all", Localizer.Translate("all")),
+        new("unread", Localizer.Translate("unread")),
+        new("mentions", Localizer.Translate("mentions"), "fas fa-at"),
+        new("directNotes", Localizer.Translate("directNotes"), "fas fa-envelope")
+    ];
+
+    private IReadOnlyList<MkPageHeaderAction> HeaderActions => tab == "all"
+        ?
+        [
+            new(
+                Localizer.Translate("filter"),
+                "fas fa-filter",
+                static () => Task.CompletedTask,
+                Highlighted: includeTypes is not null)
+            {
+                SourcePointerHandler = ShowFilterAsync
+            },
+            new(
+                Localizer.Translate("markAllAsRead"),
+                "fas fa-check",
+                MarkAllAsReadAsync)
+        ]
+        : [];
+
+    private Task ChangeTabAsync(string key)
+    {
+        tab = key switch
+        {
+            "unread" => "unread",
+            "mentions" => "mentions",
+            "directNotes" => "directNotes",
+            _ => "all"
+        };
+        return Task.CompletedTask;
+    }
+
+    private Task ShowFilterAsync(ElementReference source, MouseEventArgs _)
+    {
+        var items = new List<MisskeyMenuItem>();
+        if (includeTypes is not null)
+        {
+            items.Add(new(
+                MisskeyMenuItemKind.Action,
+                Localizer.Translate("clear"),
+                "fas fa-times",
+                Action: ClearFilterAsync));
+            items.Add(MisskeyMenuItem.Divider);
+        }
+
+        items.AddRange(FilterTypes.Select(type => new MisskeyMenuItem(
+            MisskeyMenuItemKind.Action,
+            Localizer.Translate($"_notification._types.{NotificationTypeName(type)}"),
+            Action: () => SelectFilterAsync(type),
+            Active: includeTypes?.Contains(type) == true)));
+        Overlays.ShowPopupMenu(source, items);
+        return Task.CompletedTask;
+    }
+
+    private Task SelectFilterAsync(MisskeyNotificationType type) => InvokeAsync(() =>
+    {
+        includeTypes = new HashSet<MisskeyNotificationType> { type };
+        StateHasChanged();
+    });
+
+    private Task ClearFilterAsync() => InvokeAsync(() =>
+    {
+        includeTypes = null;
+        StateHasChanged();
+    });
+
+    private async Task MarkAllAsReadAsync()
+    {
+        await Notifications.MarkAllReadAsync(CancellationToken.None);
+        notificationRefreshKey++;
+    }
+
+    private static string NotificationTypeName(MisskeyNotificationType type) => type switch
+    {
+        MisskeyNotificationType.Follow => "follow",
+        MisskeyNotificationType.Mention => "mention",
+        MisskeyNotificationType.Reply => "reply",
+        MisskeyNotificationType.Renote => "renote",
+        MisskeyNotificationType.Quote => "quote",
+        MisskeyNotificationType.Reaction => "reaction",
+        MisskeyNotificationType.PollVote => "pollVote",
+        MisskeyNotificationType.ReceiveFollowRequest => "receiveFollowRequest",
+        MisskeyNotificationType.FollowRequestAccepted => "followRequestAccepted",
+        MisskeyNotificationType.GroupInvited => "groupInvited",
+        MisskeyNotificationType.App => "app",
+        _ => throw new ArgumentOutOfRangeException(nameof(type))
+    };
+}

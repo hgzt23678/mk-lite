@@ -1,0 +1,137 @@
+@implements IAsyncDisposable
+@inject IClipboardInterop Clipboard
+@inject IMisskeyTransientFeedbackService Feedback
+
+<div class="@RootClass" @attributes="AttributesWithoutClass">
+    <div class="key">@Key</div>
+    <div class="value">
+        @Value
+        @if (!string.IsNullOrEmpty(Copy))
+        {
+            <button class="_textButton"
+                    style="margin-left: 0.5em;"
+                    type="button"
+                    title="@CopyLabel"
+                    aria-label="@CopyLabel"
+                    @onclick="CopyAsync"><i class="far fa-copy" aria-hidden="true"></i></button>
+        }
+        @if (copyFailed)
+        {
+            <span class="mk-visually-hidden" role="alert">@CopyFailureAnnouncement</span>
+        }
+    </div>
+</div>
+
+@code {
+    private static readonly HashSet<string> SafeClipboardFailureCodes = new(StringComparer.Ordinal)
+    {
+        "INVALID_VALUE",
+        "CLIPBOARD_WRITE_FAILED"
+    };
+
+    private readonly CancellationTokenSource lifetime = new();
+    private bool copyFailed;
+    private bool disposed;
+
+    [Parameter]
+    public RenderFragment? Key { get; set; }
+
+    [Parameter]
+    public RenderFragment? Value { get; set; }
+
+    [Parameter]
+    public string? Copy { get; set; }
+
+    [Parameter]
+    public bool Oneline { get; set; }
+
+    [Parameter]
+    public string CopyLabel { get; set; } = "コピー";
+
+    [Parameter]
+    public string CopySuccessAnnouncement { get; set; } = "コピーしました";
+
+    [Parameter]
+    public string CopyFailureAnnouncement { get; set; } = "コピーできませんでした";
+
+    [Parameter]
+    public EventCallback<string> CopyFailed { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "alqyeyti",
+        Oneline ? "oneline" : null,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private async Task CopyAsync()
+    {
+        string? value = Copy;
+        if (string.IsNullOrEmpty(value) || disposed)
+        {
+            return;
+        }
+
+        copyFailed = false;
+        ClipboardWriteResult result;
+        try
+        {
+            result = await Clipboard.WriteTextAsync(value, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (JSDisconnectedException)
+        {
+            result = new ClipboardWriteResult(false, "none", "CLIPBOARD_WRITE_FAILED");
+        }
+        catch (JSException)
+        {
+            result = new ClipboardWriteResult(false, "none", "CLIPBOARD_WRITE_FAILED");
+        }
+
+        if (disposed)
+        {
+            return;
+        }
+
+        if (result.Succeeded)
+        {
+            Feedback.ShowSuccess(CopySuccessAnnouncement);
+            return;
+        }
+
+        copyFailed = true;
+        string failureCode = result.ErrorCode is not null && SafeClipboardFailureCodes.Contains(result.ErrorCode)
+            ? result.ErrorCode
+            : "CLIPBOARD_WRITE_FAILED";
+        await CopyFailed.InvokeAsync(failureCode);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+}

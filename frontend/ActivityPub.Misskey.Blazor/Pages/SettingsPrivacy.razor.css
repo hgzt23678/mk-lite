@@ -1,0 +1,10 @@
+.privacy-settings {
+    background-color: var(--panel);
+    color: var(--fg);
+    padding: 24px;
+    border-radius: 12px;
+}
+
+.privacy-capability {
+    line-height: 1.6;
+}

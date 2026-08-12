@@ -1,0 +1,107 @@
+@inject IMisskeyOverlayService Overlays
+@inject MisskeyFrontendRuntimeConfiguration Runtime
+
+<div class="_card">
+    <div class="_content">
+        <MkFormInput Value="@text" ValueChanged="SetTextAsync" Label="TextLabel" />
+        <MkFormSwitch Value="@flag" ValueChanged="SetFlagAsync">
+            <ChildContent>Switch is now @(flag ? "on" : "off")</ChildContent>
+        </MkFormSwitch>
+        <div style="margin: 32px 0;">
+            <MkFormRadio TValue="string" ModelValue="@radio" ModelValueChanged="SetRadioAsync" Value="@("misskey")">Misskey</MkFormRadio>
+            <MkFormRadio TValue="string" ModelValue="@radio" ModelValueChanged="SetRadioAsync" Value="@("mastodon")">Mastodon</MkFormRadio>
+            <MkFormRadio TValue="string" ModelValue="@radio" ModelValueChanged="SetRadioAsync" Value="@("pleroma")">Pleroma</MkFormRadio>
+        </div>
+        <MkButton Inline="true"><ChildContent>This is</ChildContent></MkButton>
+        <MkButton Inline="true" Primary="true"><ChildContent>the button</ChildContent></MkButton>
+    </div>
+    <div class="_content" style="pointer-events: none;">
+        <MfmView Text="@Mfm" />
+    </div>
+    <div class="_content">
+        <MkButton Inline="true" Primary="true" OnClick="OpenMenuAsync"><ChildContent>Open menu</ChildContent></MkButton>
+        <MkButton Inline="true" Primary="true" OnClick="OpenDialogAsync"><ChildContent>Open dialog</ChildContent></MkButton>
+        <MkButton Inline="true" Primary="true" OnClick="OpenFormAsync"><ChildContent>Open form</ChildContent></MkButton>
+        <MkButton Inline="true" Primary="true" OnClick="OpenDriveAsync"><ChildContent>Open drive</ChildContent></MkButton>
+    </div>
+</div>
+
+@code {
+    private string text = string.Empty;
+    private bool flag = true;
+    private string radio = "misskey";
+
+    private RenderFragment TextLabel => builder => builder.AddContent(0, "Text");
+    private string Mfm =>
+        $"Hello world! This is an @example mention. BTW you are @guest.\\nAlso, here is {Runtime.PublicBaseUri?.AbsoluteUri.TrimEnd('/') ?? string.Empty} and [example link]({Runtime.PublicBaseUri?.AbsoluteUri.TrimEnd('/') ?? string.Empty}). for more details, see https://example.com.\\nAs you know #misskey is open-source software.";
+
+    private Task SetTextAsync(string value)
+    {
+        text = value;
+        return Task.CompletedTask;
+    }
+
+    private Task SetFlagAsync(bool value)
+    {
+        flag = value;
+        return Task.CompletedTask;
+    }
+
+    private Task SetRadioAsync(string value)
+    {
+        radio = value;
+        return Task.CompletedTask;
+    }
+
+    private Task OpenMenuAsync(MouseEventArgs args)
+    {
+        Overlays.ShowContextMenu(
+            args.ClientX,
+            args.ClientY,
+            [
+                new(MisskeyMenuItemKind.Label, "Fruits"),
+                new(MisskeyMenuItemKind.Action, "Create some apples", Action: NoOpAsync),
+                new(MisskeyMenuItemKind.Action, "Read some oranges", Action: NoOpAsync),
+                new(MisskeyMenuItemKind.Action, "Update some melons", Action: NoOpAsync),
+                MisskeyMenuItem.Divider,
+                new(MisskeyMenuItemKind.Action, "Delete some bananas", Danger: true, Action: NoOpAsync)
+            ]);
+        return Task.CompletedTask;
+    }
+
+    private Task OpenDialogAsync(MouseEventArgs _)
+    {
+        Overlays.ShowAlert(new(
+            "warning",
+            "Oh my Aichan",
+            "Lorem ipsum dolor sit amet, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+            "Sample dialog",
+            "OK"));
+        return Task.CompletedTask;
+    }
+
+    private Task OpenFormAsync(MouseEventArgs _)
+    {
+        Overlays.ShowFormDialog(new(
+            "Example form",
+            [
+                new MisskeyFormDialogItem("foo", "boolean") { DefaultValue = true, Label = "This is a boolean property" },
+                new MisskeyFormDialogItem("bar", "number") { DefaultValue = 300, Label = "This is a number property" },
+                new MisskeyFormDialogItem("baz", "string") { DefaultValue = "Misskey makes you happy.", Label = "This is a string property" }
+            ]));
+        return Task.CompletedTask;
+    }
+
+    private Task OpenDriveAsync(MouseEventArgs _)
+    {
+        Overlays.ShowAlert(new(
+            "error",
+            "Drive unavailable",
+            "The Dolphin backend does not expose the Drive picker required by this preview.",
+            "Drive unavailable",
+            "OK"));
+        return Task.CompletedTask;
+    }
+
+    private static Task NoOpAsync() => Task.CompletedTask;
+}

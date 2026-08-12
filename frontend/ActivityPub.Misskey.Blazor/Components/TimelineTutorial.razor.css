@@ -1,0 +1,33 @@
+.tbkwesmv > ._content > small {
+    opacity: 0.7;
+}
+
+.tbkwesmv > .navigation {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+}
+
+.tbkwesmv > .navigation > .step > .arrow {
+    padding: 4px;
+}
+
+.tbkwesmv > .navigation > .step > .arrow:disabled {
+    opacity: 0.5;
+}
+
+.tbkwesmv > .navigation > .step > .arrow:first-child {
+    padding-right: 8px;
+}
+
+.tbkwesmv > .navigation > .step > .arrow:last-child {
+    padding-left: 8px;
+}
+
+.tbkwesmv > .navigation > .step > span {
+    margin: 0 4px;
+}
+
+.tbkwesmv > .navigation > .ok {
+    margin-left: auto;
+}

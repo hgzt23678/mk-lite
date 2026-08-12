@@ -1,0 +1,219 @@
+@inject IMisskeyLocalizer Localizer
+
+<div class="@RootClass" @attributes="AttributesWithoutClass">
+    @if (Model.Choices.Count < 2)
+    {
+        <p class="caution"><i class="fas fa-exclamation-triangle"></i>@Localizer.Translate("_poll.noOnlyOneChoice")</p>
+    }
+    <ul>
+        @for (int index = 0; index < Model.Choices.Count; index++)
+        {
+            int choiceIndex = index;
+            <li @key="choiceIndex">
+                <MkFormInput CssClassAdditional="input"
+                             Small="true"
+                             Value="@Model.Choices[choiceIndex]"
+                             ValueChanged="value => SetChoiceAsync(choiceIndex, value)"
+                             Placeholder="@ChoicePlaceholder(choiceIndex)" />
+                <button class="_button" @onclick="() => RemoveAsync(choiceIndex)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </li>
+        }
+    </ul>
+    @if (Model.Choices.Count < 10)
+    {
+        <MkButton CssClassAdditional="add" OnClick="AddAsync">@Localizer.Translate("add")</MkButton>
+    }
+    else
+    {
+        <MkButton CssClassAdditional="add" Disabled="true">@Localizer.Translate("_poll.noMore")</MkButton>
+    }
+    <MkFormSwitch Value="@Model.Multiple" ValueChanged="SetMultipleAsync">
+        @Localizer.Translate("_poll.canMultipleVote")
+    </MkFormSwitch>
+    <section>
+        <div>
+            <MkFormSelect Value="@ExpirationValue"
+                          ValueChanged="SetExpirationAsync"
+                          Items="@ExpirationItems"
+                          Small="true">
+                <Label>@Localizer.Translate("_poll.expiration")</Label>
+            </MkFormSelect>
+            @if (Model.Expiration == ComposerPollExpiration.At)
+            {
+                <section>
+                    <MkFormInput Value="@Model.AtDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
+                                 ValueChanged="SetAtDateAsync"
+                                 Type="date"
+                                 Small="true"
+                                 CssClassAdditional="input">
+                        <Label>@Localizer.Translate("_poll.deadlineDate")</Label>
+                    </MkFormInput>
+                    <MkFormInput Value="@Model.AtTime.ToString("HH:mm", CultureInfo.InvariantCulture)"
+                                 ValueChanged="SetAtTimeAsync"
+                                 Type="time"
+                                 Small="true"
+                                 CssClassAdditional="input">
+                        <Label>@Localizer.Translate("_poll.deadlineTime")</Label>
+                    </MkFormInput>
+                </section>
+            }
+            else if (Model.Expiration == ComposerPollExpiration.After)
+            {
+                <section>
+                    <MkFormInput Value="@Model.After.ToString(CultureInfo.InvariantCulture)"
+                                 ValueChanged="SetAfterAsync"
+                                 Type="number"
+                                 Small="true"
+                                 CssClassAdditional="input">
+                        <Label>@Localizer.Translate("_poll.duration")</Label>
+                    </MkFormInput>
+                    <MkFormSelect Value="@UnitValue"
+                                  ValueChanged="SetUnitAsync"
+                                  Items="@UnitItems"
+                                  Small="true" />
+                </section>
+            }
+        </div>
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public ComposerPollViewModel Model { get; set; } = null!;
+
+    [Parameter]
+    public EventCallback<ComposerPollViewModel> ModelChanged { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "zmdxowus",
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private IReadOnlyList<MkFormSelectItem> ExpirationItems =>
+    [
+        MkFormSelectItem.Option("infinite", Localizer.Translate("_poll.infinite")),
+        MkFormSelectItem.Option("at", Localizer.Translate("_poll.at")),
+        MkFormSelectItem.Option("after", Localizer.Translate("_poll.after"))
+    ];
+
+    private IReadOnlyList<MkFormSelectItem> UnitItems =>
+    [
+        MkFormSelectItem.Option("second", Localizer.Translate("_time.second")),
+        MkFormSelectItem.Option("minute", Localizer.Translate("_time.minute")),
+        MkFormSelectItem.Option("hour", Localizer.Translate("_time.hour")),
+        MkFormSelectItem.Option("day", Localizer.Translate("_time.day"))
+    ];
+
+    private string ExpirationValue => Model.Expiration switch
+    {
+        ComposerPollExpiration.At => "at",
+        ComposerPollExpiration.After => "after",
+        _ => "infinite"
+    };
+
+    private string UnitValue => Model.Unit.ToString().ToLowerInvariant();
+
+    private string ChoicePlaceholder(int index) => Localizer.Translate(
+        "_poll.choiceN",
+        new Dictionary<string, object?> { ["n"] = index + 1 });
+
+    private async Task SetChoiceAsync(int index, string value)
+    {
+        Model.Choices[index] = value;
+        await ChangedAsync();
+    }
+
+    private async Task AddAsync(MouseEventArgs args)
+    {
+        _ = args;
+        if (Model.Choices.Count < 10)
+        {
+            Model.Choices.Add(string.Empty);
+            await ChangedAsync();
+        }
+    }
+
+    private async Task RemoveAsync(int index)
+    {
+        if (index >= 0 && index < Model.Choices.Count)
+        {
+            Model.Choices.RemoveAt(index);
+            await ChangedAsync();
+        }
+    }
+
+    private async Task SetMultipleAsync(bool value)
+    {
+        Model.Multiple = value;
+        await ChangedAsync();
+    }
+
+    private async Task SetExpirationAsync(string value)
+    {
+        Model.Expiration = value switch
+        {
+            "at" => ComposerPollExpiration.At,
+            "after" => ComposerPollExpiration.After,
+            _ => ComposerPollExpiration.Infinite
+        };
+        await ChangedAsync();
+    }
+
+    private async Task SetAtDateAsync(string rawValue)
+    {
+        if (DateOnly.TryParseExact(rawValue, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateOnly value))
+        {
+            Model.AtDate = value;
+            await ChangedAsync();
+        }
+    }
+
+    private async Task SetAtTimeAsync(string rawValue)
+    {
+        if (TimeOnly.TryParse(rawValue, CultureInfo.InvariantCulture, out TimeOnly value))
+        {
+            Model.AtTime = value;
+            await ChangedAsync();
+        }
+    }
+
+    private async Task SetAfterAsync(string rawValue)
+    {
+        if (int.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
+        {
+            Model.After = value;
+            await ChangedAsync();
+        }
+    }
+
+    private async Task SetUnitAsync(string value)
+    {
+        Model.Unit = value switch
+        {
+            "minute" => ComposerPollUnit.Minute,
+            "hour" => ComposerPollUnit.Hour,
+            "day" => ComposerPollUnit.Day,
+            _ => ComposerPollUnit.Second
+        };
+        await ChangedAsync();
+    }
+
+    private Task ChangedAsync() => ModelChanged.InvokeAsync(Model);
+}

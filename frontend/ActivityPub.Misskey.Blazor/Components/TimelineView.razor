@@ -1,0 +1,430 @@
+@implements IAsyncDisposable
+@inject ITimelinePresentationService Timeline
+@inject ITimelineSubscriptionService Stream
+@inject IClientStorage Storage
+@inject IPizzaxDeviceState DeviceState
+@inject IMisskeyLocalizer Localizer
+@inject PersistentComponentState PersistentState
+
+<MkNotes @ref="pagingComponent"
+         Source="paginationSource"
+         NoGap="noGap"
+         DisplayLimit="30"
+         QueueChanged="OnQueueChangedAsync"
+         Loaded="OnPaginationLoadedAsync"
+         ReplyRequested="ReplyRequested"
+         RenoteRequested="RenoteAsync"
+         ReactionRequested="ReactAsync"
+         @attributes="AdditionalAttributes" />
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private PersistingComponentStateSubscription persistenceSubscription;
+    private MkNotes? pagingComponent;
+    private TimelinePaginationSource paginationSource = default!;
+    private CancellationTokenSource? streamCancellation;
+    private Task? streamTask;
+    private TimelineKind currentKind;
+    private long streamCursor;
+    private long streamGeneration;
+    private bool streamCursorReady;
+    private bool streamStartPending = true;
+    private bool deviceSettingsLoaded;
+    private bool interactiveRendered;
+    private bool noGap = true;
+    private bool disposed;
+
+    [Parameter]
+    public TimelineKind Kind { get; set; } = TimelineKind.Home;
+
+    [Parameter]
+    public EventCallback<NoteViewModel> ReplyRequested { get; set; }
+
+    [Parameter]
+    public EventCallback<NoteViewModel> NoteReceived { get; set; }
+
+    [Parameter]
+    public EventCallback<int> QueueChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OperationFailed { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    protected override void OnInitialized()
+    {
+        currentKind = Kind;
+        TimelinePersistentState? restored = null;
+        if (PersistentState.TryTakeFromJson(
+                PersistentStateKey(currentKind),
+                out TimelinePersistentState? state) &&
+            state is not null)
+        {
+            restored = state;
+            streamCursor = state.Cursor;
+            streamCursorReady = true;
+        }
+
+        paginationSource = CreatePaginationSource(currentKind, restored);
+        persistenceSubscription = PersistentState.RegisterOnPersisting(PersistStateAsync);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (paginationSource is null || currentKind == Kind)
+        {
+            return;
+        }
+
+        await StopStreamAsync();
+        currentKind = Kind;
+        streamCursor = 0;
+        streamCursorReady = false;
+        streamStartPending = true;
+        paginationSource = CreatePaginationSource(currentKind, seed: null);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        interactiveRendered = true;
+        if (disposed)
+        {
+            return;
+        }
+
+        if (!deviceSettingsLoaded)
+        {
+            deviceSettingsLoaded = true;
+            try
+            {
+                bool showGap = await DeviceState.ReadAsync(
+                    "showGapBetweenNotesInTimeline",
+                    false,
+                    lifetime.Token);
+                bool nextNoGap = !showGap;
+                if (noGap != nextNoGap)
+                {
+                    noGap = nextNoGap;
+                    StateHasChanged();
+                }
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        StartStreamIfReady();
+    }
+
+    public Task ReloadAsync() => pagingComponent?.ReloadAsync() ?? Task.CompletedTask;
+
+    public Task ShowQueuedAsync() => pagingComponent?.ShowQueuedAsync() ?? Task.CompletedTask;
+
+    public Task AddCreatedAsync(NoteViewModel created) =>
+        pagingComponent?.UpsertAsync(created) ?? Task.CompletedTask;
+
+    private TimelinePaginationSource CreatePaginationSource(
+        TimelineKind kind,
+        TimelinePersistentState? seed) => new(
+            Timeline,
+            Stream,
+            kind,
+            seed,
+            CaptureInitialCursor);
+
+    private void CaptureInitialCursor(TimelineKind kind, long cursor)
+    {
+        if (disposed || currentKind != kind || streamTask is not null)
+        {
+            return;
+        }
+
+        streamCursor = cursor;
+        streamCursorReady = true;
+    }
+
+    private Task OnQueueChangedAsync(int count) => QueueChanged.InvokeAsync(count);
+
+    private Task OnPaginationLoadedAsync()
+    {
+        if (interactiveRendered)
+        {
+            StartStreamIfReady();
+        }
+        return Task.CompletedTask;
+    }
+
+    private void StartStreamIfReady()
+    {
+        if (!streamStartPending || !streamCursorReady || streamTask is not null)
+        {
+            return;
+        }
+
+        streamStartPending = false;
+        long generation = checked(++streamGeneration);
+        TimelineKind kind = currentKind;
+        streamCancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+        streamTask = ConsumeStreamAsync(kind, generation, streamCancellation.Token);
+    }
+
+    private async Task RenoteAsync(NoteViewModel note)
+    {
+        try
+        {
+            NoteViewModel result = await Timeline.RenoteAsync(
+                note.Id,
+                CreateIdempotencyKey("renote"),
+                lifetime.Token);
+            if (pagingComponent is not null)
+            {
+                await pagingComponent.UpsertAsync(result);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            await OperationFailed.InvokeAsync("RENOTE_FAILED");
+        }
+    }
+
+    private async Task ReactAsync((NoteViewModel Note, string Reaction) request)
+    {
+        try
+        {
+            bool remove = string.Equals(
+                request.Note.ViewerReaction,
+                request.Reaction,
+                StringComparison.Ordinal);
+            NoteViewModel result = await Timeline.ReactAsync(
+                request.Note.Id,
+                request.Reaction,
+                remove,
+                CreateIdempotencyKey("reaction"),
+                lifetime.Token);
+            if (pagingComponent is not null)
+            {
+                await pagingComponent.UpsertAsync(result);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            await OperationFailed.InvokeAsync("REACTION_FAILED");
+        }
+    }
+
+    private async Task ConsumeStreamAsync(
+        TimelineKind kind,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        string storageKey = StreamStorageKey(kind);
+        try
+        {
+            try
+            {
+                long? stored = await Storage.ReadAsync<long?>(
+                    ClientStorageArea.Session,
+                    storageKey,
+                    cancellationToken);
+                if (stored is not null && stored.Value > streamCursor)
+                {
+                    streamCursor = stored.Value;
+                }
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+
+            await foreach (TimelineMutation mutation in Stream.SubscribeAsync(
+                               kind,
+                               streamCursor,
+                               cancellationToken))
+            {
+                if (generation != streamGeneration || kind != currentKind)
+                {
+                    return;
+                }
+
+                streamCursor = mutation.Cursor;
+                await InvokeAsync(async () =>
+                {
+                    if (pagingComponent is null)
+                    {
+                        return;
+                    }
+
+                    if (mutation.Kind == TimelineMutationKind.Upsert && mutation.Note is not null)
+                    {
+                        await pagingComponent.UpsertAsync(mutation.Note);
+                        await NoteReceived.InvokeAsync(mutation.Note);
+                    }
+                    else if (mutation.Kind == TimelineMutationKind.Remove)
+                    {
+                        await pagingComponent.RemoveItemAsync(item => item.Id == mutation.NoteId);
+                    }
+                });
+
+                try
+                {
+                    await Storage.WriteAsync(
+                        ClientStorageArea.Session,
+                        storageKey,
+                        streamCursor,
+                        cancellationToken);
+                }
+                catch (JSDisconnectedException)
+                {
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (TimelineCursorException exception)
+        {
+            await InvokeAsync(() => OperationFailed.InvokeAsync(exception.ErrorCode));
+        }
+        catch (InvalidOperationException)
+        {
+            await InvokeAsync(() => OperationFailed.InvokeAsync("STREAM_QUERY_FAILED"));
+        }
+    }
+
+    private async Task StopStreamAsync()
+    {
+        CancellationTokenSource? cancellation = streamCancellation;
+        Task? running = streamTask;
+        streamCancellation = null;
+        streamTask = null;
+        checked
+        {
+            streamGeneration++;
+        }
+
+        if (cancellation is null)
+        {
+            return;
+        }
+
+        await cancellation.CancelAsync();
+        if (running is not null)
+        {
+            try
+            {
+                await running;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+        cancellation.Dispose();
+    }
+
+    private Task PersistStateAsync()
+    {
+        if (pagingComponent is not null && !pagingComponent.IsFetching)
+        {
+            PersistentState.PersistAsJson(
+                PersistentStateKey(currentKind),
+                new TimelinePersistentState(
+                    pagingComponent.Items.ToArray(),
+                    pagingComponent.More,
+                    streamCursor));
+        }
+        return Task.CompletedTask;
+    }
+
+    private static string CreateIdempotencyKey(string operation) => $"blazor-{operation}-{Guid.NewGuid():N}";
+    private static string PersistentStateKey(TimelineKind kind) =>
+        "misskey.timeline." + kind.ToString().ToLowerInvariant();
+    private static string StreamStorageKey(TimelineKind kind) =>
+        "misskey.timeline.cursor." + kind.ToString().ToLowerInvariant();
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        persistenceSubscription.Dispose();
+        await lifetime.CancelAsync();
+        await StopStreamAsync();
+        lifetime.Dispose();
+    }
+
+    private sealed record TimelinePersistentState(
+        IReadOnlyList<NoteViewModel> Notes,
+        bool More,
+        long Cursor);
+
+    private sealed class TimelinePaginationSource : IMisskeyPaginationSource<NoteViewModel>
+    {
+        private readonly ITimelinePresentationService timeline;
+        private readonly ITimelineSubscriptionService stream;
+        private readonly TimelineKind kind;
+        private readonly Action<TimelineKind, long> captureInitialCursor;
+        private TimelinePersistentState? seed;
+
+        public TimelinePaginationSource(
+            ITimelinePresentationService timeline,
+            ITimelineSubscriptionService stream,
+            TimelineKind kind,
+            TimelinePersistentState? seed,
+            Action<TimelineKind, long> captureInitialCursor)
+        {
+            this.timeline = timeline;
+            this.stream = stream;
+            this.kind = kind;
+            this.seed = seed;
+            this.captureInitialCursor = captureInitialCursor;
+            if (seed is not null)
+            {
+                captureInitialCursor(kind, seed.Cursor);
+            }
+        }
+
+        public MisskeyPaginationOptions Options { get; } = new(Limit: 10);
+
+        public async ValueTask<IReadOnlyList<NoteViewModel>> FetchAsync(
+            MisskeyPaginationRequest request,
+            CancellationToken cancellationToken)
+        {
+            bool initial = request.UntilId is null && request.SinceId is null && request.Offset is null;
+            if (initial && seed is { } restored)
+            {
+                seed = null;
+                if (!restored.More || restored.Notes.Count == 0)
+                {
+                    return restored.Notes;
+                }
+
+                var response = new List<NoteViewModel>(restored.Notes.Count + 1);
+                response.AddRange(restored.Notes);
+                response.Add(restored.Notes[^1]);
+                return response;
+            }
+
+            if (initial)
+            {
+                long cursor = await stream.GetLatestCursorAsync(cancellationToken);
+                captureInitialCursor(kind, cursor);
+            }
+
+            TimelinePageViewModel page = await timeline.ReadAsync(
+                kind,
+                request.UntilId,
+                request.Limit,
+                cancellationToken);
+            return page.Notes;
+        }
+
+        public string GetId(NoteViewModel item) => item.Id;
+    }
+}

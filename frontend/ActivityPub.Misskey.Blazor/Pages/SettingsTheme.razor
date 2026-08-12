@@ -1,0 +1,405 @@
+@implements IAsyncDisposable
+@using System.Text.Json.Serialization
+@inject IClientStorage ClientStorage
+@inject IPizzaxDeviceState DeviceState
+@inject IThemeCatalog ThemeCatalog
+@inject IThemeDeviceInterop ThemeDevice
+@inject IThemeInterop ThemeInterop
+@inject IMisskeyLocalizer Localizer
+
+<div class="_formRoot rsljpzjq">
+    @if (!loaded)
+    {
+        <MkLoading />
+    }
+    else
+    {
+        <div class="rfqxtzch _panel _formBlock">
+            <div class="toggle">
+                <div class="toggleWrapper">
+                    <input id="dn"
+                           @bind="darkMode"
+                           @bind:after="DarkModeChangedAsync"
+                           type="checkbox"
+                           class="dn" />
+                    <label for="dn" class="toggle">
+                        <span class="before">@Localizer.Translate("light")</span>
+                        <span class="after">@Localizer.Translate("dark")</span>
+                        <span class="toggle__handler">
+                            <span class="crater crater--1"></span>
+                            <span class="crater crater--2"></span>
+                            <span class="crater crater--3"></span>
+                        </span>
+                        <span class="star star--1"></span>
+                        <span class="star star--2"></span>
+                        <span class="star star--3"></span>
+                        <span class="star star--4"></span>
+                        <span class="star star--5"></span>
+                        <span class="star star--6"></span>
+                    </label>
+                </div>
+            </div>
+            <div class="sync">
+                <MkFormSwitch Value="@syncDeviceDarkMode" ValueChanged="SyncDeviceDarkModeChangedAsync">
+                    @Localizer.Translate("syncDeviceDarkMode")
+                </MkFormSwitch>
+            </div>
+        </div>
+
+        <div class="selects _formBlock">
+            <MkFormSelect Value="@lightThemeId"
+                          ValueChanged="LightThemeChangedAsync"
+                          Large="true"
+                          CssClassAdditional="select"
+                          Items="@LightThemeItems">
+                <Label>@Localizer.Translate("themeForLightMode")</Label>
+                <Prefix><i class="fas fa-sun"></i></Prefix>
+            </MkFormSelect>
+            <MkFormSelect Value="@darkThemeId"
+                          ValueChanged="DarkThemeChangedAsync"
+                          Large="true"
+                          CssClassAdditional="select"
+                          Items="@DarkThemeItems">
+                <Label>@Localizer.Translate("themeForDarkMode")</Label>
+                <Prefix><i class="fas fa-moon"></i></Prefix>
+            </MkFormSelect>
+        </div>
+
+        <FormSection>
+            <div class="_formLinksGrid">
+                <FormLink To="/settings/theme/manage"
+                          data-capability-state="false"
+                          data-capability="settings/theme/manage"
+                          aria-disabled="true">
+                    <Icon><i class="fas fa-folder-open"></i></Icon>
+                    <ChildContent>@Localizer.Translate("_theme.manage")</ChildContent>
+                    <Suffix>@installedThemes.Count</Suffix>
+                </FormLink>
+                <FormLink To="https://assets.misskey.io/theme/list" External="true">
+                    <Icon><i class="fas fa-globe"></i></Icon>
+                    <ChildContent>@Localizer.Translate("_theme.explore")</ChildContent>
+                </FormLink>
+                <FormLink To="/settings/theme/install"
+                          data-capability-state="false"
+                          data-capability="settings/theme/install"
+                          aria-disabled="true">
+                    <Icon><i class="fas fa-download"></i></Icon>
+                    <ChildContent>@Localizer.Translate("_theme.install")</ChildContent>
+                </FormLink>
+                <FormLink To="/theme-editor"
+                          data-capability-state="false"
+                          data-capability="settings/theme/editor"
+                          aria-disabled="true">
+                    <Icon><i class="fas fa-paint-roller"></i></Icon>
+                    <ChildContent>@Localizer.Translate("_theme.make")</ChildContent>
+                </FormLink>
+            </div>
+        </FormSection>
+
+        <MkButton CssClassAdditional="_formBlock"
+                  Disabled="true"
+                  data-capability-state="false"
+                  data-capability="settings/theme/wallpaper">
+            @Localizer.Translate("setWallpaper")
+        </MkButton>
+
+        <MkInfo Warn="true" CssClassAdditional="_formBlock theme-capability" data-capability-state="false" data-capability="settings/theme/registry">
+            Theme install, theme editor, wallpaper upload, and installed-theme synchronization require the Misskey registry/media contracts, which this Dolphin backend does not expose. Built-in themes and browser-local selection remain fully available.
+        </MkInfo>
+
+        @if (!string.IsNullOrWhiteSpace(status))
+        {
+            <MkInfo CssClassAdditional="_formBlock">@status</MkInfo>
+        }
+    }
+</div>
+
+@code {
+    private const string LightThemeStorageKey = "miux:lightTheme";
+    private const string DarkThemeStorageKey = "miux:darkTheme";
+    private const string SyncDeviceDarkModeStorageKey = "miux:syncDeviceDarkMode";
+
+    private readonly CancellationTokenSource lifetime = new();
+    private readonly List<ThemeDefinition> installedThemes = [];
+    private ThemeDefinition lightTheme = default!;
+    private ThemeDefinition darkTheme = default!;
+    private bool darkMode;
+    private bool syncDeviceDarkMode = true;
+    private bool loaded;
+    private bool disposed;
+    private string? status;
+
+    private string lightThemeId => lightTheme.Id;
+    private string darkThemeId => darkTheme.Id;
+
+    private IReadOnlyList<MkFormSelectItem> LightThemeItems => BuildThemeItems("light");
+    private IReadOnlyList<MkFormSelectItem> DarkThemeItems => BuildThemeItems("dark");
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            // The pinned v12 catalog keeps the built-in defaults under the
+            // stable `light` and `dark` ids.  The upstream source filenames
+            // (`l-light`/`d-green-lime`) are not catalog identifiers; using
+            // them here terminated the Interactive Server circuit before the
+            // page could hydrate.
+            ThemeDefinition defaultLight = ThemeCatalog.GetRequired("light");
+            ThemeDefinition defaultDark = ThemeCatalog.GetRequired("dark");
+
+            darkMode = await DeviceState.ReadAsync("darkMode", false, lifetime.Token);
+            bool? storedSync = await ClientStorage.ReadAsync<bool?>(
+                ClientStorageArea.Local,
+                SyncDeviceDarkModeStorageKey,
+                lifetime.Token);
+            syncDeviceDarkMode = storedSync ?? true;
+
+            lightTheme = await ReadStoredThemeAsync(LightThemeStorageKey, defaultLight, "light");
+            darkTheme = await ReadStoredThemeAsync(DarkThemeStorageKey, defaultDark, "dark");
+            AddInstalledTheme(lightTheme);
+            AddInstalledTheme(darkTheme);
+
+            if (syncDeviceDarkMode)
+            {
+                darkMode = await ThemeDevice.PrefersDarkAsync(lifetime.Token);
+                await DeviceState.WriteAsync("darkMode", darkMode, lifetime.Token);
+            }
+
+            loaded = true;
+            await ApplyActiveThemeAsync(showStatus: false);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (InvalidOperationException exception)
+        {
+            status = $"Theme initialization failed: {exception.Message}";
+            loaded = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (JsonException)
+        {
+            status = "Theme preferences were malformed; the built-in theme remains active and the stored value was not deleted.";
+            loaded = true;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task DarkModeChangedAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        await DeviceState.WriteAsync("darkMode", darkMode, lifetime.Token);
+        await ApplyActiveThemeAsync(showStatus: true);
+    }
+
+    private async Task SyncDeviceDarkModeChangedAsync(bool value)
+    {
+        syncDeviceDarkMode = value;
+        await ClientStorage.WriteAsync(
+            ClientStorageArea.Local,
+            SyncDeviceDarkModeStorageKey,
+            value,
+            lifetime.Token);
+        if (value)
+        {
+            darkMode = await ThemeDevice.PrefersDarkAsync(lifetime.Token);
+            await DeviceState.WriteAsync("darkMode", darkMode, lifetime.Token);
+        }
+
+        await ApplyActiveThemeAsync(showStatus: true);
+    }
+
+    private async Task LightThemeChangedAsync(string id)
+    {
+        await SelectThemeAsync(id, isDark: false, LightThemeStorageKey);
+    }
+
+    private async Task DarkThemeChangedAsync(string id)
+    {
+        await SelectThemeAsync(id, isDark: true, DarkThemeStorageKey);
+    }
+
+    private async Task SelectThemeAsync(string id, bool isDark, string storageKey)
+    {
+        ThemeDefinition? selected = FindTheme(id, isDark ? "dark" : "light");
+        if (selected is null)
+        {
+            status = "The selected theme is not available in the pinned Misskey catalog.";
+            return;
+        }
+
+        if (isDark)
+        {
+            darkTheme = selected;
+        }
+        else
+        {
+            lightTheme = selected;
+        }
+
+        await ClientStorage.WriteAsync(
+            ClientStorageArea.Local,
+            storageKey,
+            StoredThemePreference.From(selected),
+            lifetime.Token);
+
+        if (darkMode == isDark)
+        {
+            await ApplyActiveThemeAsync(showStatus: true);
+        }
+        else
+        {
+            status = Localizer.Translate("saved");
+        }
+    }
+
+    private async Task ApplyActiveThemeAsync(bool showStatus)
+    {
+        ThemeDefinition active = darkMode ? darkTheme : lightTheme;
+        bool applied = await ThemeInterop.ApplyAsync(active, lifetime.Token);
+        if (!applied)
+        {
+            status = "The selected theme was rejected by the validated browser theme boundary.";
+        }
+        else if (showStatus)
+        {
+            status = Localizer.Translate("saved");
+        }
+    }
+
+    private async ValueTask<ThemeDefinition> ReadStoredThemeAsync(
+        string storageKey,
+        ThemeDefinition fallback,
+        string expectedBase)
+    {
+        StoredThemePreference? stored;
+        try
+        {
+            stored = await ClientStorage.ReadAsync<StoredThemePreference>(
+                ClientStorageArea.Local,
+                storageKey,
+                lifetime.Token);
+        }
+        catch (JsonException)
+        {
+            status = $"The stored {expectedBase} theme is malformed; the built-in theme remains active and the stored value was not deleted.";
+            return fallback;
+        }
+        if (stored is null)
+        {
+            return fallback;
+        }
+
+        ThemeDefinition? resolved = ResolveStoredTheme(stored, expectedBase);
+        if (resolved is null)
+        {
+            status = $"The stored {expectedBase} theme is invalid or no longer supported; the built-in theme is used without deleting the stored value.";
+            return fallback;
+        }
+
+        return resolved;
+    }
+
+    private ThemeDefinition? ResolveStoredTheme(StoredThemePreference stored, string expectedBase)
+    {
+        if (string.IsNullOrWhiteSpace(stored.Id) || stored.Id.Length > 128 ||
+            stored.Base is not ("light" or "dark") || !string.Equals(stored.Base, expectedBase, StringComparison.Ordinal) ||
+            stored.Properties is null || stored.Properties.Count == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            return ThemeCatalog.GetRequired(stored.Id);
+        }
+        catch (KeyNotFoundException)
+        {
+            return new ThemeDefinition(
+                stored.Id,
+                string.IsNullOrWhiteSpace(stored.Name) ? stored.Id : stored.Name,
+                stored.Author,
+                stored.Description,
+                stored.Base,
+                true,
+                "local-storage",
+                string.Empty,
+                new Dictionary<string, string>(stored.Properties, StringComparer.Ordinal));
+        }
+    }
+
+    private void AddInstalledTheme(ThemeDefinition theme)
+    {
+        if (theme.SourceFile == "local-storage" && installedThemes.All(x => !string.Equals(x.Id, theme.Id, StringComparison.Ordinal)))
+        {
+            installedThemes.Add(theme);
+        }
+    }
+
+    private ThemeDefinition? FindTheme(string id, string baseMode) =>
+        installedThemes.Concat(ThemeCatalog.Themes)
+            .Where(theme => theme.Base == baseMode && theme.Selectable)
+            .FirstOrDefault(theme => string.Equals(theme.Id, id, StringComparison.Ordinal));
+
+    private IReadOnlyList<MkFormSelectItem> BuildThemeItems(string baseMode)
+    {
+        IReadOnlyList<ThemeDefinition> installed = installedThemes
+            .Where(theme => theme.Base == baseMode)
+            .ToArray();
+        IReadOnlyList<ThemeDefinition> builtin = ThemeCatalog.Themes
+            .Where(theme => theme.Base == baseMode && theme.Selectable && installed.All(x => x.Id != theme.Id))
+            .ToArray();
+
+        var items = new List<MkFormSelectItem>();
+        if (installed.Count > 0)
+        {
+            items.Add(MkFormSelectItem.Group(
+                Localizer.Translate("_theme.installedThemes"),
+                installed.Select(theme => MkFormSelectItem.Option(theme.Id, theme.Name)).ToArray()));
+        }
+
+        items.Add(MkFormSelectItem.Group(
+            Localizer.Translate("_theme.builtinThemes"),
+            builtin.Select(theme => MkFormSelectItem.Option(theme.Id, theme.Name)).ToArray()));
+        return items;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        lifetime.Dispose();
+    }
+
+    private sealed record StoredThemePreference(
+        [property: JsonPropertyName("id")] string Id,
+        [property: JsonPropertyName("name")] string? Name,
+        [property: JsonPropertyName("author")] string? Author,
+        [property: JsonPropertyName("desc")] string? Description,
+        [property: JsonPropertyName("base")] string Base,
+        [property: JsonPropertyName("props")] Dictionary<string, string>? Properties)
+    {
+        public static StoredThemePreference From(ThemeDefinition theme) => new(
+            theme.Id,
+            theme.Name,
+            theme.Author,
+            theme.Description,
+            theme.Base,
+            new Dictionary<string, string>(theme.Properties, StringComparer.Ordinal));
+    }
+}

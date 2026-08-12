@@ -1,0 +1,103 @@
+@inject NavigationManager Navigation
+
+<div class="@RootClass">
+    @foreach (MkSuperMenuGroup group in Definition)
+    {
+        <div class="group">
+            @if (!string.IsNullOrWhiteSpace(group.Title))
+            {
+                <div class="title">@group.Title</div>
+            }
+            <div class="items">
+                @for (int index = 0; index < group.Items.Count; index++)
+                {
+                    MkSuperMenuEntry item = group.Items[index];
+                    if (item.Kind == MkSuperMenuEntryKind.Link)
+                    {
+                        <a href="@item.Href"
+                           target="@item.Target"
+                           rel="@Relationship(item)"
+                           tabindex="@index"
+                           class="@ItemClass(item)">
+                            @Icon(item)<span class="text">@item.Text</span>
+                        </a>
+                    }
+                    else if (item.Kind == MkSuperMenuEntryKind.Button)
+                    {
+                        <button type="button"
+                                tabindex="@index"
+                                class="@ItemClass(item)"
+                                disabled="@item.Active"
+                                @onclick="() => InvokeAsync(item)">
+                            @Icon(item)<span class="text">@item.Text</span>
+                        </button>
+                    }
+                    else
+                    {
+                        <a href="@RouteHref(item)"
+                           tabindex="@index"
+                           class="@ItemClass(item)"
+                           @onclick:preventDefault="true"
+                           @onclick="() => NavigateAsync(item)">
+                            @Icon(item)<span class="text">@item.Text</span>
+                        </a>
+                    }
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<MkSuperMenuGroup> Definition { get; set; } = [];
+
+    [Parameter]
+    public bool Grid { get; set; }
+
+    private string RootClass => string.Join(' ', new[] { "rrevdjwu", Grid ? "grid" : null }
+        .Where(value => value is not null));
+
+    private static string ItemClass(MkSuperMenuEntry item) =>
+        $"_button item{(item.Danger ? " danger" : string.Empty)}{(item.Active ? " active" : string.Empty)}";
+
+    private static string? Relationship(MkSuperMenuEntry item) =>
+        string.Equals(item.Target, "_blank", StringComparison.OrdinalIgnoreCase)
+            ? "noopener noreferrer"
+            : null;
+
+    private string RouteHref(MkSuperMenuEntry item) =>
+        item.To is { Length: > 0 } route && route.StartsWith("/", StringComparison.Ordinal)
+            ? route
+            : "/" + (item.To ?? string.Empty);
+
+    private async Task InvokeAsync(MkSuperMenuEntry item)
+    {
+        if (item.Action is not null)
+        {
+            await item.Action();
+        }
+    }
+
+    private Task NavigateAsync(MkSuperMenuEntry item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.To))
+        {
+            Navigation.NavigateTo(RouteHref(item));
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private RenderFragment Icon(MkSuperMenuEntry item) => builder =>
+    {
+        if (string.IsNullOrWhiteSpace(item.Icon))
+        {
+            return;
+        }
+
+        builder.OpenElement(0, "i");
+        builder.AddAttribute(1, "class", $"icon fa-fw {item.Icon}");
+        builder.CloseElement();
+    };
+}

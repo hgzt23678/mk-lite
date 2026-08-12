@@ -1,0 +1,70 @@
+@page "/__test/components/note-detailed"
+@rendermode InteractiveServer
+@inject ITimelinePresentationService Timeline
+
+<main data-contract="note-detailed-slice">
+    @if (note is not null)
+    {
+        <section data-contract="note-detailed-host" style="width: 720px;">
+            <MkNoteDetailed Note="note"
+                            Conversation="conversation"
+                            Replies="replies"
+                            class="contract-note-detailed"
+                            data-fallthrough="note-detailed" />
+        </section>
+        <section data-contract="note-detailed-renote-host" style="width: 420px;">
+            <MkNoteDetailed Note="renote" class="contract-note-detailed-renote" />
+        </section>
+    }
+</main>
+
+@code {
+    private NoteViewModel? note;
+    private NoteViewModel renote = null!;
+    private IReadOnlyList<NoteViewModel> conversation = [];
+    private IReadOnlyList<NoteViewModel> replies = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        NoteViewModel projected = (await Timeline.ReadAsync(TimelineKind.Global, null, 1, CancellationToken.None)).Notes.Single();
+        NoteViewModel parent = projected with
+        {
+            InternalId = Guid.Parse("31313131-3131-3131-3131-313131313131"),
+            Id = "9detailed-parent",
+            Text = "parent note",
+            RepliesCount = 0,
+            RenotesCount = 0,
+            Reactions = new Dictionary<string, long>(StringComparer.Ordinal)
+        };
+        NoteViewModel ancestor = parent with
+        {
+            InternalId = Guid.Parse("32323232-3232-3232-3232-323232323232"),
+            Id = "9detailed-ancestor",
+            Text = "ancestor note"
+        };
+        NoteViewModel child = parent with
+        {
+            InternalId = Guid.Parse("33333333-3333-3333-3333-333333333333"),
+            Id = "9detailed-child",
+            Text = "child reply"
+        };
+        note = projected with
+        {
+            ReplyId = parent.Id,
+            Reply = parent,
+            IsHidden = true
+        };
+        renote = projected with
+        {
+            InternalId = Guid.Parse("34343434-3434-3434-3434-343434343434"),
+            Id = "9detailed-renote",
+            Text = string.Empty,
+            Media = [],
+            Poll = null,
+            Renote = projected,
+            RenoteId = projected.Id
+        };
+        conversation = [ancestor];
+        replies = [child];
+    }
+}

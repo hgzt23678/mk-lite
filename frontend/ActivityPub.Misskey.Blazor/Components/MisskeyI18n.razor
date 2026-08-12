@@ -1,0 +1,97 @@
+@using Microsoft.AspNetCore.Components.Rendering
+
+@Content
+
+@code {
+    [Parameter, EditorRequired]
+    public string Src { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Tag { get; set; } = "span";
+
+    [Parameter]
+    public string? TextTag { get; set; }
+
+    [Parameter]
+    public IReadOnlyDictionary<string, RenderFragment>? Slots { get; set; }
+
+    private RenderFragment Content => builder =>
+    {
+        int sequence = 0;
+        builder.OpenElement(sequence++, SafeTag(Tag));
+        foreach (I18nPart part in Parse(Src))
+        {
+            if (part.Slot is not null && Slots?.TryGetValue(part.Slot, out RenderFragment? slot) == true)
+            {
+                builder.AddContent(sequence++, slot);
+                continue;
+            }
+
+            if (part.Text is null)
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(TextTag))
+            {
+                builder.OpenElement(sequence++, SafeTag(TextTag));
+                builder.AddContent(sequence++, part.Text);
+                builder.CloseElement();
+            }
+            else
+            {
+                builder.AddContent(sequence++, part.Text);
+            }
+        }
+
+        builder.CloseElement();
+    };
+
+    private static IReadOnlyList<I18nPart> Parse(string value)
+    {
+        List<I18nPart> parts = [];
+        int cursor = 0;
+        while (cursor < value.Length)
+        {
+            int open = value.IndexOf('{', cursor);
+            if (open < 0)
+            {
+                parts.Add(new(value[cursor..], null));
+                break;
+            }
+
+            if (open > cursor)
+            {
+                parts.Add(new(value[cursor..open], null));
+            }
+
+            int close = value.IndexOf('}', open + 1);
+            if (close < 0)
+            {
+                // The upstream component assumes balanced placeholders.  A
+                // malformed localization must remain harmless rather than
+                // throwing during SSR, so retain it as literal text.
+                parts.Add(new(value[open..], null));
+                break;
+            }
+
+            parts.Add(new(null, value[(open + 1)..close]));
+            cursor = close + 1;
+        }
+
+        if (value.Length == 0)
+        {
+            parts.Add(new(string.Empty, null));
+        }
+
+        return parts;
+    }
+
+    private static string SafeTag(string? tag) => tag switch
+    {
+        "div" or "p" or "span" or "strong" or "em" or "small" or "label" or "section" => tag,
+        _ => "span",
+    };
+
+    private sealed record I18nPart(string? Text, string? Slot);
+}

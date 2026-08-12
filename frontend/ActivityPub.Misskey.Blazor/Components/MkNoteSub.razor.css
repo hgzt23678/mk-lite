@@ -1,0 +1,66 @@
+.wrpstxzv {
+    padding: 16px 32px;
+    font-size: .9em;
+}
+
+.wrpstxzv.max-width_450px {
+    padding: 14px 16px;
+}
+
+.wrpstxzv.children {
+    padding: 10px 0 0 16px;
+    font-size: 1em;
+}
+
+.wrpstxzv.children.max-width_450px {
+    padding: 10px 0 0 8px;
+}
+
+.wrpstxzv > .main {
+    display: flex;
+}
+
+.wrpstxzv > .main > ::deep .avatar {
+    flex-shrink: 0;
+    display: block;
+    margin: 0 8px 0 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+}
+
+.wrpstxzv > .main > .body {
+    flex: 1;
+    min-width: 0;
+}
+
+.wrpstxzv > .main > .body > ::deep .header {
+    margin-bottom: 2px;
+}
+
+.wrpstxzv > .main > .body > .body > .cw {
+    cursor: default;
+    display: block;
+    margin: 0;
+    padding: 0;
+    overflow-wrap: break-word;
+}
+
+.wrpstxzv > .main > .body > .body > .cw > ::deep .text {
+    margin-right: 8px;
+}
+
+.wrpstxzv > .main > .body > .body > .content > ::deep .text {
+    margin: 0;
+    padding: 0;
+}
+
+.wrpstxzv > .reply,
+.wrpstxzv > .more {
+    border-left: solid .5px var(--divider);
+    margin-top: 10px;
+}
+
+.wrpstxzv > .more {
+    padding: 10px 0 0 16px;
+}

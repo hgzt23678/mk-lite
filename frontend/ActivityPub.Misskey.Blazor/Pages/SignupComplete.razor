@@ -1,0 +1,176 @@
+@page "/signup-complete"
+@page "/signup-complete/{Code}"
+@implements IAsyncDisposable
+@inject IPasswordResetFormInterop EmailConfirmationInterop
+@inject IMisskeyLocalizer Localizer
+@inject NavigationManager Navigation
+
+<PageTitle>@Localizer.Translate("signup")</PageTitle>
+
+<div>@Localizer.Translate("processing")</div>
+<form @ref="formElement"
+      method="post"
+      action="/auth/email-confirmation/complete"
+      hidden>
+    <AntiforgeryToken />
+    <input type="hidden" name="confirmationToken" value="" />
+</form>
+
+@if (showPrompt)
+{
+    <MkAlertDialog Type="info"
+                   AccessibleLabel="@Localizer.Translate("email")"
+                   Text="@ConfirmationPrompt"
+                   AcknowledgementLabel="@Localizer.Translate("gotIt")"
+                   Acknowledged="ConfirmAsync"
+                   Closed="PromptClosedAsync" />
+}
+else if (FailureMessage is string failureMessage)
+{
+    <MkAlertDialog Type="error"
+                   AccessibleLabel="@Localizer.Translate("error")"
+                   Text="@failureMessage"
+                   AcknowledgementLabel="@Localizer.Translate("gotIt")"
+                   Closed="FailureClosedAsync" />
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference formElement;
+    private DotNetObjectReference<SignupComplete>? receiver;
+    private IJSObjectReference? attachment;
+    private bool showPrompt;
+    private string? failureMessageKey;
+    private bool confirmAfterPromptClose;
+    private bool disposed;
+
+    [CascadingParameter(Name = "MisskeyLocaleRevision")]
+    private long LocaleRevision { get; set; }
+
+    [Parameter]
+    public string? Code { get; set; }
+
+    private string ConfirmationPrompt => Localizer.Translate(
+        "clickToFinishEmailVerification",
+        new Dictionary<string, object?> { ["ok"] = Localizer.Translate("gotIt") });
+
+    private string? FailureMessage => failureMessageKey is null ? null : Localizer.Translate(failureMessageKey);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            attachment = await EmailConfirmationInterop.AttachEmailConfirmationAsync(
+                formElement,
+                receiver,
+                lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task NotifyConfirmationReady()
+    {
+        showPrompt = true;
+        failureMessageKey = null;
+        confirmAfterPromptClose = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task NotifyMissingToken() => NotifyConfirmationFailure("INVALID_OR_EXPIRED_TOKEN");
+
+    [JSInvokable]
+    public Task NotifyConfirmationFailure(string safeErrorCode)
+    {
+        failureMessageKey = safeErrorCode == "INVALID_OR_EXPIRED_TOKEN"
+            ? "invalidValue"
+            : "error";
+
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task ConfirmAsync()
+    {
+        confirmAfterPromptClose = true;
+        return Task.CompletedTask;
+    }
+
+    private async Task PromptClosedAsync()
+    {
+        showPrompt = false;
+        await InvokeAsync(StateHasChanged);
+        if (!confirmAfterPromptClose || attachment is null)
+        {
+            return;
+        }
+
+        confirmAfterPromptClose = false;
+        try
+        {
+            string? redirectUrl = await attachment.InvokeAsync<string?>("confirm", lifetime.Token);
+            if (redirectUrl is not null)
+            {
+                if (redirectUrl.Equals("/", StringComparison.Ordinal) ||
+                    redirectUrl.StartsWith("/", StringComparison.Ordinal))
+                {
+                    Navigation.NavigateTo(redirectUrl);
+                }
+                else
+                {
+                    await NotifyConfirmationFailure("EMAIL_CONFIRMATION_FAILED");
+                }
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private Task FailureClosedAsync()
+    {
+        failureMessageKey = null;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+}

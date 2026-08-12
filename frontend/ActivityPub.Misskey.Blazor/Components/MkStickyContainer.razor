@@ -1,0 +1,207 @@
+@implements IAsyncDisposable
+@inject IStickyContainerInterop StickyInterop
+
+<div @ref="root" class="@AdditionalClass" style="@AdditionalStyle" @attributes="AttributesWithoutClassAndStyle">
+    <div @ref="header" style="position: sticky; top: var(--stickyTop, 0); z-index: 1000;">
+        @Header
+    </div>
+    <CascadingValue Value="childOffset" IsFixed="true">
+        <div @ref="body"
+             data-sticky-container-header-height="@HeaderHeightCss"
+             style="--stickyTop: @ChildTopCss">
+            @ChildContent
+        </div>
+    </CascadingValue>
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private readonly StickyOffsetContext childOffset = new();
+    private ElementReference root;
+    private ElementReference header;
+    private ElementReference body;
+    private DotNetObjectReference<MkStickyContainer>? receiver;
+    private IJSObjectReference? attachment;
+    private Task? attachmentTask;
+    private double parentTop;
+    private double headerHeight;
+    private bool headerMeasured;
+    private bool disposed;
+
+    [CascadingParameter]
+    private StickyOffsetContext? ParentOffset { get; set; }
+
+    [Parameter]
+    public RenderFragment? Header { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string ChildTopCss => $"{(parentTop + headerHeight).ToString("0.###", CultureInfo.InvariantCulture)}px";
+    private string? HeaderHeightCss => headerMeasured
+        ? headerHeight.ToString("0.###", CultureInfo.InvariantCulture)
+        : null;
+
+    protected override void OnInitialized()
+    {
+        parentTop = ParentOffset?.Top ?? 0;
+        if (ParentOffset is not null)
+        {
+            ParentOffset.Changed += ParentChanged;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        attachmentTask = AttachAsync();
+        await attachmentTask;
+    }
+
+    private async Task AttachAsync()
+    {
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            IJSObjectReference result = await StickyInterop.AttachAsync(
+                root,
+                header,
+                body,
+                parentTop,
+                receiver,
+                lifetime.Token);
+            if (disposed)
+            {
+                await DisposeAttachmentAsync(result);
+                return;
+            }
+
+            attachment = result;
+        }
+        catch (OperationCanceledException) when (disposed || lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task UpdateStickyHeaderHeight(double value, double observedParentTop)
+    {
+        if (disposed)
+        {
+            return Task.CompletedTask;
+        }
+
+        double next = double.IsFinite(value) ? Math.Max(0, value) : 0;
+        double nextParentTop = double.IsFinite(observedParentTop) ? Math.Max(0, observedParentTop) : 0;
+        if (headerMeasured &&
+            Math.Abs(headerHeight - next) < 0.5 &&
+            Math.Abs(parentTop - nextParentTop) < 0.5)
+        {
+            return Task.CompletedTask;
+        }
+
+        headerMeasured = true;
+        parentTop = nextParentTop;
+        headerHeight = next;
+        childOffset.Set(parentTop + headerHeight);
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private void ParentChanged(double value) => _ = InvokeAsync(async () =>
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        parentTop = double.IsFinite(value) ? Math.Max(0, value) : 0;
+        childOffset.Set(parentTop + headerHeight);
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("setParentTop", lifetime.Token, value);
+            }
+            catch (OperationCanceledException) when (disposed || lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+        StateHasChanged();
+    });
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        if (ParentOffset is not null)
+        {
+            ParentOffset.Changed -= ParentChanged;
+        }
+        await lifetime.CancelAsync();
+        if (attachmentTask is not null)
+        {
+            try
+            {
+                await attachmentTask;
+            }
+            catch (OperationCanceledException) when (disposed || lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+        if (attachment is not null)
+        {
+            await DisposeAttachmentAsync(attachment);
+        }
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        try
+        {
+            await handle.InvokeVoidAsync("dispose");
+            await handle.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private string? AdditionalClass => ReadAdditionalAttribute("class");
+
+    private string? AdditionalStyle => ReadAdditionalAttribute("style");
+
+    private string? ReadAdditionalAttribute(string name) =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue(name, out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute =>
+                !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+}

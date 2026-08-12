@@ -1,0 +1,45 @@
+@page "/__test/components/form-suspense"
+@rendermode InteractiveServer
+
+<main data-contract="form-suspense">
+    <button type="button" data-contract="reject" @onclick="Reject">reject</button>
+    <button type="button" data-contract="resolve" @onclick="Resolve">resolve</button>
+    <section data-contract="host">
+        <MkFormSuspense TResult="string" P="process" class="fixture" data-suspense-branch>
+            <ChildContent Context="result">
+                <output data-contract="result">@result</output>
+            </ChildContent>
+        </MkFormSuspense>
+    </section>
+</main>
+
+@code {
+    private TaskCompletionSource<string>? current;
+    private Func<CancellationToken, Task<string>> process = default!;
+    private int attempt;
+
+    protected override void OnInitialized()
+    {
+        process = LoadAsync;
+    }
+
+    private Task<string> LoadAsync(CancellationToken cancellationToken)
+    {
+        int nextAttempt = checked(++attempt);
+        current = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        return AwaitResultAsync(current.Task, nextAttempt, cancellationToken);
+    }
+
+    private static async Task<string> AwaitResultAsync(
+        Task<string> pending,
+        int attemptNumber,
+        CancellationToken cancellationToken)
+    {
+        string result = await pending.WaitAsync(cancellationToken);
+        return $"{result}-{attemptNumber}";
+    }
+
+    private void Reject() => current?.TrySetException(new InvalidOperationException("browser fixture rejection"));
+
+    private void Resolve() => current?.TrySetResult("resolved");
+}

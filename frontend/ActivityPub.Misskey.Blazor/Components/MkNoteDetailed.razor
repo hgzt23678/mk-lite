@@ -1,0 +1,556 @@
+@implements IAsyncDisposable
+@inject IElementSizeInterop ElementSize
+@inject INoteDetailedInterop Browser
+@inject IAuthenticatedActorContext ActorContext
+@inject ICurrentAccountPresentationService CurrentAccount
+@inject ITimelinePresentationService Timeline
+@inject INoteDeletionPresentationService Deletion
+@inject IMisskeyOverlayService Overlays
+@inject IMisskeyLocalizer Localizer
+@inject NavigationManager Navigation
+
+@if (!muted)
+{
+    <div @ref="root"
+         class="@RootClass"
+         style="@RootStyle"
+         tabindex="@RootTabIndex"
+         data-note-id="@RenderedNote.Id"
+         @attributes="AttributesWithoutClassStyleAndTabIndex">
+        @if (Conversation is not null)
+        {
+            @foreach (NoteViewModel conversationNote in Conversation)
+            {
+                <MkNoteSub @key="conversationNote.Id" Note="conversationNote" class="reply-to-more" />
+            }
+        }
+        @if (AppearNote.Reply is not null)
+        {
+            <MkNoteSub Note="AppearNote.Reply" class="reply-to" />
+        }
+        @if (IsRenote)
+        {
+            <div class="renote">
+                <MkAvatar CssClass="avatar" User="RenderedNote.Author" />
+                <i class="fas fa-retweet"></i>
+                <span>@RenotedByPrefix<a class="name" href="@UserHref(RenderedNote.Author)" data-user-preview="@RenderedNote.Author.Id"><MkUserName User="RenderedNote.Author" /></a>@RenotedBySuffix</span>
+                <div class="info">
+                    <button @ref="renoteTime" class="_button time" type="button" @onclick="ShowRenoteMenu">
+                        @if (isMyRenote)
+                        {
+                            <i class="fas fa-ellipsis-h dropdownIcon"></i>
+                        }
+                        <MkTime Time="RenderedNote.CreatedAt" />
+                    </button>
+                    <MkVisibility Note="RenderedNote" />
+                </div>
+            </div>
+        }
+        <article class="article">
+            <header class="header">
+                <MkAvatar CssClass="avatar" User="AppearNote.Author" ShowIndicator="true" />
+                <div class="body">
+                    <div class="top">
+                        <a class="name" href="@UserHref(AppearNote.Author)" data-user-preview="@AppearNote.Author.Id"><MkUserName User="AppearNote.Author" /></a>
+                        @if (AppearNote.Author.IsBot)
+                        {
+                            <span class="is-bot">bot</span>
+                        }
+                        <div class="info"><MkVisibility Note="AppearNote" /></div>
+                    </div>
+                    <div class="username"><MkAcct User="AppearNote.Author" /></div>
+                </div>
+            </header>
+            <div class="main">
+                <div class="body">
+                    @if (AppearNote.ContentWarning is not null)
+                    {
+                        <p class="cw">
+                            @if (AppearNote.ContentWarning.Length > 0)
+                            {
+                                <MfmView CssClass="text" Text="@(AppearNote.ContentWarning!)" CustomEmojis="AppearNote.Emojis" />
+                            }
+                            <MkCwButton @bind-Expanded="showContent" Note="AppearNote" />
+                        </p>
+                    }
+                    <div class="content" style="@ContentVisibilityStyle">
+                        <div class="text">
+                            @if (AppearNote.IsHidden)
+                            {
+                                <span style="opacity: 0.5">(@Localizer.Translate("private"))</span>
+                            }
+                            @if (AppearNote.ReplyId is not null)
+                            {
+                                <a class="reply" href="@NoteHref(AppearNote.ReplyId)"><i class="fas fa-reply"></i></a>
+                            }
+                            @if (!string.IsNullOrEmpty(AppearNote.Text))
+                            {
+                                <MfmView Text="@AppearNote.Text" CustomEmojis="AppearNote.Emojis" />
+                            }
+                            @if (AppearNote.Renote is not null)
+                            {
+                                <a class="rp">RN:</a>
+                            }
+                        </div>
+                        @if (AppearNote.Media.Count > 0)
+                        {
+                            <div class="files"><MkMediaList Media="AppearNote.Media" /></div>
+                        }
+                        @if (AppearNote.Poll is not null)
+                        {
+                            <MkPoll class="poll" NoteId="@AppearNote.Id" Poll="AppearNote.Poll" CustomEmojis="AppearNote.Emojis" />
+                        }
+                        @if (AppearNote.Renote is not null)
+                        {
+                            <div class="renote"><MkNoteSimple Note="AppearNote.Renote" /></div>
+                        }
+                    </div>
+                </div>
+                <footer class="footer">
+                    <div class="info">
+                        <a class="created-at" href="@NoteHref(AppearNote.Id)"><MkTime Time="AppearNote.CreatedAt" Mode="detail" /></a>
+                    </div>
+                    <MkReactionsViewer Note="AppearNote" ReactionSelected="OnReactionSelectedAsync" />
+                    <button class="button _button" type="button" title="@Localizer.Translate("reply")" @onclick="() => RequestReplyAsync(false)">
+                        <i class="@(AppearNote.Reply is null ? "fas fa-reply" : "fas fa-reply-all")"></i>
+                        @if (AppearNote.RepliesCount > 0)
+                        {
+                            <p class="count">@AppearNote.RepliesCount</p>
+                        }
+                    </button>
+                    <MkRenoteButton @ref="renoteButton"
+                                    class="button"
+                                    Note="AppearNote"
+                                    Count="AppearNote.RenotesCount"
+                                    RenoteRequested="RequestRenoteAsync" />
+                    @if (AppearNote.ViewerReaction is null)
+                    {
+                        <button @ref="reactionButton" class="button _button" type="button" @onclick="() => ShowReactionPickerAsync(false)"><i class="fas fa-plus"></i></button>
+                    }
+                    else
+                    {
+                        <button @ref="reactionButton" class="button _button reacted" type="button" @onclick="UndoReactionAsync"><i class="fas fa-minus"></i></button>
+                    }
+                    <button @ref="menuButton" class="button _button" type="button" title="@Localizer.Translate("more")" @onclick="() => ShowNoteMenu(false)"><i class="fas fa-ellipsis-h"></i></button>
+                </footer>
+            </div>
+        </article>
+        @if (Replies is not null)
+        {
+            @foreach (NoteViewModel reply in Replies)
+            {
+                <MkNoteSub @key="reply.Id" Note="reply" class="reply" Depth="2" />
+            }
+        }
+    </div>
+}
+else
+{
+    <div class="@MutedClass" style="@AdditionalStyle" @onclick="Unmute" @attributes="AttributesWithoutClassStyleAndTabIndex">
+        <small>@MutedByPrefix<a class="name" href="@UserHref(AppearNote.Author)" data-user-preview="@AppearNote.Author.Id"><MkUserName User="AppearNote.Author" /></a>@MutedBySuffix</small>
+    </div>
+}
+
+@code {
+    private const string Marker = "\uE000";
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference root;
+    private ElementReference reactionButton;
+    private ElementReference menuButton;
+    private ElementReference renoteTime;
+    private MkRenoteButton? renoteButton;
+    private DotNetObjectReference<MkNoteDetailed>? receiver;
+    private IJSObjectReference? sizeObservation;
+    private IJSObjectReference? behaviorAttachment;
+    private NoteViewModel? parameterReference;
+    private NoteViewModel renderedNote = null!;
+    private double width = double.PositiveInfinity;
+    private bool showContent;
+    private bool muted;
+    private bool isMyRenote;
+    private bool attached;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public NoteViewModel Note { get; set; } = null!;
+
+    [Parameter]
+    public bool Pinned { get; set; }
+
+    [Parameter]
+    public bool Muted { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<NoteViewModel>? Conversation { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<NoteViewModel>? Replies { get; set; }
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter]
+    public EventCallback<NoteViewModel> ReplyRequested { get; set; }
+
+    [Parameter]
+    public EventCallback<NoteViewModel> RenoteRequested { get; set; }
+
+    [Parameter]
+    public EventCallback<(NoteViewModel Note, string Reaction)> ReactionRequested { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private NoteViewModel RenderedNote => renderedNote;
+    private bool IsRenote => IsPureRenote(RenderedNote);
+    private NoteViewModel AppearNote => IsRenote ? RenderedNote.Renote! : RenderedNote;
+    private bool IsDeleted => RenderedNote.DeletedAt is not null;
+    private string? RootTabIndex => IsDeleted ? null : "-1";
+    private string RootClass => string.Join(' ', new[]
+    {
+        "lxwezrsl",
+        "_block",
+        IsRenote ? "renote" : null,
+        width <= 500 ? "max-width_500px" : null,
+        width <= 450 ? "max-width_450px" : null,
+        width <= 350 ? "max-width_350px" : null,
+        width <= 300 ? "max-width_300px" : null,
+        CssClass,
+        ReadAdditional("class")
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string MutedClass => string.Join(' ', new[] { "_panel", "muted", CssClass, ReadAdditional("class") }.Where(value => !string.IsNullOrWhiteSpace(value)));
+    private string? RootStyle => string.Join(' ', new[] { IsDeleted ? "display: none;" : null, AdditionalStyle }.Where(value => !string.IsNullOrWhiteSpace(value))) is { Length: > 0 } value ? value : null;
+    private string? AdditionalStyle => ReadAdditional("style");
+    private string? ContentVisibilityStyle => AppearNote.ContentWarning is not null && !showContent ? "display: none;" : null;
+    private (string Prefix, string Suffix) RenotedByParts => SplitLocalized("renotedBy", "user");
+    private string RenotedByPrefix => RenotedByParts.Prefix;
+    private string RenotedBySuffix => RenotedByParts.Suffix;
+    private (string Prefix, string Suffix) MutedByParts => SplitLocalized("userSaysSomething", "name");
+    private string MutedByPrefix => MutedByParts.Prefix;
+    private string MutedBySuffix => MutedByParts.Suffix;
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClassStyleAndTabIndex => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute =>
+                !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(attribute.Key, "style", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(attribute.Key, "tabindex", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(parameterReference, Note))
+        {
+            return;
+        }
+
+        bool noteChanged = renderedNote is null || !string.Equals(renderedNote.Id, Note.Id, StringComparison.Ordinal);
+        parameterReference = Note;
+        renderedNote = Note;
+        if (noteChanged)
+        {
+            showContent = false;
+            muted = Muted || AppearNote.IsMuted;
+        }
+        else if (Muted || AppearNote.IsMuted)
+        {
+            muted = true;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _ = firstRender;
+        if (disposed || muted || attached)
+        {
+            return;
+        }
+
+        attached = true;
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            sizeObservation = await ElementSize.ObserveAsync(root, receiver, lifetime.Token).ConfigureAwait(false);
+            behaviorAttachment = await Browser.AttachAsync(root, receiver, lifetime.Token).ConfigureAwait(false);
+            AuthenticatedActor? actor = await ActorContext.FindAsync(lifetime.Token).ConfigureAwait(false);
+            if (actor is not null)
+            {
+                NoteAuthorViewModel current = await CurrentAccount.GetAsync(lifetime.Token).ConfigureAwait(false);
+                isMyRenote = IsRenote && string.Equals(current.Id, RenderedNote.Author.Id, StringComparison.Ordinal);
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task UpdateElementSize(double nextWidth, int viewportWidth)
+    {
+        _ = viewportWidth;
+        if (disposed || Math.Abs(width - nextWidth) < .5)
+        {
+            return Task.CompletedTask;
+        }
+
+        width = nextWidth;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task HandleNoteHotkeyAsync(string action)
+    {
+        switch (action)
+        {
+            case "reply":
+                await RequestReplyAsync(true);
+                break;
+            case "react":
+                await ShowReactionPickerAsync(true);
+                break;
+            case "renote":
+                if (renoteButton is not null)
+                {
+                    await renoteButton.OpenMenuAsync(openedViaKeyboard: true);
+                }
+                break;
+            case "menu":
+                ShowNoteMenu(openedViaKeyboard: true);
+                break;
+            case "toggle-content":
+                showContent = !showContent;
+                StateHasChanged();
+                break;
+        }
+    }
+
+    [JSInvokable]
+    public Task ShowNoteContextMenuAsync()
+    {
+        ShowNoteMenu(openedViaKeyboard: false);
+        return Task.CompletedTask;
+    }
+
+    private async Task RequestReplyAsync(bool openedViaKeyboard)
+    {
+        _ = openedViaKeyboard;
+        if (!await EnsureAuthenticatedAsync())
+        {
+            return;
+        }
+
+        if (ReplyRequested.HasDelegate)
+        {
+            await ReplyRequested.InvokeAsync(AppearNote);
+            return;
+        }
+
+        Overlays.ShowPostForm(new MisskeyPostFormOptions(Reply: AppearNote));
+    }
+
+    private async Task RequestRenoteAsync(NoteViewModel note)
+    {
+        if (RenoteRequested.HasDelegate)
+        {
+            await RenoteRequested.InvokeAsync(note);
+            return;
+        }
+
+        try
+        {
+            await Timeline.RenoteAsync(note.Id, CreateIdempotencyKey("renote"), lifetime.Token).ConfigureAwait(false);
+        }
+        catch (FrontendAuthenticationException exception)
+        {
+            ShowSignIn(exception.ErrorCode);
+        }
+        catch (InvalidOperationException)
+        {
+            ShowOperationFailure("RENOTE_FAILED");
+        }
+    }
+
+    private async Task ShowReactionPickerAsync(bool openedViaKeyboard)
+    {
+        _ = openedViaKeyboard;
+        if (!await EnsureAuthenticatedAsync())
+        {
+            return;
+        }
+
+        Overlays.ShowEmojiPicker(
+            reactionButton,
+            reaction => RequestReactionAsync(AppearNote, reaction),
+            asReactionPicker: true,
+            AppearNote.Emojis.Select(emoji => new EmojiPickerCustomEmoji(emoji.Key, emoji.Value, Category: null, Aliases: [])).ToArray());
+    }
+
+    private Task UndoReactionAsync() => RequestReactionAsync(AppearNote, AppearNote.ViewerReaction!);
+
+    private async Task RequestReactionAsync(NoteViewModel note, string reaction)
+    {
+        if (ReactionRequested.HasDelegate)
+        {
+            await ReactionRequested.InvokeAsync((note, reaction));
+            return;
+        }
+
+        try
+        {
+            bool remove = string.Equals(note.ViewerReaction, reaction, StringComparison.Ordinal);
+            NoteViewModel result = await Timeline.ReactAsync(note.Id, reaction, remove, CreateIdempotencyKey("reaction"), lifetime.Token).ConfigureAwait(false);
+            renderedNote = result;
+            parameterReference = result;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (FrontendAuthenticationException exception)
+        {
+            ShowSignIn(exception.ErrorCode);
+        }
+        catch (InvalidOperationException)
+        {
+            ShowOperationFailure("REACTION_FAILED");
+        }
+    }
+
+    private Task OnReactionSelectedAsync(string reaction) => RequestReactionAsync(AppearNote, reaction);
+
+    private void ShowNoteMenu(bool openedViaKeyboard) => Overlays.ShowPopupMenu(
+        menuButton,
+        [
+            MisskeyMenuItem.Link(Localizer.Translate("details"), "fas fa-external-link-square-alt", NoteHref(AppearNote.Id)),
+            new MisskeyMenuItem(MisskeyMenuItemKind.Action, Localizer.Translate("reply"), "fas fa-reply", Action: () => RequestReplyAsync(openedViaKeyboard))
+        ],
+        openedViaKeyboard,
+        closed: FocusAsync);
+
+    private void ShowRenoteMenu()
+    {
+        if (!isMyRenote)
+        {
+            return;
+        }
+
+        Overlays.ShowPopupMenu(
+            renoteTime,
+            [new MisskeyMenuItem(MisskeyMenuItemKind.Action, Localizer.Translate("unrenote"), "fas fa-trash-alt", Danger: true, Action: DeleteRenoteAsync)],
+            openedViaKeyboard: false,
+            closed: FocusAsync);
+    }
+
+    private async Task DeleteRenoteAsync()
+    {
+        try
+        {
+            await Deletion.DeleteAsync(RenderedNote, CreateIdempotencyKey("unrenote"), lifetime.Token).ConfigureAwait(false);
+            renderedNote = RenderedNote with { DeletedAt = DateTimeOffset.UtcNow };
+            parameterReference = renderedNote;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (FrontendAuthenticationException exception)
+        {
+            ShowSignIn(exception.ErrorCode);
+        }
+        catch (InvalidOperationException)
+        {
+            ShowOperationFailure("UNRENOTE_FAILED");
+        }
+    }
+
+    private async Task<bool> EnsureAuthenticatedAsync()
+    {
+        try
+        {
+            if (await ActorContext.FindAsync(lifetime.Token).ConfigureAwait(false) is not null)
+            {
+                return true;
+            }
+        }
+        catch (FrontendAuthenticationException exception)
+        {
+            ShowSignIn(exception.ErrorCode);
+            return false;
+        }
+
+        ShowSignIn();
+        return false;
+    }
+
+    private void ShowSignIn(string? errorCode = null)
+    {
+        string returnUrl = new Uri(Navigation.Uri).PathAndQuery;
+        Overlays.ShowSignIn(returnUrl.StartsWith("/", StringComparison.Ordinal) ? returnUrl : "/", errorCode);
+    }
+
+    private void ShowOperationFailure(string errorCode) => Overlays.ShowAlert(new MisskeyAlertOptions(
+        "error",
+        Localizer.Translate("somethingHappened"),
+        errorCode,
+        errorCode,
+        Localizer.Translate("gotIt")));
+
+    private async Task FocusAsync()
+    {
+        if (behaviorAttachment is null || disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            await behaviorAttachment.InvokeVoidAsync("focus").ConfigureAwait(false);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private void Unmute() => muted = false;
+    private (string Prefix, string Suffix) SplitLocalized(string key, string argument)
+    {
+        string value = Localizer.Translate(key, new Dictionary<string, object?> { [argument] = Marker });
+        int marker = value.IndexOf(Marker, StringComparison.Ordinal);
+        return marker < 0 ? (string.Empty, value) : (value[..marker], value[(marker + Marker.Length)..]);
+    }
+    private string? ReadAdditional(string name) => AdditionalAttributes is not null && AdditionalAttributes.TryGetValue(name, out object? value) ? Convert.ToString(value, CultureInfo.InvariantCulture) : null;
+    private static string NoteHref(string id) => $"/notes/{Uri.EscapeDataString(id)}";
+    private static string UserHref(NoteAuthorViewModel user) => $"/@{Uri.EscapeDataString(user.Acct)}";
+    private static string CreateIdempotencyKey(string operation) => $"blazor-{operation}-{Guid.NewGuid():N}";
+    private static bool IsPureRenote(NoteViewModel note) => note.Renote is not null && string.IsNullOrEmpty(note.Text) && note.Media.Count == 0 && note.Poll is null;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        await DisposeHandleAsync(sizeObservation);
+        await DisposeHandleAsync(behaviorAttachment);
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static async ValueTask DisposeHandleAsync(IJSObjectReference? handle)
+    {
+        if (handle is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await handle.InvokeVoidAsync("dispose").ConfigureAwait(false);
+            await handle.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

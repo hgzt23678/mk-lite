@@ -1,0 +1,241 @@
+@implements IAsyncDisposable
+@inject IModalInterop ModalInterop
+@inject IMisskeyOverlayService Overlays
+
+<div @ref="modal"
+     class="@ModalClass"
+     role="presentation"
+     @onkeydown="OnKeyDown">
+    <div class="bg _modalBg transparent" @onclick="BeginClose"></div>
+    <div @ref="content" class="content" @onclick:stopPropagation="true">
+        <MkMenu Items="Items"
+                ViaKeyboard="ViaKeyboard"
+                AsDrawer="isDrawer"
+                Align="@Align"
+                Width="@EffectiveWidth"
+                MaxHeight="maximumHeight"
+                CssClass="@PopupClass"
+                Close="OnMenuCloseAsync" />
+    </div>
+</div>
+
+@code {
+    private ElementReference modal;
+    private ElementReference content;
+    private readonly CancellationTokenSource lifetime = new();
+    private DotNetObjectReference<MkPopupMenu>? receiver;
+    private IJSObjectReference? attachment;
+    private Task? attachmentTask;
+    private bool isDrawer;
+    private bool isClosing;
+    private bool disposed;
+    private double? maximumHeight;
+    private double? sourceWidth;
+
+    [Parameter, EditorRequired]
+    public Guid Id { get; set; }
+
+    [Parameter, EditorRequired]
+    public ElementReference Src { get; set; }
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<MisskeyMenuItem> Items { get; set; } = [];
+
+    [Parameter]
+    public bool ViaKeyboard { get; set; }
+
+    [Parameter]
+    public bool MatchSourceWidth { get; set; }
+
+    [Parameter]
+    public string? Align { get; set; }
+
+    [Parameter]
+    public double? Width { get; set; }
+
+    [Parameter]
+    public EventCallback Closed { get; set; }
+
+    private string ModalClass => string.Join(' ', new[]
+    {
+        "qzhlnise",
+        isDrawer ? "drawer" : "popup",
+        isDrawer ? "modal-drawer-enter-active" : "modal-popup-enter-active",
+        isClosing ? isDrawer ? "modal-drawer-leave-to" : "modal-popup-leave-to" : null
+    }.Where(value => value is not null));
+
+    private string PopupClass => isDrawer ? "sfhdhdhq drawer" : "sfhdhdhq";
+
+    private double? EffectiveWidth => Width ?? (MatchSourceWidth ? sourceWidth : null);
+
+    protected override void OnInitialized() => Overlays.RegisterCloseHandler(Id, BeginClose);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        attachmentTask = AttachAsync();
+        await attachmentTask;
+    }
+
+    private async Task AttachAsync()
+    {
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            ModalAttachment result = await ModalInterop.AttachAsync(
+                Src,
+                modal,
+                content,
+                ViaKeyboard,
+                receiver,
+                lifetime.Token);
+            if (disposed)
+            {
+                await DisposeAttachmentAsync(result.Handle);
+                return;
+            }
+
+            attachment = result.Handle;
+            isDrawer = result.IsDrawer;
+            maximumHeight = result.MaximumHeight;
+            sourceWidth = result.SourceWidth;
+            if (isClosing)
+            {
+                await CloseAttachmentAsync();
+                return;
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            if (!disposed)
+            {
+                Overlays.Close(Id);
+            }
+        }
+    }
+
+    private Task OnMenuCloseAsync(bool actioned)
+    {
+        _ = actioned;
+        return BeginClose();
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key is "Escape")
+        {
+            await BeginClose();
+        }
+    }
+
+    private async Task BeginClose()
+    {
+        if (isClosing)
+        {
+            return;
+        }
+
+        isClosing = true;
+        await InvokeAsync(StateHasChanged);
+        if (attachment is null)
+        {
+            // OnAfterRenderAsync can still be importing the modal module.  Removing this
+            // component here would dispose the DotNetObjectReference while JS interop is
+            // serializing it.  AttachAsync observes isClosing and closes immediately after
+            // the handle has been established.
+            return;
+        }
+
+        await CloseAttachmentAsync();
+    }
+
+    private async Task CloseAttachmentAsync()
+    {
+        if (attachment is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await attachment.InvokeVoidAsync("close");
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+            if (!disposed)
+            {
+                Overlays.Close(Id);
+            }
+        }
+    }
+
+    [JSInvokable]
+    public async Task NotifyClosed()
+    {
+        try
+        {
+            await Closed.InvokeAsync();
+        }
+        finally
+        {
+            Overlays.Close(Id);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        Overlays.UnregisterCloseHandler(Id);
+        await lifetime.CancelAsync();
+        if (attachmentTask is not null)
+        {
+            try
+            {
+                await attachmentTask;
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        if (attachment is not null)
+        {
+            await DisposeAttachmentAsync(attachment);
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private static async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        try
+        {
+            await handle.InvokeVoidAsync("dispose");
+            await handle.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}

@@ -1,0 +1,190 @@
+@using System.Text
+@implements IAsyncDisposable
+@inject IServiceProvider Services
+
+@if (IsCustom)
+{
+    <img @ref="element"
+         class="@CustomImageClass"
+         src="@SelectedCustomUrl"
+         alt="@Emoji"
+         title="@Emoji"
+         decoding="async"
+         @attributes="AttributesWithoutClass" />
+}
+else if (IsCustomSyntax)
+{
+    <span @ref="element" class="@FallthroughClass" @attributes="AttributesWithoutClass">@Emoji</span>
+}
+else if (!string.IsNullOrEmpty(Emoji) && !UseOsNativeEmoji)
+{
+    <img @ref="element"
+         class="@UnicodeImageClass"
+         src="@TwemojiUrl"
+         alt="@Emoji"
+         title="@Emoji"
+         decoding="async"
+         @attributes="AttributesWithoutClass" />
+}
+else
+{
+    <span @ref="element" class="@FallthroughClass" @attributes="AttributesWithoutClass">@Emoji</span>
+}
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference element;
+    private bool useOsNativeEmojis;
+    private bool disableShowingAnimatedImages;
+    private bool settingsLoaded;
+    private bool disposed;
+    private Task? settingsTask;
+
+    public ElementReference Element => element;
+
+    [Parameter, EditorRequired]
+    public string Emoji { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? CustomUrl { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<EmojiPickerCustomEmoji>? CustomEmojis { get; set; }
+
+    [Parameter]
+    public string? CssClass { get; set; }
+
+    [Parameter]
+    public bool Normal { get; set; }
+
+    [Parameter]
+    public bool NoStyle { get; set; }
+
+    [Parameter]
+    public bool IsReaction { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string? SafeCustomUrl => SameOriginMediaUrl.Normalize(ResolvedCustomUrl);
+
+    private string? ResolvedCustomUrl => CustomUrl ?? CustomEmojis?.FirstOrDefault(
+        candidate => string.Equals(candidate.Name, CustomEmojiName, StringComparison.Ordinal))?.Url;
+
+    private string? SelectedCustomUrl => SafeCustomUrl is null
+        ? null
+        : disableShowingAnimatedImages ? AppendStaticQuery(SafeCustomUrl) : SafeCustomUrl;
+
+    private bool IsCustomSyntax => Emoji.Length > 2 && Emoji[0] == ':' && Emoji[^1] == ':';
+
+    private bool IsCustom => IsCustomSyntax && SafeCustomUrl is not null;
+
+    private bool UseOsNativeEmoji => useOsNativeEmojis && !IsReaction;
+
+    private string CustomEmojiName => IsCustomSyntax ? Emoji[1..^1] : string.Empty;
+
+    private string CustomImageClass => string.Join(' ', new[]
+    {
+        "mk-emoji",
+        "custom",
+        Normal ? "normal" : null,
+        NoStyle ? "noStyle" : null,
+        FallthroughClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string UnicodeImageClass => string.Join(' ', new[] { "mk-emoji", FallthroughClass }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? FallthroughClass => string.Join(' ', new[] { CssClass, AdditionalClass }
+        .Where(value => !string.IsNullOrWhiteSpace(value))) is { Length: > 0 } value ? value : null;
+
+    private string? AdditionalClass => AdditionalAttributes is not null &&
+        AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private string TwemojiUrl => $"/_content/ActivityPub.Misskey.Blazor/twemoji/{TwemojiFileName(Emoji)}.svg";
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || settingsLoaded || disposed || lifetime.IsCancellationRequested)
+        {
+            return Task.CompletedTask;
+        }
+
+        settingsLoaded = true;
+        if (Services.GetService(typeof(IPizzaxDeviceState)) is not IPizzaxDeviceState deviceState)
+        {
+            return Task.CompletedTask;
+        }
+
+        settingsTask = LoadSettingsAsync(deviceState, lifetime.Token);
+        return settingsTask;
+    }
+
+    private async Task LoadSettingsAsync(IPizzaxDeviceState deviceState, CancellationToken cancellationToken)
+    {
+        try
+        {
+            bool nextUseNative = await deviceState.ReadAsync("useOsNativeEmojis", false, cancellationToken);
+            bool nextDisableAnimated = await deviceState.ReadAsync(
+                "disableShowingAnimatedImages",
+                false,
+                cancellationToken);
+            if (!disposed && !cancellationToken.IsCancellationRequested &&
+                (useOsNativeEmojis != nextUseNative || disableShowingAnimatedImages != nextDisableAnimated))
+            {
+                useOsNativeEmojis = nextUseNative;
+                disableShowingAnimatedImages = nextDisableAnimated;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public static string TwemojiFileName(string value)
+    {
+        int[] codePoints = value.EnumerateRunes().Select(rune => rune.Value).ToArray();
+        bool containsJoiner = codePoints.Contains(0x200d);
+        return string.Join('-', codePoints
+            .Where(codePoint => containsJoiner || codePoint != 0xfe0f)
+            .Select(codePoint => codePoint.ToString("x", CultureInfo.InvariantCulture)));
+    }
+
+    private static string AppendStaticQuery(string url) =>
+        url.Contains('?', StringComparison.Ordinal) ? url + "&static=1" : url + "?static=1";
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync().ConfigureAwait(false);
+        if (settingsTask is not null)
+        {
+            try
+            {
+                await settingsTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+            }
+        }
+
+        lifetime.Dispose();
+    }
+}

@@ -1,0 +1,69 @@
+@typeparam TValue
+
+<div class="@RootClass"
+     aria-checked="@(Checked ? "true" : "false")"
+     aria-disabled="@(Disabled ? "true" : "false")"
+     @onclick="ToggleAsync"
+     @attributes="AttributesWithoutClass">
+    <input type="radio" disabled="@Disabled" />
+    <span class="button">
+        <span></span>
+    </span>
+    <span class="label">@ChildContent</span>
+</div>
+
+@code {
+    [CascadingParameter]
+    private MisskeyFormRadiosContext<TValue>? Group { get; set; }
+
+    [Parameter]
+    public TValue ModelValue { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<TValue> ModelValueChanged { get; set; }
+
+    [Parameter, EditorRequired]
+    public TValue Value { get; set; } = default!;
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private bool Checked => EqualityComparer<TValue>.Default.Equals(
+        Group is null ? ModelValue : Group.Value,
+        Value);
+
+    private string RootClass => string.Join(' ', new[]
+    {
+        "novjtctn",
+        Disabled ? "disabled" : null,
+        Checked ? "checked" : null,
+        AdditionalClass
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string? AdditionalClass =>
+        AdditionalAttributes is not null && AdditionalAttributes.TryGetValue("class", out object? value)
+            ? Convert.ToString(value, CultureInfo.InvariantCulture)
+            : null;
+
+    private IReadOnlyDictionary<string, object>? AttributesWithoutClass => AdditionalAttributes is null
+        ? null
+        : AdditionalAttributes
+            .Where(attribute => !string.Equals(attribute.Key, "class", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.OrdinalIgnoreCase);
+
+    private Task ToggleAsync(MouseEventArgs args)
+    {
+        if (Disabled)
+        {
+            return Task.CompletedTask;
+        }
+
+        return Group is null ? ModelValueChanged.InvokeAsync(Value) : Group.SelectAsync(Value);
+    }
+}

@@ -1,0 +1,21 @@
+@page "/__test/components/widget-primitives"
+@rendermode InteractiveServer
+
+<main data-contract="widget-primitives">
+    <MkwMemo Widget="memo" />
+    <MkwUnixClock Widget="unixClock" />
+</main>
+
+@code {
+    private static readonly MisskeyWidgetModel memo = new()
+    {
+        Name = "memo",
+        Id = "memo-contract"
+    };
+
+    private static readonly MisskeyWidgetModel unixClock = new()
+    {
+        Name = "unixClock",
+        Id = "unix-clock-contract"
+    };
+}

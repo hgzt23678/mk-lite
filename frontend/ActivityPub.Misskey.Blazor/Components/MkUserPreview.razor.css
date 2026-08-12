@@ -1,0 +1,107 @@
+.popup-enter-active,
+.popup-leave-active {
+    transition: opacity 0.3s, transform 0.3s !important;
+}
+
+.popup-enter-from,
+.popup-leave-to {
+    opacity: 0;
+    transform: scale(0.9);
+}
+
+.fxxzrfni {
+    position: absolute;
+    width: 300px;
+    overflow: hidden;
+    transform-origin: center top;
+}
+
+.fxxzrfni > .info > .banner {
+    height: 84px;
+    background-color: rgba(0, 0, 0, 0.1);
+    background-size: cover;
+    background-position: center;
+}
+
+.fxxzrfni > .info > .banner > .followed {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    padding: 4px 8px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.7);
+    font-size: 0.7em;
+    border-radius: 6px;
+}
+
+.fxxzrfni > .info ::deep > .avatar {
+    display: block;
+    position: absolute;
+    top: 62px;
+    left: 13px;
+    z-index: 2;
+    width: 58px;
+    height: 58px;
+    border: solid 3px var(--face);
+    border-radius: 8px;
+}
+
+.fxxzrfni > .info > .title {
+    display: block;
+    padding: 8px 0 8px 82px;
+}
+
+.fxxzrfni > .info > .title > .name {
+    display: inline-block;
+    margin: 0;
+    font-weight: bold;
+    line-height: 16px;
+    word-break: break-all;
+}
+
+.fxxzrfni > .info > .title > .username {
+    display: block;
+    margin: 0;
+    line-height: 16px;
+    font-size: 0.8em;
+    color: var(--fg);
+    opacity: 0.7;
+}
+
+.fxxzrfni > .info > .description {
+    padding: 0 16px;
+    font-size: 0.8em;
+    color: var(--fg);
+}
+
+.fxxzrfni > .info > .status {
+    padding: 8px 16px;
+}
+
+.fxxzrfni > .info > .status > div {
+    display: inline-block;
+    width: 33%;
+}
+
+.fxxzrfni > .info > .status > div > p {
+    margin: 0;
+    font-size: 0.7em;
+    color: var(--fg);
+}
+
+.fxxzrfni > .info > .status > div > span {
+    font-size: 1em;
+    color: var(--accent);
+}
+
+.fxxzrfni > .info ::deep > .koudoku-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+}
+
+.fxxzrfni > .preview-error {
+    min-height: 84px;
+    padding: 24px 16px;
+    color: var(--error);
+}

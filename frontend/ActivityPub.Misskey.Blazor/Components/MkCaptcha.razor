@@ -1,0 +1,108 @@
+@implements IAsyncDisposable
+@inject ICaptchaInterop CaptchaInterop
+@inject IMisskeyLocalizer Localizer
+@inject IPizzaxDeviceState DeviceState
+
+<div @ref="root" @attributes="AdditionalAttributes">
+    @if (!available)
+    {
+        <span>@Localizer.Translate("waiting")<MkEllipsis /></span>
+    }
+    <div data-captcha-container></div>
+    <input type="hidden" name="@ResponseFieldName" data-captcha-response />
+</div>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference root;
+    private DotNetObjectReference<MkCaptcha>? receiver;
+    private IJSObjectReference? attachment;
+    private bool available;
+    private bool disposed;
+
+    [Parameter, EditorRequired]
+    public string Provider { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string SiteKey { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<bool> ResponseChanged { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public IReadOnlyDictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string ResponseFieldName => Provider switch
+    {
+        "hcaptcha" => "hcaptcha-response",
+        "recaptcha" => "g-recaptcha-response",
+        _ => string.Empty
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        if (Provider is not ("hcaptcha" or "recaptcha") || string.IsNullOrWhiteSpace(SiteKey))
+        {
+            throw new InvalidOperationException("A configured captcha provider and site key are required.");
+        }
+
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            bool darkMode = await DeviceState.ReadAsync("darkMode", false, lifetime.Token);
+            attachment = await CaptchaInterop.AttachAsync(
+                root,
+                receiver,
+                Provider,
+                SiteKey,
+                darkMode,
+                lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public async Task NotifyAvailable()
+    {
+        available = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task NotifyResponseChanged(bool hasResponse) => ResponseChanged.InvokeAsync(hasResponse);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            try
+            {
+                await attachment.InvokeVoidAsync("dispose");
+                await attachment.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+}

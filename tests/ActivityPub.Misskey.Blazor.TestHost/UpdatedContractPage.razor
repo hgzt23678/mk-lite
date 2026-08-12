@@ -1,0 +1,24 @@
+@page "/__test/components/updated"
+@rendermode InteractiveServer
+
+<main data-contract="mk-updated">
+    <button id="show-updated" type="button" @onclick="Show">Show update</button>
+    <output id="updated-closed-count">@closedCount</output>
+    @if (showing)
+    {
+        <MkUpdated Closed="OnClosed" />
+    }
+</main>
+
+@code {
+    private bool showing;
+    private int closedCount;
+
+    private void Show() => showing = true;
+
+    private void OnClosed()
+    {
+        closedCount++;
+        showing = false;
+    }
+}
