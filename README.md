@@ -1,79 +1,270 @@
-# mk-lite
+<p align="center">
+  <img src="frontend/misskey-v12/public/static-assets/splash.png" width="132" alt="mk-lite logo">
+</p>
 
-[![CI](https://github.com/hgzt23678/mk-lite/actions/workflows/ci.yml/badge.svg)](https://github.com/hgzt23678/mk-lite/actions/workflows/ci.yml)
-[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
+<h1 align="center">mk-lite</h1>
 
-`mk-lite`は、.NET 10、ASP.NET Core 10、PostgreSQLで構築するActivityPubサーバーです。
-耐久性のある連合処理と、Misskey v12の画面をBlazorへ移植したWebフロントエンドを同じリポジトリで開発しています。
+<p align="center">
+  PostgreSQLの耐久キューでActivityPubを運び、Misskey v12の画面をBlazorで提供する.NET製Fediverseサーバー
+</p>
+
+<p align="center">
+  <a href="https://github.com/hgzt23678/mk-lite/actions/workflows/ci.yml"><img src="https://github.com/hgzt23678/mk-lite/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet" alt=".NET 10">
+  <img src="https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL 17">
+  <img src="https://img.shields.io/badge/ActivityPub-Server--to--Server-6D4AFF?logo=activitypub&logoColor=white" alt="ActivityPub Server-to-Server">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg" alt="AGPL-3.0-only"></a>
+  <img src="https://img.shields.io/badge/status-active%20development-F59E0B" alt="Active development">
+</p>
+
+<p align="center">
+  <a href="#-mk-liteとは">概要</a>&nbsp; | &nbsp;
+  <a href="#-ローカルへインストール">インストール</a>&nbsp; | &nbsp;
+  <a href="#-アーキテクチャ">構成</a>&nbsp; | &nbsp;
+  <a href="#-現在の対応範囲">対応範囲</a>&nbsp; | &nbsp;
+  <a href="#-開発とテスト">開発</a>&nbsp; | &nbsp;
+  <a href="#-関連文書">文書</a>
+</p>
 
 > [!WARNING]
-> このプロジェクトは開発中です。
-> Mastodon API、Misskey API、Misskey v12フロントエンドの完全互換や、本番導入の準備完了を宣言するものではありません。
+> mk-liteは活発に開発中です。
+> Mastodon API、Misskey API、Misskey v12フロントエンドの完全互換や、本番導入の準備完了は宣言していません。
+> 対応範囲はルートの存在ではなく、自動試験と実インスタンス試験の証拠に基づいて公開します。
 
-## 提供する機能
+## 🌱 mk-liteとは
 
-- ActivityPubのInbox、Outbox、Actor、Object、Collectionを扱います。
-- Create、Update、Delete、Follow、Accept、Reject、Like、Announce、Undo、Blockの受信と送信を実装しています。
-- Inboxの重複排除、配送の再試行、リース、Dead LetterをPostgreSQLへ永続化します。
-- Public、Unlisted、Followers-only、Mentioned-onlyの可視性と、署名付きprivate dereferenceを扱います。
-- S3互換ストレージ、ClamAV、ffmpegを使ったメディア検査、変換、キャッシュを提供します。
-- ローカルアカウント、セッションCookie、MiAuth、権限付きアプリトークンを提供します。
-- APIとWorkerを分離し、それぞれを水平に増やせる構成を採用しています。
-- OpenTelemetry、readiness、配送停止、監査、バックアップと復旧の運用境界を備えています。
+mk-liteは、複数ユーザーと複数プロセスで動かせるActivityPubサーバーです。
+Inboxの受付、Activityの副作用、配送先ごとの再試行を分離し、配送ジョブの正本をPostgreSQLへ保存します。
 
-実装済みの範囲と自動試験、外部実装との接続結果は[仕様適合表](docs/CONFORMANCE.md)で区別しています。
+Web画面には、Misskey 12.119.2のDOM、CSS、画面遷移を参照してBlazorへ移植したフロントエンドを使います。
+本番の実行経路はASP.NET Coreのstatic SSRとInteractive Server Blazorで構成し、Vueランタイムを読み込みません。
 
-## 互換性の境界
+<table>
+  <tr>
+    <td width="33%" align="center">
+      <h3>🌐 耐久性のある連合</h3>
+      <p>Inboxの重複排除、配送リース、指数バックオフ、Dead LetterをPostgreSQLへ記録します。</p>
+    </td>
+    <td width="33%" align="center">
+      <h3>🎨 Misskey v12 UI</h3>
+      <p>対応機能では元のDOM、CSS class、テーマ、モーション、レスポンシブ挙動をBlazorへ移植します。</p>
+    </td>
+    <td width="33%" align="center">
+      <h3>🛡️ 運用を考えた境界</h3>
+      <p>HTTP署名、SSRF防御、Vault鍵管理、S3メディア、監査、OpenTelemetryを独立した責務に分けます。</p>
+    </td>
+  </tr>
+</table>
 
-フロントエンドとバックエンドは、別の参照実装を基準にしています。
+### 主な機能
 
-- **画面の基準**：Misskey v12.119.2のDOM、CSS、画面挙動を参照します。
-- **バックエンドの基準**：`mei23/dolphin`のAPI、永続化、認可、連合挙動を参照します。
-- **本番フロントエンド**：ASP.NET Coreのstatic SSRとInteractive Server Blazorで動作します。
-- **比較用Vueコード**：移植の比較とinventory生成にだけ使い、本番の実行経路には含めません。
+- Actor、Object、Inbox、Outbox、Collectionを含むActivityPub Server-to-Server機能
+- Create、Update、Delete、Follow、Accept、Reject、Like、Announce、Undo、Blockの受信と送信
+- Public、Unlisted、Followers-only、Mentioned-onlyの可視性と署名付きprivate dereference
+- Cavage HTTP SignaturesとRFC 9421の受信検証、Actorごとの鍵管理
+- S3互換ストレージ、ClamAV、ffmpegを使うメディア検査と変換
+- ローカルアカウント、セッションCookie、MiAuth、権限付きアプリトークン
+- APIとWorkerの独立スケール、readiness、OpenTelemetry、配送停止、監査
 
-2026年8月12日時点の生成inventoryでは、Misskey v12由来の535 sourceを329件の`implemented`と206件の`excluded`へ分類しています。
-`implemented`は、対応するRazor実装と自動試験の証拠があることを示します。
-`excluded`には、Dolphin側に完全な契約がないDrive管理、Chart、Gallery、Antenna、Clip、Channelなどが含まれます。
+実装と試験の対応関係は[仕様適合表](docs/CONFORMANCE.md)で確認できます。
 
-この分類は「Misskey v12の全機能を移植済み」という意味ではありません。
-API inventoryでも、Mastodon 4.6.2は331経路中23件、Misskey 12.119.2は321 endpoint中23件を実装済みとしており、残りは未対応です。
+## 🚀 ローカルへインストール
 
-最新の分類は[フロントエンド残タスク](docs/frontend-blazor/REMAINING_TASKS.md)、[Mastodon API inventory](docs/compatibility/MASTODON_4_6_2.md)、[Misskey API inventory](docs/compatibility/MISSKEY_12_119_2.md)で確認できます。
+Docker Composeを使うと、PostgreSQL、MinIO、ClamAV、Vault、API、Worker、Caddy、OpenTelemetry Collectorを一つのローカル環境へ起動できます。
+この構成は開発と動作確認用です。
 
-## ソフトウェア構成
+### 必要なソフトウェア
 
-| パス | 役割 |
+| ソフトウェア | バージョンまたは用途 |
 | --- | --- |
-| `src/ActivityPub.Domain` | フレームワークに依存しない集約、値、状態遷移 |
-| `src/ActivityPub.Application` | ユースケースと外部依存のポート |
-| `src/ActivityPub.Federation` | ActivityStreams変換、HTTP署名、安全な外部HTTP通信 |
-| `src/ActivityPub.Persistence` | EF Core、PostgreSQL制約、マイグレーション、耐久キュー |
-| `src/ActivityPub.Media` | メディア検査、変換、保存、キャッシュ、GC |
-| `src/ActivityPub.Identity` | ローカル認証、セッション、MiAuth、アプリトークン |
-| `src/ActivityPub.MastodonApi` | 対応範囲を限定したMastodon REST API |
-| `src/ActivityPub.MisskeyApi` | Misskey v12 APIのprojectionとcommand adapter |
-| `src/ActivityPub.Api` | 公開API、管理API、health、OpenTelemetry |
-| `src/ActivityPub.Workers` | Inbox処理と配送処理 |
-| `frontend/ActivityPub.Misskey.Blazor` | 本番用のMisskey v12 Blazorフロントエンド |
-| `frontend/misskey-v12` | 固定したVue比較元とinventory入力 |
-| `tests/` | 単体、統合、property、ブラウザー試験 |
+| Git | リポジトリの取得 |
+| Docker Engine | Linuxコンテナの実行 |
+| Docker Compose | 2.24.4以降 |
+| OpenSSL | ローカルSecretの生成 |
+| .NET SDK | ソースから検証する場合は10.0.302 |
+| Node.js | Vue比較元とinventoryを検証する場合は22.23.1 |
 
-依存方向とブラウザー境界は[フロントエンドアーキテクチャ](docs/frontend-blazor/ARCHITECTURE.md)に記録しています。
+SDKの固定値は[`global.json`](global.json)と[CI workflow](.github/workflows/ci.yml)を正本とします。
 
-## 必要な環境
+### 1. リポジトリを取得する
 
-- Git
-- .NET SDK 10.0.302
-- Docker Engine
-- Docker Compose 2.24.4以降
-- Node.js 22.23.1（フロントエンドの検証時）
+```bash
+git clone https://github.com/hgzt23678/mk-lite.git
+cd mk-lite
+cp .env.example .env
+```
 
-.NET SDKのバージョンは[`global.json`](global.json)、Node.jsのバージョンは[CI workflow](.github/workflows/ci.yml)で固定しています。
+### 2. ローカルSecretを用意する
 
-## ビルドと自動試験
+`.env`内の`replace-with-...`は、そのままでは起動に使えません。
+PostgreSQL、MinIO、Vaultには別々のランダム値を設定してください。
 
-リポジトリ全体の.NETコードは次の手順で検証できます。
+Vault token fileはリポジトリの外へ作成します。
+
+```bash
+mk_lite_secret_dir="${XDG_CONFIG_HOME:-$HOME/.config}/mk-lite"
+install -d -m 0700 "$mk_lite_secret_dir"
+openssl rand -hex 32 > "$mk_lite_secret_dir/vault-token"
+chmod 0400 "$mk_lite_secret_dir/vault-token"
+```
+
+`.env`では次の値を変更します。
+
+| 設定 | 内容 |
+| --- | --- |
+| `AP_POSTGRES_PASSWORD` | PostgreSQL専用のランダム値 |
+| `AP_MINIO_ROOT_USER` | MinIO専用のランダムなaccess key |
+| `AP_MINIO_ROOT_PASSWORD` | MinIO専用のランダムなsecret key |
+| `AP_VAULT_TOKEN` | `vault-token`ファイルと同じローカル専用値 |
+| `AP_VAULT_TOKEN_FILE` | `vault-token`ファイルの絶対パス |
+
+追加のランダム値は`openssl rand -hex 32`で生成できます。
+`AP_OIDC_*`は後述するローカル連合環境で使います。
+`.env`、token file、証明書、秘密鍵はコミットしないでください。
+
+### 3. 起動する
+
+```bash
+docker compose config --quiet
+docker compose up --build --detach --wait --wait-timeout 300
+```
+
+Migrationは専用の`migrate`サービスが先に適用し、成功後にAPIとWorkerが起動します。
+状態はコンテナ内部のreadiness endpointで確認できます。
+
+```bash
+docker compose ps
+docker compose exec api curl --fail --silent http://localhost:8080/health/ready
+```
+
+ブラウザーでは`https://localhost:8443/app/`を開きます。
+Caddyはローカル用の内部CAを使うため、ホストがそのCAを信頼していない場合は証明書の警告が表示されます。
+開発環境の確認を目的に、製品側のHTTPS検証を無効化しないでください。
+
+### 4. ローカルActorを作成する
+
+Actorは明示的に作成します。
+
+```bash
+docker compose run --rm api create-local-actor alice "Alice"
+```
+
+既定のCompose構成は自己登録を無効にしています。
+このコマンドはActivityPub Actorを作成しますが、ブラウザーログイン用パスワードを固定値で生成しません。
+登録とログインを含むDevelopment試験には、次のローカル連合環境を使ってください。
+
+### 5. 停止する
+
+```bash
+docker compose down
+```
+
+PostgreSQLとメディアのデータはnamed volumeへ残ります。
+`docker compose down --volumes`は全ローカルデータを削除するため、試験データを破棄するときだけ実行してください。
+
+## 🐄 ローカル連合環境
+
+`fediverse-pasture`を使うと、Mastodon、Misskey、Pleroma、mk-liteを外部Fediverseから隔離したネットワークへ起動できます。
+実インスタンス間のFollow、投稿、reaction、署名、再送を確認するための環境です。
+
+`.env`の`AP_OIDC_ADMIN_PASSWORD`、`AP_OIDC_ALICE_PASSWORD`、`AP_OIDC_REALM_FILE`も安全なローカル値へ変更してから起動します。
+realm fileにはリポジトリ外の絶対パスを指定してください。
+
+```bash
+bash eng/pasture.sh fetch
+bash eng/pasture.sh config
+bash eng/pasture.sh up
+bash eng/pasture.sh create-actor alice "Alice"
+```
+
+| 実装 | ローカルURL |
+| --- | --- |
+| Mastodon | `http://localhost:2970` |
+| mk-lite | `http://localhost:2971` |
+| Pleroma | `http://localhost:2972` |
+| Misskey | `http://localhost:2973` |
+
+```bash
+bash eng/pasture.sh status
+bash eng/pasture.sh down
+```
+
+固定バージョン、隔離ネットワーク、試験手順は[ローカル連合開発](docs/LOCAL_FEDERATION.md)に記録しています。
+
+## 🧭 アーキテクチャ
+
+HTTP契約とDomainを直接結び付けず、Mastodon API、Misskey API、ActivityPubを別々のadapterとして扱います。
+ローカル状態変更、Activity生成、配送ジョブ生成は同じPostgreSQL transactionで確定します。
+
+```mermaid
+flowchart LR
+    Browser["Misskey v12 UI<br/>Blazor SSR"]
+    Client["Mastodon / Misskey<br/>対応クライアント"]
+    Remote["リモート<br/>Fediverse"]
+
+    subgraph Web["ASP.NET Core API"]
+        Frontend["Frontend"]
+        Adapters["ActivityPub / Mastodon / Misskey adapters"]
+    end
+
+    subgraph Core["アプリケーション"]
+        Application["Application"]
+        Domain["Domain"]
+    end
+
+    subgraph Async["非同期処理"]
+        Inbox["Inbox worker"]
+        Delivery["Delivery worker"]
+    end
+
+    PostgreSQL[("PostgreSQL<br/>状態・Inbox・配送")]
+    ObjectStorage[("S3互換<br/>メディア")]
+    Vault[("Vault Transit<br/>Actor鍵")]
+
+    Browser --> Frontend
+    Client --> Adapters
+    Remote <--> Adapters
+    Frontend --> Application
+    Adapters --> Application
+    Application --> Domain
+    Domain --> PostgreSQL
+    Adapters --> PostgreSQL
+    PostgreSQL --> Inbox
+    PostgreSQL --> Delivery
+    Delivery --> Remote
+    Application --> ObjectStorage
+    Adapters --> Vault
+
+    classDef edge fill:#9acb34,color:#102000,stroke:#6d9616,stroke-width:2px
+    classDef store fill:#4169e1,color:#fff,stroke:#2546a8,stroke-width:2px
+    class Browser,Client,Remote edge
+    class PostgreSQL,ObjectStorage,Vault store
+```
+
+APIとWorkerは同じbinaryを使いながら、役割ごとに独立して増減できます。
+モジュールの依存方向は[フロントエンドアーキテクチャ](docs/frontend-blazor/ARCHITECTURE.md)と[ADR一覧](docs/adr/README.md)に記録しています。
+
+## 🧩 現在の対応範囲
+
+フロントエンドの見た目はMisskey 12.119.2、バックエンドの機能境界は`mei23/dolphin`を参照しています。
+比較用Vueコードはinventory生成と差分確認にだけ使い、本番イメージには含めません。
+
+| 領域 | 状況 | 公開している範囲 |
+| --- | --- | --- |
+| ActivityPub Server-to-Server | 🟢 主要経路を実装 | 主要Activity、署名、Inbox、Outbox、配送再試行 |
+| Misskey v12 Blazor UI | 🟡 対応機能を移植 | Dolphin側に実契約がある画面と共通UI |
+| Mastodon REST API 4.6.2 | 🟡 限定対応 | inventory 331経路中23経路 |
+| Misskey API 12.119.2 | 🟡 限定対応 | inventory 321 endpoint中23 endpoint |
+| Drive管理、Chart、Gallery、Antenna、Clip、Channel | ⚪ 対象外 | バックエンド契約がない機能は見せかけのUIを作らない |
+
+生成したport mapでは、Misskey v12由来の535 sourceを329件の実装mappingと206件の明示的なscope exclusionへ分類しています。
+`implemented`は対応するRazor実装と自動試験があることを示し、「Misskey v12の全機能と互換」を意味しません。
+
+最新状態は[フロントエンド残タスク](docs/frontend-blazor/REMAINING_TASKS.md)、[Mastodon API inventory](docs/compatibility/MASTODON_4_6_2.md)、[Misskey API inventory](docs/compatibility/MISSKEY_12_119_2.md)で確認できます。
+
+## 🧪 開発とテスト
+
+.NETコードは次の品質ゲートで検証します。
 
 ```bash
 dotnet tool restore
@@ -83,7 +274,7 @@ dotnet build ActivityPubServer.slnx --configuration Release --no-restore
 dotnet test ActivityPubServer.slnx --configuration Release --no-build
 ```
 
-Misskey v12比較元と生成inventoryは次の手順で検証できます。
+Misskey v12比較元と生成inventoryは次のコマンドで検証します。
 
 ```bash
 npm --prefix frontend/misskey-v12 ci --ignore-scripts
@@ -93,80 +284,49 @@ npm --prefix frontend/misskey-v12 run inventory:check
 npm --prefix frontend/misskey-v12 run verify:upstream
 ```
 
-CIはRelease build、自動試験、ブラウザー回帰試験、migration script生成、依存関係監査、ライセンス検査、コンテナスキャン、SBOM生成を実行します。
-2026年8月13日の検証記録では、.NET試験913件が成功し、失敗とskipはありません。
-再現環境と未検証項目は[検証記録](docs/VERIFICATION.md)を参照してください。
+CIはRelease build、自動試験、Chromium回帰試験、migration script生成、依存関係監査、ライセンス検査、コンテナスキャン、SBOM生成を実行します。
+2026年8月13日の検証記録では.NET試験913件が成功し、失敗とskipはありません。
+再現条件と未検証項目は[検証記録](docs/VERIFICATION.md)を参照してください。
 
-## ローカル連合環境
+## 🏗️ 本番導入
 
-日常の連合試験には、Mastodon、Misskey、Pleromaと`mk-lite`を隔離Dockerネットワークで動かす`fediverse-pasture`を使います。
-この環境はローカル相互運用試験用であり、本番構成や公開インターネット上の安全性を証明するものではありません。
+本番環境では、開発用Composeや`deploy/pasture`をそのまま使いません。
+次の境界を環境ごとに設定してから、専用jobでmigrationを適用します。
 
-最初に開発用設定を作成します。
+- 不変の`Federation__PublicBaseUri`とHTTPS終端
+- `SSL Mode=VerifyFull`を使うPostgreSQL接続
+- HTTPSとserver-side encryptionを有効にしたS3互換ストレージ
+- Vault、Data Protection証明書、OAuth証明書を保存するSecret Store
+- 固定したtrusted proxyと外向き通信のnetwork policy
+- APIとWorkerのreadiness、resource limit、OpenTelemetry export
+- PostgreSQL、オブジェクト、Actor鍵、Data Protection keyのバックアップ
 
-```bash
-cp .env.example .env
-```
-
-`.env`内の仮値はすべてローカル専用の値へ置き換えてください。
-Vault tokenはリポジトリ外のmode `0400`ファイルへ保存し、その絶対パスを設定します。
-`.env`、token file、証明書、秘密鍵はコミットしないでください。
-
-設定後、ローカル連合環境を起動します。
-
-```bash
-bash eng/pasture.sh fetch
-bash eng/pasture.sh config
-bash eng/pasture.sh up
-bash eng/pasture.sh create-actor alice "Alice"
-```
-
-| サービス | URL |
-| --- | --- |
-| Mastodon | `http://localhost:2970` |
-| mk-lite | `http://localhost:2971` |
-| Pleroma | `http://localhost:2972` |
-| Misskey | `http://localhost:2973` |
-
-状態確認と停止には次のコマンドを使います。
-
-```bash
-bash eng/pasture.sh status
-bash eng/pasture.sh down
-```
-
-固定バージョン、ネットワーク制約、相互運用の確認手順は[ローカル連合開発](docs/LOCAL_FEDERATION.md)に記載しています。
-
-## マイグレーションとデプロイ
-
-DBマイグレーションはWebプロセスの起動から分離しています。
+DB migrationはWeb起動から分離します。
 
 ```bash
 dotnet run --project src/ActivityPub.Api -- migrate
 ```
 
-本番では接続文字列、S3資格情報、Vault token、Data Protection証明書をSecret Storeから注入します。
-公開IRIは固定した`Federation__PublicBaseUri`から生成し、`Host`ヘッダーやブラウザーの現在URLから推測しません。
+導入前に[デプロイ手順](docs/DEPLOYMENT.md)、[本番設定例](deploy/appsettings.Production.example.json)、[本番運用チェックリスト](docs/PRODUCTION_CHECKLIST.md)を確認してください。
 
-導入前に[デプロイ手順](docs/DEPLOYMENT.md)と[本番運用チェックリスト](docs/PRODUCTION_CHECKLIST.md)を環境ごとに確認してください。
+## 📚 関連文書
 
-## 開発状況を確認する文書
+| 文書 | 内容 |
+| --- | --- |
+| [仕様適合表](docs/CONFORMANCE.md) | ActivityPub、互換API、相互運用の実測範囲 |
+| [検証記録](docs/VERIFICATION.md) | build、試験、障害注入、未検証項目 |
+| [脅威モデル](docs/THREAT_MODEL.md) | 信頼境界、攻撃者、保護対象 |
+| [データモデル](docs/DATA_MODEL.md) | Actor、Activity、Object、配送、モデレーション |
+| [配送状態遷移](docs/DELIVERY_STATE_MACHINE.md) | lease、retry、Dead Letter、再処理 |
+| [依存関係](docs/DEPENDENCIES.md) | ライセンス、更新状況、置換可能性 |
+| [運用Runbook](docs/runbooks/README.md) | バックアップ、復旧、障害、鍵漏洩への対応 |
+| [ADR一覧](docs/adr/README.md) | アーキテクチャ上の決定と理由 |
 
-- [仕様適合と相互運用範囲](docs/CONFORMANCE.md)
-- [検証記録](docs/VERIFICATION.md)
-- [Misskey v12フロントエンドの残タスク](docs/frontend-blazor/REMAINING_TASKS.md)
-- [脅威モデル](docs/THREAT_MODEL.md)
-- [データモデル](docs/DATA_MODEL.md)
-- [配送状態遷移](docs/DELIVERY_STATE_MACHINE.md)
-- [依存関係とライセンス境界](docs/DEPENDENCIES.md)
-- [運用Runbook](docs/runbooks/README.md)
-- [ADR一覧](docs/adr/README.md)
+## ⚖️ ライセンスと上流コード
 
-## 上流コードとライセンス
+特記がないコードは、[`LICENSE`](LICENSE)に基づくGNU Affero General Public License version 3 onlyで提供します。
 
 Misskey v12の比較元は、`misskey-dev/misskey`のtag `12.119.2`、commit `a5a74f4434b179cdb1f97af98bf294c8b18de0e2`へ固定しています。
 該当するフロントエンドコードには[`LICENSE`](frontend/misskey-v12/LICENSE)と[`NOTICE.md`](frontend/misskey-v12/NOTICE.md)を同梱しています。
-
-特記がないコードは、ルートの[`LICENSE`](LICENSE)に基づくGNU Affero General Public License version 3 onlyで提供します。
-Misskey由来部分の帰属と変更範囲は[`NOTICE.md`](NOTICE.md)および各frontendディレクトリのNOTICEに記載しています。
+帰属と変更範囲はルートの[`NOTICE.md`](NOTICE.md)および各frontendディレクトリのNOTICEに記載しています。
 第三者ライブラリと同梱アセットには、それぞれのライセンスが適用されます。
