@@ -1,0 +1,3726 @@
+{
+  "schemaVersion": 1,
+  "target": "Misskey v12 backend contract",
+  "source": "mei23/dolphin",
+  "sourcePath": ".cache/meidolphin",
+  "commit": "3ce200269f814547dc7dfc6b246abadf8a9c00ed",
+  "generatedAt": "2026-01-22T20:11:19+09:00",
+  "dolphinEndpointCount": 145,
+  "localRouteCount": 61,
+  "supportedDolphinRouteCount": 42,
+  "missingDolphinAdapterCount": 103,
+  "dolphinEndpoints": [
+    {
+      "name": "admin/accounts/create",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/accounts/create.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "username",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/change-password",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/change-password.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/delete-all-files-of-a-user",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/delete-all-files-of-a-user.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/drive/clean-remote-files",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/drive/clean-remote-files.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/drive/cleanup",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/drive/cleanup.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/drive/files",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/drive/files.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "limit",
+        "validator",
+        "default"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/drive/show-file",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/drive/show-file.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "fileId",
+        "validator"
+      ],
+      "errors": [
+        "errors",
+        "noSuchFile",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/emoji/add",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/emoji/add.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "name",
+        "validator"
+      ],
+      "errors": [
+        "errors",
+        "emojiAlredyExists",
+        "message",
+        "code",
+        "id",
+        "name",
+        "host",
+        "id",
+        "updatedAt",
+        "name",
+        "host",
+        "aliases",
+        "url",
+        "type",
+        "fileId",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/emoji/copy",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/emoji/copy.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "emojiId",
+        "validator"
+      ],
+      "errors": [
+        "errors",
+        "noSuchEmoji",
+        "message",
+        "code",
+        "id",
+        "id",
+        "updatedAt",
+        "name",
+        "host",
+        "aliases",
+        "url",
+        "type",
+        "fileId",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/emoji/list",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/emoji/list.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "limit",
+        "validator",
+        "default"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/emoji/list-remote",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/emoji/list-remote.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "host",
+        "validator",
+        "default"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/emoji/remove",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/emoji/remove.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "id",
+        "validator"
+      ],
+      "errors": [
+        "errors",
+        "noSuchEmoji",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/emoji/update",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/emoji/update.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "id",
+        "validator"
+      ],
+      "errors": [
+        "errors",
+        "noSuchEmoji",
+        "message",
+        "code",
+        "id",
+        "updatedAt",
+        "name",
+        "aliases",
+        "url"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/federation/delete-all-files",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/federation/delete-all-files.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "host",
+        "validator",
+        "userHost"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/federation/remove-all-following",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/federation/remove-all-following.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "host",
+        "validator",
+        "followerHost"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/federation/update-instance",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/federation/update-instance.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "host",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/get-table-stats",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/get-table-stats.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/queue/clear",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/queue/clear.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/queue/deliver-delayed",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/queue/deliver-delayed.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/queue/inbox-delayed",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/queue/inbox-delayed.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/queue/jobs",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/queue/jobs.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "domain",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/queue/stats",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/queue/stats.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "deliver",
+        "inbox",
+        "db",
+        "objectStorage"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/relays/add",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/relays/add.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "inbox",
+        "validator"
+      ],
+      "errors": [
+        "errors",
+        "invalidUrl",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/admin/relays/add",
+          "endpoint": "admin/relays/add"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/relays/list",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/relays/list.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params"
+      ],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/admin/relays/list",
+          "endpoint": "admin/relays/list"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/relays/remove",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/relays/remove.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "inbox",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/admin/relays/remove",
+          "endpoint": "admin/relays/remove"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/resync-chart",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/resync-chart.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/server-info",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/server-info.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/show-user",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/show-user.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/show-users",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/show-users.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "limit",
+        "validator",
+        "default"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/suspend-user",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/suspend-user.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/unsuspend-user",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/unsuspend-user.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/update-meta",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/update-meta.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "pinnedUsers",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/update-remote-user",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/update-remote-user.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "admin/vacuum",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/admin/vacuum.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "full",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "ap/show",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/ap/show.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "uri",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchObject",
+        "message",
+        "code",
+        "id",
+        "type",
+        "object",
+        "type",
+        "object",
+        "type",
+        "object",
+        "type",
+        "object",
+        "type",
+        "object",
+        "type",
+        "object",
+        "type",
+        "object",
+        "type",
+        "object"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "blocking/create",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/blocking/create.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:blocks'",
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchUser",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/blocking/create",
+          "endpoint": "blocking/create"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "blocking/delete",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/blocking/delete.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:blocks'",
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchUser",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/blocking/delete",
+          "endpoint": "blocking/delete"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "blocking/list",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/blocking/list.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:blocks'",
+      "parameters": [
+        "params",
+        "limit",
+        "validator",
+        "default"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "charts/drive",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/charts/drive.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "span",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "charts/federation",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/charts/federation.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "span",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "charts/hashtag",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/charts/hashtag.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "span",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "charts/instance",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/charts/instance.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "span",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "charts/notes",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/charts/notes.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "span",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "charts/user/drive",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/charts/user/drive.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "span",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "charts/user/following",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/charts/user/following.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "span",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "charts/user/notes",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/charts/user/notes.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "span",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "charts/user/reactions",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/charts/user/reactions.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "span",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "charts/users",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/charts/users.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "span",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:drive'",
+      "parameters": [],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/drive",
+          "endpoint": "drive"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive/files",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive/files.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:drive'",
+      "parameters": [
+        "params",
+        "limit",
+        "validator",
+        "default"
+      ],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/drive/files",
+          "endpoint": "drive/files"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive/files/attached-notes",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive/files/attached-notes.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:drive'",
+      "parameters": [
+        "params",
+        "fileId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchFile",
+        "message",
+        "code",
+        "id",
+        "id",
+        "userId",
+        "detail"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive/files/check-existence",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive/files/check-existence.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:drive'",
+      "parameters": [
+        "params",
+        "md5",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive/files/create",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive/files/create.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:drive'",
+      "parameters": [
+        "params",
+        "folderId",
+        "validator",
+        "default",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "invalidFileName",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/drive/files/create",
+          "endpoint": "drive/files/create"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive/files/delete",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive/files/delete.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:drive'",
+      "parameters": [
+        "params",
+        "fileId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchFile",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/drive/files/delete",
+          "endpoint": "drive/files/delete"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive/files/find",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive/files/find.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:drive'",
+      "parameters": [
+        "params",
+        "name",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive/files/find-by-hash",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive/files/find-by-hash.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:drive'",
+      "parameters": [
+        "params",
+        "md5",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive/files/show",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive/files/show.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:drive'",
+      "parameters": [
+        "params",
+        "fileId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchFile",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/drive/files/show",
+          "endpoint": "drive/files/show"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive/files/update",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive/files/update.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:drive'",
+      "parameters": [
+        "params",
+        "fileId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchFile",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/drive/files/update",
+          "endpoint": "drive/files/update"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive/files/upload-from-url",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive/files/upload-from-url.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:drive'",
+      "parameters": [
+        "params",
+        "url",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive/folders",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive/folders.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:drive'",
+      "parameters": [
+        "params",
+        "limit",
+        "validator",
+        "default"
+      ],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/drive/folders",
+          "endpoint": "drive/folders"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive/folders/create",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive/folders/create.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:drive'",
+      "parameters": [
+        "params",
+        "name",
+        "validator",
+        "default",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchFolder",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/drive/folders/create",
+          "endpoint": "drive/folders/create"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive/folders/delete",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive/folders/delete.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:drive'",
+      "parameters": [
+        "params",
+        "folderId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchFolder",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/drive/folders/delete",
+          "endpoint": "drive/folders/delete"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive/folders/find",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive/folders/find.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:drive'",
+      "parameters": [
+        "params",
+        "name",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive/folders/show",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive/folders/show.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:drive'",
+      "parameters": [
+        "params",
+        "folderId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchFolder",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive/folders/update",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive/folders/update.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:drive'",
+      "parameters": [
+        "params",
+        "folderId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchFolder",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/drive/folders/update",
+          "endpoint": "drive/folders/update"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "drive/stream",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/drive/stream.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:drive'",
+      "parameters": [
+        "params",
+        "limit",
+        "validator",
+        "default"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "federation/followers",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/federation/followers.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "host",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "federation/following",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/federation/following.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "host",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "federation/instances",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/federation/instances.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "host",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/federation/instances",
+          "endpoint": "federation/instances"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "federation/show-instance",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/federation/show-instance.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "host",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "federation/users",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/federation/users.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "host",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "following/create",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/following/create.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:following'",
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchUser",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/following/create",
+          "endpoint": "following/create"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "following/delete",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/following/delete.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:following'",
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchUser",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/following/delete",
+          "endpoint": "following/delete"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "following/requests/accept",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/following/requests/accept.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:following'",
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchUser",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "following/requests/cancel",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/following/requests/cancel.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:following'",
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchUser",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "following/requests/list",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/following/requests/list.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:following'",
+      "parameters": [],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "following/requests/reject",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/following/requests/reject.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:following'",
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchUser",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "hashtags/list",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/hashtags/list.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "limit",
+        "validator",
+        "default"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "hashtags/search",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/hashtags/search.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "limit",
+        "validator",
+        "default",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/hashtags/search",
+          "endpoint": "hashtags/search"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "hashtags/show",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/hashtags/show.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "tag",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchHashtag",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "hashtags/trend",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/hashtags/trend.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/hashtags/trend",
+          "endpoint": "hashtags/trend"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "hashtags/users",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/hashtags/users.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "tag",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params"
+      ],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/i",
+          "endpoint": "i"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i/change-password",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i/change-password.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": true,
+      "kind": null,
+      "parameters": [
+        "params",
+        "currentPassword",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i/delete-account",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i/delete-account.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": true,
+      "kind": null,
+      "parameters": [
+        "params",
+        "password",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i/export-blocking",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i/export-blocking.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": true,
+      "kind": null,
+      "parameters": [],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i/export-following",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i/export-following.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": true,
+      "kind": null,
+      "parameters": [],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i/export-mute",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i/export-mute.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": true,
+      "kind": null,
+      "parameters": [],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i/export-notes",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i/export-notes.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": true,
+      "kind": null,
+      "parameters": [],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i/export-user-lists",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i/export-user-lists.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": true,
+      "kind": null,
+      "parameters": [],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i/favorites",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i/favorites.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:favorites'",
+      "parameters": [
+        "params",
+        "limit",
+        "validator",
+        "default"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i/import-following",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i/import-following.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": true,
+      "kind": null,
+      "parameters": [
+        "params",
+        "fileId",
+        "validator"
+      ],
+      "errors": [
+        "errors",
+        "noSuchFile",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i/import-user-lists",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i/import-user-lists.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": true,
+      "kind": null,
+      "parameters": [
+        "params",
+        "fileId",
+        "validator"
+      ],
+      "errors": [
+        "errors",
+        "noSuchFile",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i/notifications",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i/notifications.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:notifications'",
+      "parameters": [
+        "params",
+        "limit",
+        "validator",
+        "default"
+      ],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/i/notifications",
+          "endpoint": "i/notifications"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i/pin",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i/pin.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:account'",
+      "parameters": [
+        "params",
+        "noteId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchNote",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i/read-all-unread-notes",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i/read-all-unread-notes.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:account'",
+      "parameters": [
+        "params",
+        "userId"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i/regenerate-token",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i/regenerate-token.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": true,
+      "kind": null,
+      "parameters": [
+        "params",
+        "password",
+        "validator",
+        "token"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i/unpin",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i/unpin.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:account'",
+      "parameters": [
+        "params",
+        "noteId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchNote",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i/update",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i/update.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:account'",
+      "parameters": [
+        "params",
+        "name",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchAvatar",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/i/update",
+          "endpoint": "i/update"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "i/update-client-setting",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/i/update-client-setting.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": true,
+      "kind": null,
+      "parameters": [
+        "params",
+        "name",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "meta",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/meta.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "detail",
+        "validator",
+        "default"
+      ],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/meta",
+          "endpoint": "meta"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "muting/create",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/muting/create.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:mutes'",
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchUser",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "muting/delete",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/muting/delete.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:mutes'",
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchUser",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "muting/list",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/muting/list.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:mutes'",
+      "parameters": [
+        "params",
+        "limit",
+        "validator",
+        "default"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "local",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/children",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/children.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "noteId",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/conversation",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/conversation.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "noteId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchNote",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/create",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/create.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:notes'",
+      "parameters": [
+        "params",
+        "visibility",
+        "validator",
+        "default",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchRenoteTarget",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/notes/create",
+          "endpoint": "notes/create"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/delete",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/delete.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:notes'",
+      "parameters": [
+        "params",
+        "noteId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchNote",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/notes/delete",
+          "endpoint": "notes/delete"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/favorites/create",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/favorites/create.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:favorites'",
+      "parameters": [
+        "params",
+        "noteId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchNote",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/favorites/delete",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/favorites/delete.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:favorites'",
+      "parameters": [
+        "params",
+        "noteId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchNote",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/global-timeline",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/global-timeline.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "withFiles",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/notes/global-timeline",
+          "endpoint": "notes/global-timeline"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/mentions",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/mentions.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "following",
+        "validator",
+        "default"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/polls/vote",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/polls/vote.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:votes'",
+      "parameters": [
+        "params",
+        "noteId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchNote",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/notes/polls/vote",
+          "endpoint": "notes/polls/vote"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/reactions",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/reactions.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "noteId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchNote",
+        "message",
+        "code",
+        "id",
+        "noteId",
+        "where",
+        "take",
+        "skip",
+        "order",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/notes/reactions",
+          "endpoint": "notes/reactions"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/reactions/create",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/reactions/create.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:reactions'",
+      "parameters": [
+        "params",
+        "noteId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchNote",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/notes/reactions/create",
+          "endpoint": "notes/reactions/create"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/reactions/delete",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/reactions/delete.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:reactions'",
+      "parameters": [
+        "params",
+        "noteId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchNote",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/notes/reactions/delete",
+          "endpoint": "notes/reactions/delete"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/renotes",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/renotes.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "noteId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchNote",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/replies",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/replies.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "noteId",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/search",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/search.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "query",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/search-by-tag",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/search-by-tag.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "tag",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/show",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/show.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "noteId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchNote",
+        "message",
+        "code",
+        "id",
+        "detail"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/notes/show",
+          "endpoint": "notes/show"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/state",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/state.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "noteId",
+        "validator",
+        "desc",
+        "where",
+        "userId",
+        "noteId"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/timeline",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/timeline.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "limit",
+        "validator",
+        "default",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/notes/timeline",
+          "endpoint": "notes/timeline"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/unrenote",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/unrenote.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:notes'",
+      "parameters": [
+        "params",
+        "noteId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchNote",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notes/user-list-timeline",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notes/user-list-timeline.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "listId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchList",
+        "message",
+        "code",
+        "id",
+        "id",
+        "userId"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "notifications/mark-all-as-read",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/notifications/mark-all-as-read.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:notifications'",
+      "parameters": [],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/notifications/mark-all-as-read",
+          "endpoint": "notifications/mark-all-as-read"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "signin",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/signin.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "username",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "stats",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/stats.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params"
+      ],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/stats",
+          "endpoint": "stats"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "sw/register",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/sw/register.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "endpoint",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "username/available",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/username/available.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "username",
+        "validator",
+        "host",
+        "usernameLower",
+        "available"
+      ],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/username/available",
+          "endpoint": "username/available"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "users",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/users.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "limit",
+        "validator",
+        "default"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "users/followers",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/users/followers.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchUser",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/users/followers",
+          "endpoint": "users/followers"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "users/following",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/users/following.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchUser",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/users/following",
+          "endpoint": "users/following"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "users/lists/create",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/users/lists/create.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:account'",
+      "parameters": [
+        "params",
+        "name",
+        "validator"
+      ],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "users/lists/delete",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/users/lists/delete.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:account'",
+      "parameters": [
+        "params",
+        "listId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchList",
+        "message",
+        "code",
+        "id",
+        "id",
+        "userId"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "users/lists/list",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/users/lists/list.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:account'",
+      "parameters": [],
+      "errors": [],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "users/lists/pull",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/users/lists/pull.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:account'",
+      "parameters": [
+        "params",
+        "listId",
+        "validator"
+      ],
+      "errors": [
+        "errors",
+        "noSuchList",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "users/lists/push",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/users/lists/push.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:account'",
+      "parameters": [
+        "params",
+        "listId",
+        "validator"
+      ],
+      "errors": [
+        "errors",
+        "noSuchList",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "users/lists/show",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/users/lists/show.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'read:account'",
+      "parameters": [
+        "params",
+        "listId",
+        "validator"
+      ],
+      "errors": [
+        "errors",
+        "noSuchList",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "users/lists/update",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/users/lists/update.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'write:account'",
+      "parameters": [
+        "params",
+        "listId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchList",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [],
+      "status": "missing-adapter-route",
+      "persistenceEvidence": "none",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "users/notes",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/users/notes.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "noSuchUser",
+        "message",
+        "code",
+        "id"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/users/notes",
+          "endpoint": "users/notes"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "users/relation",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/users/relation.ts",
+      "requireCredential": true,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/users/relation",
+          "endpoint": "users/relation"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "users/search",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/users/search.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": null,
+      "parameters": [
+        "params",
+        "query",
+        "validator",
+        "desc"
+      ],
+      "errors": [],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/users/search",
+          "endpoint": "users/search"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    },
+    {
+      "name": "users/show",
+      "sourcePath": ".cache/meidolphin/src/server/api/endpoints/users/show.ts",
+      "requireCredential": false,
+      "requireAdmin": false,
+      "secure": false,
+      "kind": "'server' as const",
+      "parameters": [
+        "params",
+        "userId",
+        "validator",
+        "desc"
+      ],
+      "errors": [
+        "errors",
+        "failedToResolveRemoteUser",
+        "message",
+        "code",
+        "id",
+        "kind"
+      ],
+      "localRoutes": [
+        {
+          "method": "POST",
+          "path": "/api/users/show",
+          "endpoint": "users/show"
+        }
+      ],
+      "status": "supported-route",
+      "persistenceEvidence": "requires endpoint/application test review",
+      "differentialEvidence": "not-run"
+    }
+  ],
+  "localRoutes": [
+    {
+      "method": "GET",
+      "path": "/streaming",
+      "endpoint": "/streaming"
+    },
+    {
+      "method": "POST",
+      "path": "/api/meta",
+      "endpoint": "meta"
+    },
+    {
+      "method": "POST",
+      "path": "/api/username/available",
+      "endpoint": "username/available"
+    },
+    {
+      "method": "POST",
+      "path": "/api/email-address/available",
+      "endpoint": "email-address/available"
+    },
+    {
+      "method": "POST",
+      "path": "/api/stats",
+      "endpoint": "stats"
+    },
+    {
+      "method": "POST",
+      "path": "/api/federation/instances",
+      "endpoint": "federation/instances"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/show",
+      "endpoint": "users/show"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/search",
+      "endpoint": "users/search"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/search-by-username-and-host",
+      "endpoint": "users/search-by-username-and-host"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/followers",
+      "endpoint": "users/followers"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/following",
+      "endpoint": "users/following"
+    },
+    {
+      "method": "POST",
+      "path": "/api/hashtags/search",
+      "endpoint": "hashtags/search"
+    },
+    {
+      "method": "POST",
+      "path": "/api/hashtags/trend",
+      "endpoint": "hashtags/trend"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/notes",
+      "endpoint": "users/notes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notes/show",
+      "endpoint": "notes/show"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notes/global-timeline",
+      "endpoint": "notes/global-timeline"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notes/local-timeline",
+      "endpoint": "notes/local-timeline"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notes/reactions",
+      "endpoint": "notes/reactions"
+    },
+    {
+      "method": "POST",
+      "path": "/api/announcements",
+      "endpoint": "announcements"
+    },
+    {
+      "method": "POST",
+      "path": "/api/miauth/{session}/check",
+      "endpoint": "miauth/{session}/check"
+    },
+    {
+      "method": "POST",
+      "path": "/api/i",
+      "endpoint": "i"
+    },
+    {
+      "method": "POST",
+      "path": "/api/i/update",
+      "endpoint": "i/update"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notes/timeline",
+      "endpoint": "notes/timeline"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notes/hybrid-timeline",
+      "endpoint": "notes/hybrid-timeline"
+    },
+    {
+      "method": "POST",
+      "path": "/api/miauth/gen-token",
+      "endpoint": "miauth/gen-token"
+    },
+    {
+      "method": "POST",
+      "path": "/api/i/apps",
+      "endpoint": "i/apps"
+    },
+    {
+      "method": "POST",
+      "path": "/api/i/revoke-token",
+      "endpoint": "i/revoke-token"
+    },
+    {
+      "method": "POST",
+      "path": "/api/i/notifications",
+      "endpoint": "i/notifications"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notifications/read",
+      "endpoint": "notifications/read"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notifications/mark-all-as-read",
+      "endpoint": "notifications/mark-all-as-read"
+    },
+    {
+      "method": "POST",
+      "path": "/api/i/read-announcement",
+      "endpoint": "i/read-announcement"
+    },
+    {
+      "method": "POST",
+      "path": "/api/following/create",
+      "endpoint": "following/create"
+    },
+    {
+      "method": "POST",
+      "path": "/api/following/delete",
+      "endpoint": "following/delete"
+    },
+    {
+      "method": "POST",
+      "path": "/api/mute/create",
+      "endpoint": "mute/create"
+    },
+    {
+      "method": "POST",
+      "path": "/api/mute/delete",
+      "endpoint": "mute/delete"
+    },
+    {
+      "method": "POST",
+      "path": "/api/blocking/create",
+      "endpoint": "blocking/create"
+    },
+    {
+      "method": "POST",
+      "path": "/api/blocking/delete",
+      "endpoint": "blocking/delete"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/relation",
+      "endpoint": "users/relation"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notes/create",
+      "endpoint": "notes/create"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notes/delete",
+      "endpoint": "notes/delete"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notes/reactions/create",
+      "endpoint": "notes/reactions/create"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notes/reactions/delete",
+      "endpoint": "notes/reactions/delete"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notes/polls/vote",
+      "endpoint": "notes/polls/vote"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/announcements/list",
+      "endpoint": "admin/announcements/list"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/announcements/create",
+      "endpoint": "admin/announcements/create"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/announcements/update",
+      "endpoint": "admin/announcements/update"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/announcements/delete",
+      "endpoint": "admin/announcements/delete"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/invite",
+      "endpoint": "admin/invite"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/relays/add",
+      "endpoint": "admin/relays/add"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/relays/list",
+      "endpoint": "admin/relays/list"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/relays/remove",
+      "endpoint": "admin/relays/remove"
+    },
+    {
+      "method": "POST",
+      "path": "/api/drive",
+      "endpoint": "drive"
+    },
+    {
+      "method": "POST",
+      "path": "/api/drive/files",
+      "endpoint": "drive/files"
+    },
+    {
+      "method": "POST",
+      "path": "/api/drive/files/create",
+      "endpoint": "drive/files/create"
+    },
+    {
+      "method": "POST",
+      "path": "/api/drive/files/delete",
+      "endpoint": "drive/files/delete"
+    },
+    {
+      "method": "POST",
+      "path": "/api/drive/files/update",
+      "endpoint": "drive/files/update"
+    },
+    {
+      "method": "POST",
+      "path": "/api/drive/files/show",
+      "endpoint": "drive/files/show"
+    },
+    {
+      "method": "POST",
+      "path": "/api/drive/folders",
+      "endpoint": "drive/folders"
+    },
+    {
+      "method": "POST",
+      "path": "/api/drive/folders/create",
+      "endpoint": "drive/folders/create"
+    },
+    {
+      "method": "POST",
+      "path": "/api/drive/folders/delete",
+      "endpoint": "drive/folders/delete"
+    },
+    {
+      "method": "POST",
+      "path": "/api/drive/folders/update",
+      "endpoint": "drive/folders/update"
+    }
+  ],
+  "localOnlyRoutes": [
+    {
+      "method": "GET",
+      "path": "/streaming",
+      "endpoint": "/streaming"
+    },
+    {
+      "method": "POST",
+      "path": "/api/email-address/available",
+      "endpoint": "email-address/available"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/search-by-username-and-host",
+      "endpoint": "users/search-by-username-and-host"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notes/local-timeline",
+      "endpoint": "notes/local-timeline"
+    },
+    {
+      "method": "POST",
+      "path": "/api/announcements",
+      "endpoint": "announcements"
+    },
+    {
+      "method": "POST",
+      "path": "/api/miauth/{session}/check",
+      "endpoint": "miauth/{session}/check"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notes/hybrid-timeline",
+      "endpoint": "notes/hybrid-timeline"
+    },
+    {
+      "method": "POST",
+      "path": "/api/miauth/gen-token",
+      "endpoint": "miauth/gen-token"
+    },
+    {
+      "method": "POST",
+      "path": "/api/i/apps",
+      "endpoint": "i/apps"
+    },
+    {
+      "method": "POST",
+      "path": "/api/i/revoke-token",
+      "endpoint": "i/revoke-token"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notifications/read",
+      "endpoint": "notifications/read"
+    },
+    {
+      "method": "POST",
+      "path": "/api/i/read-announcement",
+      "endpoint": "i/read-announcement"
+    },
+    {
+      "method": "POST",
+      "path": "/api/mute/create",
+      "endpoint": "mute/create"
+    },
+    {
+      "method": "POST",
+      "path": "/api/mute/delete",
+      "endpoint": "mute/delete"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/announcements/list",
+      "endpoint": "admin/announcements/list"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/announcements/create",
+      "endpoint": "admin/announcements/create"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/announcements/update",
+      "endpoint": "admin/announcements/update"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/announcements/delete",
+      "endpoint": "admin/announcements/delete"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/invite",
+      "endpoint": "admin/invite"
+    }
+  ],
+  "requiredScreenContracts": {
+    "supported": [
+      "i",
+      "i/update",
+      "i/apps",
+      "i/revoke-token",
+      "notes/timeline",
+      "notes/global-timeline",
+      "notes/local-timeline",
+      "notes/show",
+      "notes/create",
+      "notes/delete",
+      "notes/reactions/create",
+      "notes/reactions/delete",
+      "i/notifications",
+      "notifications/mark-all-as-read",
+      "admin/invite",
+      "admin/announcements/list",
+      "admin/announcements/create",
+      "admin/announcements/update",
+      "admin/announcements/delete",
+      "admin/relays/list",
+      "admin/relays/add",
+      "admin/relays/remove",
+      "users/show",
+      "users/notes",
+      "users/search",
+      "users/followers",
+      "users/following"
+    ],
+    "excludedUntilBackendContract": [
+      "drive/files/create",
+      "charts/*",
+      "antennas/*",
+      "channels/*",
+      "clips/*",
+      "gallery/*",
+      "i/2fa/*"
+    ]
+  }
+}

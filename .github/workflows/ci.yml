@@ -38,6 +38,13 @@ jobs:
           cache-dependency-path: |
             frontend/misskey-v12/package-lock.json
             tests/frontend-blazor-e2e/package-lock.json
+      - name: Checkout pinned Dolphin backend contract source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: mei23/dolphin
+          ref: 3ce200269f814547dc7dfc6b246abadf8a9c00ed
+          path: .cache/meidolphin
+          persist-credentials: false
       - name: Restore locked frontend dependencies
         working-directory: frontend/misskey-v12
         run: npm ci --ignore-scripts
