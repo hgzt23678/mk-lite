@@ -157,3 +157,96 @@ test('MkContainer cancels stale motion during rapid reversal and honors the Vue 
   expect(diagnostics.ok()).toBeTruthy();
   expect((await diagnostics.json()).unhandledExceptions).toEqual([]);
 });
+
+test('MkContainer keeps the rendered height and opacity continuous when a leave reverses into enter', async ({ page }) => {
+  const root = page.locator('.fixture-container');
+  const content = root.locator(':scope > .content');
+  const fold = root.locator(':scope > header > .sub > button').last();
+  await content.locator(':scope > .fade').click();
+
+  await fold.click();
+  await page.waitForTimeout(75);
+  const beforeReverse = await content.evaluate(element => ({
+    height: element.getBoundingClientRect().height,
+    opacity: Number.parseFloat(getComputedStyle(element).opacity),
+  }));
+  expect(beforeReverse.height).toBeGreaterThan(40);
+  expect(beforeReverse.opacity).toBeGreaterThan(0.2);
+
+  const samples = await page.evaluate(async () => {
+    const fixture = document.querySelector('.fixture-container') as HTMLElement;
+    const target = fixture.querySelector(':scope > .content') as HTMLElement;
+    const button = fixture.querySelector(':scope > header > .sub > button:last-child') as HTMLButtonElement;
+    const records: Array<{ className: string; height: number; opacity: number }> = [];
+    const started = performance.now();
+    do {
+      records.push({
+        className: target.className,
+        height: target.getBoundingClientRect().height,
+        opacity: Number.parseFloat(getComputedStyle(target).opacity),
+      });
+      if (records.length === 1) button.click();
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    } while (performance.now() - started < 260);
+    return records;
+  });
+  const reversal = samples.filter(sample =>
+    sample.className.includes('container-toggle-enter-active'));
+
+  expect(reversal).not.toHaveLength(0);
+  expect(reversal[0].height).toBeLessThanOrEqual(beforeReverse.height + 8);
+  expect(reversal.every(sample => sample.height > 1)).toBeTruthy();
+  expect(reversal.every(sample => sample.opacity > 0.2)).toBeTruthy();
+
+  await expect(content).not.toHaveClass(/container-toggle-/, { timeout: 2_000 });
+  await expect(content).not.toHaveAttribute('style', /height|opacity/);
+});
+
+test('MkContainer keeps the rendered height and opacity continuous when an enter reverses into leave', async ({ page }) => {
+  const root = page.locator('.fixture-container');
+  const content = root.locator(':scope > .content');
+  const fold = root.locator(':scope > header > .sub > button').last();
+  await content.locator(':scope > .fade').click();
+
+  await fold.click();
+  await expect(content).toBeHidden({ timeout: 2_000 });
+  await page.locator('[data-action="expand"]').click();
+  await page.waitForTimeout(75);
+  const beforeReverse = await content.evaluate(element => ({
+    height: element.getBoundingClientRect().height,
+    opacity: Number.parseFloat(getComputedStyle(element).opacity),
+  }));
+  expect(beforeReverse.height).toBeGreaterThan(1);
+  expect(beforeReverse.height).toBeLessThan(160);
+
+  // Sample and reverse in one browser task. Starting a separate async
+  // evaluation and then issuing a Playwright click can otherwise start the
+  // sampler after the click has already been dispatched.
+  const samples = await page.evaluate(async () => {
+    const fixture = document.querySelector('.fixture-container') as HTMLElement;
+    const target = fixture.querySelector(':scope > .content') as HTMLElement;
+    const button = fixture.querySelector(':scope > header > .sub > button:last-child') as HTMLButtonElement;
+    const records: Array<{ className: string; height: number; opacity: number }> = [];
+    const started = performance.now();
+    do {
+      records.push({
+        className: target.className,
+        height: target.getBoundingClientRect().height,
+        opacity: Number.parseFloat(getComputedStyle(target).opacity),
+      });
+      if (records.length === 1) button.click();
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    } while (performance.now() - started < 260);
+    return records;
+  });
+  const reversal = samples.filter(sample =>
+    sample.className.includes('container-toggle-leave-active'));
+
+  expect(reversal).not.toHaveLength(0);
+  expect(reversal[0].height).toBeLessThanOrEqual(beforeReverse.height + 8);
+  expect(reversal.every(sample => sample.height <= beforeReverse.height + 8)).toBeTruthy();
+  expect(reversal.every(sample => sample.opacity <= 1)).toBeTruthy();
+
+  await expect(content).toBeHidden({ timeout: 2_000 });
+  await expect(content).not.toHaveClass(/container-toggle-/);
+});

@@ -54,6 +54,7 @@
     private IJSObjectReference? attachment;
     private bool showBody;
     private bool contentHidden;
+    private bool? requestedShowBody;
     private bool omitted;
     private bool ignoreOmit;
     private bool narrow;
@@ -190,28 +191,32 @@
 
         narrow = isNarrow;
         omitted = nextOmitted;
+        if (requestedShowBody is not null)
+        {
+            return Task.CompletedTask;
+        }
         return InvokeAsync(StateHasChanged);
     }
 
-    private Task ToggleFromButtonAsync() => SetExpandedAsync(!showBody);
+    private Task ToggleFromButtonAsync() => SetExpandedAsync(!(requestedShowBody ?? showBody));
 
     private async Task SetExpandedAsync(bool next)
     {
-        if (disposed || showBody == next)
+        if (disposed || (requestedShowBody ?? showBody) == next)
         {
             return;
         }
 
         long generation = ++motionGeneration;
-        showBody = next;
-        await InvokeAsync(StateHasChanged);
         if (attachment is null)
         {
+            showBody = next;
             contentHidden = !next;
             await InvokeAsync(StateHasChanged);
             return;
         }
 
+        requestedShowBody = next;
         try
         {
             bool cancelled = await attachment.InvokeAsync<bool>(
@@ -222,12 +227,18 @@
                 generation);
             if (!disposed && motionGeneration == generation && !cancelled)
             {
+                showBody = next;
                 contentHidden = !next;
+                requestedShowBody = null;
                 await InvokeAsync(StateHasChanged);
             }
         }
         catch (Exception exception) when (exception is JSDisconnectedException or OperationCanceledException)
         {
+            if (motionGeneration == generation)
+            {
+                requestedShowBody = null;
+            }
         }
     }
 

@@ -4,6 +4,8 @@ const nextFrame = () => new Promise(resolve => {
   requestAnimationFrame(() => requestAnimationFrame(resolve));
 });
 
+const nextPaint = () => new Promise(resolve => requestAnimationFrame(resolve));
+
 const milliseconds = value => {
   const text = value.trim();
   if (text.endsWith('ms')) return Number.parseFloat(text) || 0;
@@ -125,26 +127,46 @@ export function attach(root, content, persistKey, defaultExpanded, receiver) {
   });
   resizeObserver.observe(root);
 
-  const cleanMotion = () => {
+  const motionClasses = [
+    'folder-toggle-enter-active',
+    'folder-toggle-enter-from',
+    'folder-toggle-enter-to',
+    'folder-toggle-leave-active',
+    'folder-toggle-leave-from',
+    'folder-toggle-leave-to',
+  ];
+
+  const captureContinuation = () => {
+    if (!motionClasses.some(className => content.classList.contains(className))) return null;
+    const height = content.getBoundingClientRect().height;
+    const opacity = Number.parseFloat(getComputedStyle(content).opacity);
+    return Number.isFinite(height) && Number.isFinite(opacity)
+      ? { height, opacity }
+      : null;
+  };
+
+  const cleanMotion = (continuation = null) => {
     if (motionCleanup !== null) {
       const cleanup = motionCleanup;
       motionCleanup = null;
       cleanup();
     }
-    content.classList.remove(
-      'folder-toggle-enter-active',
-      'folder-toggle-enter-from',
-      'folder-toggle-enter-to',
-      'folder-toggle-leave-active',
-      'folder-toggle-leave-from',
-      'folder-toggle-leave-to');
-    content.style.removeProperty('height');
+    if (continuation !== null) {
+      content.style.height = `${continuation.height}px`;
+      content.style.opacity = String(continuation.opacity);
+    }
+    content.classList.remove(...motionClasses);
+    if (continuation === null) {
+      content.style.removeProperty('height');
+      content.style.removeProperty('opacity');
+    }
   };
 
   const setExpanded = async (nextExpanded, animate, requestedGeneration) => {
     if (disposed) return true;
     generation = Number(requestedGeneration);
-    cleanMotion();
+    const continuation = captureContinuation();
+    cleanMotion(continuation);
     expanded = Boolean(nextExpanded);
     if (persistKey !== null) {
       localStorage.setItem(storagePrefix + persistKey, expanded ? 't' : 'f');
@@ -157,27 +179,64 @@ export function attach(root, content, persistKey, defaultExpanded, receiver) {
     const current = generation;
     let cancelWait = null;
     motionCleanup = () => cancelWait?.();
-    if (expanded) {
-      content.style.display = '';
-      const height = content.getBoundingClientRect().height;
-      content.classList.add('folder-toggle-enter-active', 'folder-toggle-enter-from');
-      content.style.height = '0px';
-      void content.offsetHeight;
-      await nextFrame();
-      if (disposed || generation !== current) return true;
-      content.classList.remove('folder-toggle-enter-from');
-      content.classList.add('folder-toggle-enter-to');
-      content.style.height = `${height}px`;
+    if (continuation !== null) {
+      if (expanded) {
+        content.style.display = '';
+        content.style.height = `${continuation.height}px`;
+        content.style.opacity = String(continuation.opacity);
+        const retainedHeight = content.style.height;
+        content.style.removeProperty('height');
+        const height = content.getBoundingClientRect().height;
+        content.style.height = retainedHeight;
+        content.classList.add('folder-toggle-enter-active');
+        void content.offsetHeight;
+        await nextFrame();
+        if (disposed || generation !== current) return true;
+        content.style.removeProperty('opacity');
+        content.style.height = `${height}px`;
+      } else {
+        content.classList.add('folder-toggle-leave-active', 'folder-toggle-leave-to');
+        content.style.height = `${continuation.height}px`;
+        content.style.opacity = String(continuation.opacity);
+        void content.offsetHeight;
+        await nextFrame();
+        if (disposed || generation !== current) return true;
+        content.style.removeProperty('opacity');
+        content.style.height = '0px';
+      }
     } else {
-      const height = content.getBoundingClientRect().height;
-      content.classList.add('folder-toggle-leave-active', 'folder-toggle-leave-from');
-      content.style.height = `${height}px`;
-      void content.offsetHeight;
-      await nextFrame();
-      if (disposed || generation !== current) return true;
-      content.classList.remove('folder-toggle-leave-from');
-      content.classList.add('folder-toggle-leave-to');
-      content.style.height = '0px';
+      if (expanded) {
+        content.style.display = '';
+        const height = content.getBoundingClientRect().height;
+        // Paint the initial state before enabling the transition. If the
+        // transition class and enter state arrive in the same style pass,
+        // Chromium interpolates from the old visible state for one frame.
+        content.style.opacity = '0';
+        content.style.height = '0px';
+        void content.offsetHeight;
+        await nextPaint();
+        if (disposed || generation !== current) return true;
+        content.classList.add('folder-toggle-enter-active', 'folder-toggle-enter-from');
+        void content.offsetHeight;
+        await nextPaint();
+        if (disposed || generation !== current) return true;
+        content.classList.remove('folder-toggle-enter-from');
+        content.classList.add('folder-toggle-enter-to');
+        content.style.removeProperty('opacity');
+        content.style.height = `${height}px`;
+      } else {
+        const height = content.getBoundingClientRect().height;
+        content.style.opacity = '1';
+        content.classList.add('folder-toggle-leave-active', 'folder-toggle-leave-from');
+        content.style.height = `${height}px`;
+        void content.offsetHeight;
+        await nextFrame();
+        if (disposed || generation !== current) return true;
+        content.classList.remove('folder-toggle-leave-from');
+        content.classList.add('folder-toggle-leave-to');
+        content.style.removeProperty('opacity');
+        content.style.height = '0px';
+      }
     }
 
     const cancelled = await waitForTransition(

@@ -108,27 +108,61 @@ export function attach(root, header, content, maxHeight, expanded, dotnet) {
   if (header instanceof HTMLElement) observer.observe(header);
   measure();
 
-  const cleanMotion = () => {
+  const updateExpandedPresentation = () => {
+    root.classList.toggle('closed', !showBody);
+    if (!(header instanceof HTMLElement)) return;
+    const fold = header.querySelector('button[aria-expanded]');
+    if (!(fold instanceof HTMLElement)) return;
+    fold.setAttribute('aria-expanded', String(showBody));
+    const icon = fold.querySelector('i');
+    if (icon instanceof HTMLElement) {
+      icon.classList.toggle('fa-angle-up', showBody);
+      icon.classList.toggle('fa-angle-down', !showBody);
+    }
+  };
+
+  const motionClasses = [
+    'container-toggle-enter-active',
+    'container-toggle-enter-from',
+    'container-toggle-enter-to',
+    'container-toggle-leave-active',
+    'container-toggle-leave-from',
+    'container-toggle-leave-to',
+  ];
+
+  const captureContinuation = () => {
+    if (!motionClasses.some(className => content.classList.contains(className))) return null;
+    const height = content.getBoundingClientRect().height;
+    const opacity = Number.parseFloat(getComputedStyle(content).opacity);
+    return Number.isFinite(height) && Number.isFinite(opacity)
+      ? { height, opacity }
+      : null;
+  };
+
+  const cleanMotion = (continuation = null) => {
     if (motionCleanup !== null) {
       const cleanup = motionCleanup;
       motionCleanup = null;
       cleanup();
     }
-    content.classList.remove(
-      'container-toggle-enter-active',
-      'container-toggle-enter-from',
-      'container-toggle-enter-to',
-      'container-toggle-leave-active',
-      'container-toggle-leave-from',
-      'container-toggle-leave-to');
-    content.style.removeProperty('height');
+    if (continuation !== null) {
+      content.style.height = `${continuation.height}px`;
+      content.style.opacity = String(continuation.opacity);
+    }
+    content.classList.remove(...motionClasses);
+    if (continuation === null) {
+      content.style.removeProperty('height');
+      content.style.removeProperty('opacity');
+    }
   };
 
   const setExpanded = async (nextExpanded, animate, requestedGeneration) => {
     if (disposed) return true;
     generation = Number(requestedGeneration);
-    cleanMotion();
+    const continuation = captureContinuation();
+    cleanMotion(continuation);
     showBody = Boolean(nextExpanded);
+    updateExpandedPresentation();
     measure();
     const thisGeneration = generation;
     if (!animate) {
@@ -136,34 +170,61 @@ export function attach(root, header, content, maxHeight, expanded, dotnet) {
       return false;
     }
 
-    await new Promise(resolve => requestAnimationFrame(resolve));
-    if (disposed || generation !== thisGeneration) return true;
-
     let cancelWait = null;
     const registerCleanup = cleanup => { cancelWait = cleanup; };
     motionCleanup = () => cancelWait?.();
 
-    if (showBody) {
-      content.style.display = '';
-      const elementHeight = content.getBoundingClientRect().height;
-      content.classList.add('container-toggle-enter-active', 'container-toggle-enter-from');
-      content.style.height = '0px';
-      void content.offsetHeight;
-      await nextFrame();
-      if (disposed || generation !== thisGeneration) return true;
-      content.classList.remove('container-toggle-enter-from');
-      content.classList.add('container-toggle-enter-to');
-      content.style.height = `${elementHeight}px`;
+    if (continuation !== null) {
+      if (showBody) {
+        content.style.display = '';
+        content.style.height = `${continuation.height}px`;
+        content.style.opacity = String(continuation.opacity);
+        const retainedHeight = content.style.height;
+        content.style.removeProperty('height');
+        const elementHeight = content.getBoundingClientRect().height;
+        content.style.height = retainedHeight;
+        content.classList.add('container-toggle-enter-active');
+        void content.offsetHeight;
+        await nextFrame();
+        if (disposed || generation !== thisGeneration) return true;
+        content.style.removeProperty('opacity');
+        content.style.height = `${elementHeight}px`;
+      } else {
+        content.classList.add('container-toggle-leave-active', 'container-toggle-leave-to');
+        content.style.height = `${continuation.height}px`;
+        content.style.opacity = String(continuation.opacity);
+        void content.offsetHeight;
+        await nextFrame();
+        if (disposed || generation !== thisGeneration) return true;
+        content.style.removeProperty('opacity');
+        content.style.height = '0px';
+      }
     } else {
-      const elementHeight = content.getBoundingClientRect().height;
-      content.classList.add('container-toggle-leave-active', 'container-toggle-leave-from');
-      content.style.height = `${elementHeight}px`;
-      void content.offsetHeight;
-      await nextFrame();
+      await new Promise(resolve => requestAnimationFrame(resolve));
       if (disposed || generation !== thisGeneration) return true;
-      content.classList.remove('container-toggle-leave-from');
-      content.classList.add('container-toggle-leave-to');
-      content.style.height = '0px';
+
+      if (showBody) {
+        content.style.display = '';
+        const elementHeight = content.getBoundingClientRect().height;
+        content.classList.add('container-toggle-enter-active', 'container-toggle-enter-from');
+        content.style.height = '0px';
+        void content.offsetHeight;
+        await nextFrame();
+        if (disposed || generation !== thisGeneration) return true;
+        content.classList.remove('container-toggle-enter-from');
+        content.classList.add('container-toggle-enter-to');
+        content.style.height = `${elementHeight}px`;
+      } else {
+        const elementHeight = content.getBoundingClientRect().height;
+        content.classList.add('container-toggle-leave-active', 'container-toggle-leave-from');
+        content.style.height = `${elementHeight}px`;
+        void content.offsetHeight;
+        await nextFrame();
+        if (disposed || generation !== thisGeneration) return true;
+        content.classList.remove('container-toggle-leave-from');
+        content.classList.add('container-toggle-leave-to');
+        content.style.height = '0px';
+      }
     }
 
     const result = await waitForTransition(

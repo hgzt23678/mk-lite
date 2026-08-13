@@ -1,9 +1,11 @@
 @implements IAsyncDisposable
 @inject IContextMenuInterop ContextMenuInterop
 @inject IMisskeyOverlayService Overlays
+@inject IPizzaxDeviceState DeviceState
 
 <div @ref="root"
-     class="nvlagfpb fade-enter-active"
+     class="nvlagfpb"
+     style="visibility: hidden;"
      @oncontextmenu="IgnoreContextMenu"
      @oncontextmenu:preventDefault="true"
      @oncontextmenu:stopPropagation="true">
@@ -18,6 +20,7 @@
     private DotNetObjectReference<MkContextMenu>? receiver;
     private IJSObjectReference? attachment;
     private Task? attachmentTask;
+    private bool animation = true;
     private bool isClosing;
     private bool disposed;
 
@@ -51,13 +54,15 @@
 
     private async Task AttachAsync()
     {
-        receiver = DotNetObjectReference.Create(this);
         try
         {
+            animation = await DeviceState.ReadAsync("animation", true, lifetime.Token).ConfigureAwait(false);
+            receiver = DotNetObjectReference.Create(this);
             IJSObjectReference handle = await ContextMenuInterop.AttachAsync(
                 root,
                 X,
                 Y,
+                animation,
                 receiver,
                 lifetime.Token);
             if (disposed)

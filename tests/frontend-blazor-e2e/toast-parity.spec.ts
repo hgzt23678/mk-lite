@@ -8,6 +8,7 @@ test('MkToast preserves pinned geometry, opaque acrylic surface and high stackin
   const body = root.locator(':scope > .body._acrylic');
   await expect(body).toHaveAttribute('data-motion-state', 'entered');
   await expect(body.locator(':scope > .message')).toHaveText('Welcome back, Alice');
+  await expect(body).not.toHaveClass(/toast-enter-active|toast-enter-from|toast-enter-to/);
   const contract = await body.evaluate(element => {
     const style = getComputedStyle(element);
     const color = style.backgroundColor.match(/[\d.]+/g)?.map(Number) ?? [];
@@ -59,6 +60,23 @@ test('MkToast runs the enter and leave lifecycle before emitting closed', async 
   expect(phases.some(value => value.includes('entering:') && value.includes('toast-enter-active'))).toBeTruthy();
   expect(phases.some(value => value.startsWith('entered:'))).toBeTruthy();
   expect(phases.some(value => value.includes('leaving:') && value.includes('toast-leave-to'))).toBeTruthy();
+});
+
+test('MkToast disposes safely when its parent removes it mid-enter', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('console', message => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  page.on('pageerror', error => errors.push(error.message));
+
+  await page.goto('/__test/components/toast');
+  await page.locator('#show-toast').click();
+  const body = page.locator('.mk-toast > .body');
+  await expect(body).toHaveAttribute('data-motion-state', 'entering');
+  await page.locator('#remove-toast').click();
+  await expect(body).toHaveCount(0);
+  await expect(page.locator('#show-toast')).toBeEnabled();
+  expect(errors).toEqual([]);
 });
 
 test('MkToast honors reduced motion and early disposal without a circuit error', async ({ page }) => {

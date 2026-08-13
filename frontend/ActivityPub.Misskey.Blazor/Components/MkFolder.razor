@@ -27,6 +27,7 @@
     private IJSObjectReference? attachment;
     private DotNetObjectReference<MkFolder>? receiver;
     private bool showBody;
+    private bool? requestedShowBody;
     private bool narrow;
     private bool animation = true;
     private bool initialized;
@@ -128,26 +129,31 @@
         }
 
         narrow = value;
+        if (requestedShowBody is not null)
+        {
+            return Task.CompletedTask;
+        }
         return InvokeAsync(StateHasChanged);
     }
 
-    private Task ToggleAsync() => SetExpandedAsync(!showBody);
+    private Task ToggleAsync() => SetExpandedAsync(!(requestedShowBody ?? showBody));
 
     private async Task SetExpandedAsync(bool value)
     {
-        if (disposed || showBody == value)
+        if (disposed || (requestedShowBody ?? showBody) == value)
         {
             return;
         }
 
         long current = ++generation;
-        showBody = value;
-        await InvokeAsync(StateHasChanged);
         if (attachment is null)
         {
+            showBody = value;
+            await InvokeAsync(StateHasChanged);
             return;
         }
 
+        requestedShowBody = value;
         try
         {
             bool cancelled = await attachment.InvokeAsync<bool>(
@@ -158,11 +164,17 @@
                 current).ConfigureAwait(false);
             if (!disposed && generation == current && !cancelled)
             {
+                showBody = value;
+                requestedShowBody = null;
                 await InvokeAsync(StateHasChanged);
             }
         }
         catch (Exception exception) when (exception is JSDisconnectedException or OperationCanceledException)
         {
+            if (generation == current)
+            {
+                requestedShowBody = null;
+            }
         }
     }
 

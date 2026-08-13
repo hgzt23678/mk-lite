@@ -1,9 +1,10 @@
 import { claimZIndex } from './overlay-stack.js';
 
-export function attach(root, x, y, receiver) {
+export function attach(root, x, y, animate, receiver) {
   let disposed = false;
   let frame = 0;
   let closeTimer = 0;
+  const motionEnabled = animate && !matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const zIndex = claimZIndex('high');
   root.style.zIndex = String(zIndex);
@@ -26,13 +27,19 @@ export function attach(root, x, y, receiver) {
 
   root.style.top = `${top}px`;
   root.style.left = `${left}px`;
+  root.style.removeProperty('visibility');
 
-  root.classList.add('fade-enter-active', 'fade-enter-from');
-  frame = requestAnimationFrame(() => {
+  if (motionEnabled) {
+    root.classList.add('fade-enter-active', 'fade-enter-from');
     frame = requestAnimationFrame(() => {
-      if (!disposed) root.classList.remove('fade-enter-from');
+      frame = requestAnimationFrame(() => {
+        if (!disposed) {
+          root.classList.remove('fade-enter-from');
+          root.classList.remove('fade-enter-active');
+        }
+      });
     });
-  });
+  }
 
   const onMousedown = event => {
     if (root.contains(event.target)) return;
@@ -43,6 +50,11 @@ export function attach(root, x, y, receiver) {
   const handle = {
     close() {
       if (disposed || closeTimer) return;
+      if (!motionEnabled) {
+        receiver.invokeMethodAsync('NotifyClosed');
+        return;
+      }
+      root.classList.remove('fade-enter-active', 'fade-enter-from', 'fade-enter-to');
       root.classList.add('fade-leave-active', 'fade-leave-to');
       closeTimer = window.setTimeout(() => receiver.invokeMethodAsync('NotifyClosed'), 500);
     },

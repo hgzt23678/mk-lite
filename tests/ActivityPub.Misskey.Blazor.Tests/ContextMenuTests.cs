@@ -3,6 +3,7 @@ using ActivityPub.Misskey.Blazor.BrowserInterop;
 using ActivityPub.Misskey.Blazor.Components;
 using ActivityPub.Misskey.Blazor.Localization;
 using ActivityPub.Misskey.Blazor.Overlays;
+using ActivityPub.Misskey.Blazor.State;
 using AngleSharp.Dom;
 using Bunit;
 using Microsoft.AspNetCore.Components;
@@ -17,6 +18,7 @@ public sealed class ContextMenuTests : BunitContext
     {
         Services.AddSingleton<IMenuInterop>(new RecordingMenuInterop());
         Services.AddSingleton<IMisskeyLocalizer>(new FixedLocalizer());
+        Services.AddSingleton<IPizzaxDeviceState>(new FixedDeviceState());
     }
 
     [Fact]
@@ -54,6 +56,7 @@ public sealed class ContextMenuTests : BunitContext
         component.WaitForAssertion(() => Assert.Equal(1, browser.AttachCalls));
         Assert.Equal(120.5, browser.X);
         Assert.Equal(240.25, browser.Y);
+        Assert.True(browser.Animation);
         Assert.NotNull(component.Find(".nvlagfpb"));
         Assert.NotNull(component.Find(".nvlagfpb .rrevdjwt._popup._shadow"));
         IElement menu = component.Find(".rrevdjwt");
@@ -108,12 +111,15 @@ public sealed class ContextMenuTests : BunitContext
 
         public double Y { get; private set; }
 
+        public bool Animation { get; private set; }
+
         public RecordingHandle Handle { get; } = new();
 
         public ValueTask<IJSObjectReference> AttachAsync(
             ElementReference root,
             double x,
             double y,
+            bool animate,
             DotNetObjectReference<MkContextMenu> receiver,
             CancellationToken cancellationToken)
         {
@@ -123,6 +129,7 @@ public sealed class ContextMenuTests : BunitContext
             AttachCalls++;
             X = x;
             Y = y;
+            Animation = animate;
             return ValueTask.FromResult<IJSObjectReference>(Handle);
         }
 
@@ -208,5 +215,29 @@ public sealed class ContextMenuTests : BunitContext
 
         public bool TrySelectLocale(string? locale) =>
             string.Equals(locale, CurrentLocale, StringComparison.Ordinal);
+    }
+
+    private sealed class FixedDeviceState : IPizzaxDeviceState
+    {
+        public ValueTask<T> ReadAsync<T>(
+            string propertyName,
+            T fallback,
+            CancellationToken cancellationToken = default)
+        {
+            _ = propertyName;
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(fallback);
+        }
+
+        public ValueTask WriteAsync<T>(
+            string propertyName,
+            T value,
+            CancellationToken cancellationToken = default)
+        {
+            _ = propertyName;
+            _ = value;
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.CompletedTask;
+        }
     }
 }

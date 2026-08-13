@@ -10,6 +10,7 @@ public interface IContextMenuInterop : IAsyncDisposable
         ElementReference root,
         double x,
         double y,
+        bool animate,
         DotNetObjectReference<MkContextMenu> receiver,
         CancellationToken cancellationToken);
 }
@@ -25,6 +26,7 @@ public sealed class ContextMenuInterop(IJSRuntime javascript) : IContextMenuInte
         ElementReference root,
         double x,
         double y,
+        bool animate,
         DotNetObjectReference<MkContextMenu> receiver,
         CancellationToken cancellationToken)
     {
@@ -35,6 +37,7 @@ public sealed class ContextMenuInterop(IJSRuntime javascript) : IContextMenuInte
             root,
             x,
             y,
+            animate,
             receiver).ConfigureAwait(false);
     }
 

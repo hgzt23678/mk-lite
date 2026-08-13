@@ -106,7 +106,13 @@ export function attach(body, receiver, generation, animate) {
         if (!current(enterGeneration)) return;
         body.classList.remove('toast-enter-from');
         await waitForTransition(body, () => current(enterGeneration));
-        if (current(enterGeneration)) body.dataset.motionState = 'entered';
+        if (current(enterGeneration)) {
+          // Keep enter-only transition state out of the steady state. Otherwise
+          // later layout or style updates animate unexpectedly after the toast
+          // has finished entering.
+          body.classList.remove('toast-enter-active', 'toast-enter-from', 'toast-enter-to');
+          body.dataset.motionState = 'entered';
+        }
       });
     });
   } else {
