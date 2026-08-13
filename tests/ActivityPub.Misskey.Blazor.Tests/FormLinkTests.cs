@@ -29,7 +29,7 @@ public sealed class FormLinkTests : BunitContext
         Assert.Equal("disabled", root.GetAttribute("disabled"));
 
         IElement anchor = Assert.IsAssignableFrom<IElement>(root.QuerySelector(":scope > a.main._button.active"));
-        Assert.Equal("/settings/profile", anchor.GetAttribute("href"));
+        Assert.Equal("settings/profile", anchor.GetAttribute("href"));
         Assert.Equal("false", anchor.GetAttribute("data-enhance-nav"));
         Assert.Equal("browser", anchor.GetAttribute("data-misskey-behavior"));
         Assert.False(anchor.HasAttribute("disabled"));

@@ -262,6 +262,11 @@
           "Microsoft.IdentityModel.Logging": "8.19.2"
         }
       },
+      "Microsoft.JSInterop.WebAssembly": {
+        "type": "Transitive",
+        "resolved": "10.0.11",
+        "contentHash": "WtlvldXFOdft4tFW4Y3lTnRqZfGYebOBPMXZAy9Yp3gv0A88rNbDtXcuoppvqsVWe4cIG95iEXFmXB+nvuEN3Q=="
+      },
       "Microsoft.TestPlatform.ObjectModel": {
         "type": "Transitive",
         "resolved": "18.8.1",
@@ -512,16 +517,14 @@
         }
       },
       "activitypub.misskey.blazor": {
-        "type": "Project",
-        "dependencies": {
-          "ActivityPub.MisskeyApi": "[1.0.0, )"
-        }
+        "type": "Project"
       },
       "activitypub.misskeyapi": {
         "type": "Project",
         "dependencies": {
           "ActivityPub.Application": "[1.0.0, )",
           "ActivityPub.Domain": "[1.0.0, )",
+          "ActivityPub.Identity": "[1.0.0, )",
           "ActivityPub.Persistence": "[1.0.0, )"
         }
       },
@@ -573,6 +576,7 @@
           "ActivityPub.Operations": "[1.0.0, )",
           "ActivityPub.Persistence": "[1.0.0, )",
           "ActivityPub.Workers": "[1.0.0, )",
+          "Microsoft.AspNetCore.Components.WebAssembly.Server": "[10.0.11, )",
           "Microsoft.AspNetCore.DataProtection.EntityFrameworkCore": "[10.0.11, )"
         }
       },
@@ -629,6 +633,24 @@
         "contentHash": "LM2J/cxqAB6W1sZ0Lo8sf0AYcnYQWEDTyRQTIxGt/cZ7C24VKugbvux2iswkyAbPC8M4HP7NEqC2cWbvyTWVnQ==",
         "dependencies": {
           "Microsoft.IdentityModel.Protocols.OpenIdConnect": "8.19.2"
+        }
+      },
+      "Microsoft.AspNetCore.Components.WebAssembly": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.11, )",
+        "resolved": "10.0.11",
+        "contentHash": "OaZ+pEJzfejOtCkmepeJYYItNu3PA6Y2EajBwS8vr30mUjCOZWjVCr2sCqUOVw7D6+wmJwpNKtHqyzbtX/F7qQ==",
+        "dependencies": {
+          "Microsoft.JSInterop.WebAssembly": "10.0.11"
+        }
+      },
+      "Microsoft.AspNetCore.Components.WebAssembly.Server": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.11, )",
+        "resolved": "10.0.11",
+        "contentHash": "El0lkzjqwWVKmFC4tS0orMxysMNwElGNM1lLNYyqBh8SLsP5c+EDDrZS4FAv0bcqc+t1nxosnzqrd0ob+XASPQ==",
+        "dependencies": {
+          "Microsoft.AspNetCore.Components.WebAssembly": "10.0.11"
         }
       },
       "Microsoft.AspNetCore.DataProtection.EntityFrameworkCore": {

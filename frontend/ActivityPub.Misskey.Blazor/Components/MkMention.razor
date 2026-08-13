@@ -3,7 +3,7 @@
 @inject IPizzaxDeviceState DeviceState
 @inject IAuthenticatedActorContext ActorContext
 
-@if (Url.StartsWith("/", StringComparison.Ordinal))
+@if (!Uri.TryCreate(Url, UriKind.Absolute, out _))
 {
     <a @attributes="AttributesWithoutClassAndStyle"
        data-user-preview="@Canonical"
@@ -48,8 +48,8 @@ else
     private string Canonical => string.Equals(Host, LocalHost, StringComparison.Ordinal)
         ? $"@{Username}"
         : $"@{Username}@{UnicodeHost}";
-    private string Url => $"/{Canonical}";
-    private string AppUrl => $"/{Canonical}";
+    private string Url => Canonical;
+    private string AppUrl => Canonical;
     private string AvatarUrl => $"/avatar/@{Username}@{Host}";
     private bool ShowHost => !string.Equals(Host, LocalHost, StringComparison.Ordinal) || showFullAcct;
     private bool IsMe => viewerUsername is not null && string.Equals(

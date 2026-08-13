@@ -1,9 +1,12 @@
+#if MISSKEY_BLAZOR_SERVER
 using System.Security.Claims;
 using ActivityPub.Application;
 using Microsoft.AspNetCore.Components.Authorization;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Identity;
 
+#if !MISSKEY_BLAZOR_SERVER
 public sealed record AuthenticatedActor(string Username, string ActorIri);
 
 public sealed class FrontendAuthenticationException(string errorCode) : Exception(errorCode)
@@ -18,6 +21,9 @@ public interface IAuthenticatedActorContext
     Task<bool> IsAdministratorAsync(CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class AuthenticatedActorContext(
     AuthenticationStateProvider authenticationStateProvider,
     IClientApiQueryService query) : IAuthenticatedActorContext
@@ -59,3 +65,4 @@ public sealed class AuthenticatedActorContext(
                principal.HasClaim(claim => claim.Type == "realm_access" && claim.Value.Contains("activitypub-admin", StringComparison.Ordinal));
     }
 }
+#endif

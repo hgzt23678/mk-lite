@@ -115,7 +115,7 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private static string NoteHref(string id) => "/notes/" + Uri.EscapeDataString(id);
+    private static string NoteHref(string id) => "notes/" + Uri.EscapeDataString(id);
 
     public async ValueTask DisposeAsync()
     {

@@ -87,7 +87,7 @@ public sealed class MfmViewTests : BunitContext
             Assert.Equal("#z z", url.QuerySelector(":scope > .hash")?.TextContent);
 
             Assert.Equal("/tags/local", component.Find("a.xlcxczvw").GetAttribute("href"));
-            Assert.Equal("/@bob@remote.example", component.Find("a.akbvjaqn").GetAttribute("href"));
+            Assert.Equal("@bob@remote.example", component.Find("a.akbvjaqn").GetAttribute("href"));
             Assert.Equal("/explore/tags/topic", component.Find("a[href='/explore/tags/topic']").GetAttribute("href"));
             Assert.Equal("/media/party.webp", component.Find("img[alt=':party:']").GetAttribute("src"));
             Assert.EndsWith("/twemoji/1f44d.svg", component.Find("img[alt='👍']").GetAttribute("src"), StringComparison.Ordinal);

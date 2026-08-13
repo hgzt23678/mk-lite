@@ -2,7 +2,7 @@
 @using ActivityPub.Misskey.Blazor.Pages
 
 <MisskeyLocalizationHost>
-    <Router AppAssembly="typeof(App).Assembly" AdditionalAssemblies="RouteAssemblies.Assemblies">
+    <Router AppAssembly="typeof(Routes).Assembly" AdditionalAssemblies="RouteAssemblies.Assemblies">
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)">
                 <NotAuthorized>

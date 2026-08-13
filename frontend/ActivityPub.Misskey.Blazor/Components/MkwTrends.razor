@@ -73,7 +73,7 @@
         }
     }
 
-    private string TagHref(string tag) => "/tags/" + Uri.EscapeDataString(tag);
+    private string TagHref(string tag) => "tags/" + Uri.EscapeDataString(tag);
 
     private void OpenTag(string tag) => Navigation.NavigateTo(TagHref(tag));
 

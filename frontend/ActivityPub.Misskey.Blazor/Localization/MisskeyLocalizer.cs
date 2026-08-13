@@ -1,25 +1,11 @@
 using System.Globalization;
+#if MISSKEY_BLAZOR_SERVER
 using Microsoft.AspNetCore.Http;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Localization;
 
-public interface IMisskeyLocalizer
-{
-    event EventHandler? LocaleChanged;
-
-    string CurrentLocale { get; }
-
-    string Direction { get; }
-
-    CultureInfo Culture { get; }
-
-    IReadOnlyList<MisskeyLocaleDefinition> SupportedLocales { get; }
-
-    string Translate(string key, IReadOnlyDictionary<string, object?>? arguments = null);
-
-    bool TrySelectLocale(string? locale);
-}
-
+#if MISSKEY_BLAZOR_SERVER
 public sealed class MisskeyLocalizer : IMisskeyLocalizer
 {
     private readonly IMisskeyLocaleCatalog catalog;
@@ -67,3 +53,4 @@ public sealed class MisskeyLocalizer : IMisskeyLocalizer
         return true;
     }
 }
+#endif

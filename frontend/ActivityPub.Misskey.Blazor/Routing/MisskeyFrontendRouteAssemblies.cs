@@ -50,7 +50,7 @@ public sealed class MisskeyFrontendRouteAssemblies
             }
 
             Assembly assembly = componentType.Assembly;
-            if (assembly == typeof(App).Assembly)
+            if (assembly == typeof(Routes).Assembly)
             {
                 throw new ArgumentException(
                     "The frontend assembly is already the primary route assembly.",

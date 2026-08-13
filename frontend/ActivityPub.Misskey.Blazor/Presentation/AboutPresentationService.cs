@@ -1,8 +1,11 @@
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
 using ActivityPub.MisskeyApi;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public interface IAboutPresentationService
 {
     Task<AboutStatisticsViewModel> GetStatisticsAsync(CancellationToken cancellationToken);
@@ -12,6 +15,9 @@ public interface IAboutPresentationService
         CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class AboutPresentationService(
     IFederationQueryStore federation,
     MisskeyQueryService misskey) : IAboutPresentationService
@@ -85,6 +91,9 @@ public sealed class AboutPresentationService(
         value.LastCommunicatedAt);
 }
 
+#endif
+
+#if !MISSKEY_BLAZOR_SERVER
 public sealed record AboutStatisticsViewModel(long OriginalUsersCount, long OriginalNotesCount);
 
 public sealed record AboutFederationQuery(
@@ -123,8 +132,11 @@ public sealed class AboutFederationPaginationSource(
 
     public string GetId(FederationInstanceViewModel item) => item.Id;
 }
+#endif
 
+#if !MISSKEY_BLAZOR_SERVER
 public sealed class AboutPresentationException(string code) : InvalidOperationException(code)
 {
     public string Code { get; } = code;
 }
+#endif

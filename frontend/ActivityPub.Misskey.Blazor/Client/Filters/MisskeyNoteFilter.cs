@@ -10,6 +10,6 @@ public static class MisskeyNoteFilter
             throw new ArgumentException("The Misskey note ID is invalid.", nameof(noteId));
         }
 
-        return $"/notes/{noteId}";
+        return $"notes/{noteId}";
     }
 }

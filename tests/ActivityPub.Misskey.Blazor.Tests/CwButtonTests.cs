@@ -5,6 +5,8 @@ using ActivityPub.Misskey.Blazor.Presentation;
 using AngleSharp.Dom;
 using Bunit;
 
+using Visibility = ActivityPub.Misskey.Blazor.Presentation.Visibility;
+
 namespace ActivityPub.Misskey.Blazor.Tests;
 
 public sealed class CwButtonTests : BunitContext
@@ -121,7 +123,7 @@ public sealed class CwButtonTests : BunitContext
             new NoteAuthorViewModel("alice-id", "alice", "alice", "Alice", "/static-assets/user-unknown.png", false),
             text,
             "閲覧注意",
-            ActivityPub.Domain.Visibility.Public,
+            (Visibility)Domain.Visibility.Public,
             null,
             0,
             0,

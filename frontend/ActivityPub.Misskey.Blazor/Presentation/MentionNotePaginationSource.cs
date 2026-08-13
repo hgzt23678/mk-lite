@@ -54,7 +54,7 @@ public sealed class MentionNotePaginationSource(
 
                 NoteViewModel note = notification.FullNote ??
                     throw new NotificationPresentationException("NOTIFICATION_NOTE_PROJECTION_UNAVAILABLE");
-                if (!directOnly || note.Visibility == ActivityPub.Domain.Visibility.MentionedOnly)
+                if (!directOnly || note.Visibility == Visibility.MentionedOnly)
                 {
                     result.Add(new(notification.Id, note));
                     if (result.Count == requestedLimit)

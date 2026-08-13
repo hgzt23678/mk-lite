@@ -131,6 +131,6 @@
         {
             throw new InvalidOperationException("Internal form links must use a rooted application path.");
         }
-        return value.StartsWith("/", StringComparison.Ordinal) ? value : "/" + value;
+        return value.TrimStart('/');
     }
 }

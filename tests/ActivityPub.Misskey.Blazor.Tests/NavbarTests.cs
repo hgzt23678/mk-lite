@@ -32,10 +32,10 @@ public sealed class NavbarTests : BunitContext
             Assert.Equal("/static-assets/favicon.png", component.Find(".top > .instance > img.icon").GetAttribute("src"));
             Assert.Equal("Localized timeline", component.Find(".middle > a.index > .text").TextContent);
             Assert.Empty(component.FindAll(".middle > .favorites, .middle > .drive, .middle > .explore, .middle > .search, .middle > .ui"));
-            Assert.Equal("/my/notifications", component.Find(".middle > a.notifications").GetAttribute("href"));
-            Assert.Equal("/announcements", component.Find(".middle > a.announcements").GetAttribute("href"));
-            Assert.Single(component.FindAll(".middle > a[href='/admin']"));
-            Assert.Single(component.FindAll(".middle > a[href='/settings']"));
+            Assert.Equal("my/notifications", component.Find(".middle > a.notifications").GetAttribute("href"));
+            Assert.Equal("announcements", component.Find(".middle > a.announcements").GetAttribute("href"));
+            Assert.Single(component.FindAll(".middle > a[href='admin']"));
+            Assert.Single(component.FindAll(".middle > a[href='settings']"));
             Assert.Single(component.FindAll(".middle > button"));
             Assert.Equal("Localized more", component.Find(".middle > button > .text").TextContent);
             Assert.Equal("/static-assets/favicon.png", component.Find(".bottom > .account > .avatar > img.inner").GetAttribute("src"));
@@ -91,7 +91,7 @@ public sealed class NavbarTests : BunitContext
             Assert.Single(mobile.FindAll(".kmwsukvl > .body > .middle > button"));
             Assert.Single(mobile.FindAll(".kmwsukvl > .body > .middle > .divider"));
             Assert.Empty(mobile.FindAll(".drive"));
-            Assert.Equal("/my/notifications", mobile.Find("a.notifications").GetAttribute("href"));
+            Assert.Equal("my/notifications", mobile.Find("a.notifications").GetAttribute("href"));
         });
         Assert.Contains("menu", device.ReadProperties);
         Assert.DoesNotContain("menuDisplay", device.ReadProperties);
@@ -102,7 +102,7 @@ public sealed class NavbarTests : BunitContext
         MisskeyLaunchPadOptions mobileLaunchPad = Assert.IsType<MisskeyLaunchPadOptions>(launchPadEntry.LaunchPad);
         Assert.Null(mobileLaunchPad.Source);
         Assert.Contains(mobileLaunchPad.Items, item =>
-            item.Kind == MisskeyMenuItemKind.Link && item.Href == "/announcements");
+            item.Kind == MisskeyMenuItemKind.Link && item.Href == "announcements");
         Assert.Equal("Localized reload", Assert.Single(mobileLaunchPad.Items, item =>
             item.Kind == MisskeyMenuItemKind.Action).Text);
         overlays.Close(launchPadEntry.Id);

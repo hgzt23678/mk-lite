@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using ActivityPub.Application;
 using ActivityPub.Domain;
 using ActivityPub.Identity;
@@ -278,12 +277,13 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
         Assert.DoesNotContain("secret", body, StringComparison.OrdinalIgnoreCase);
         using JsonDocument json = JsonDocument.Parse(body);
         Assert.True(json.RootElement.GetProperty("enabled").GetBoolean());
+        Assert.True(json.RootElement.GetProperty("localAccountsEnabled").GetBoolean());
         Assert.Equal("activitypub-web-test", json.RootElement.GetProperty("clientId").GetString());
         Assert.Equal("https://client.local.example", json.RootElement.GetProperty("publicBaseUri").GetString());
         Assert.Equal("https://client.local.example/api/", json.RootElement.GetProperty("apiBaseUri").GetString());
         Assert.Equal("https://client.local.example/oidc/realms/test", json.RootElement.GetProperty("authority").GetString());
         Assert.Equal("https://client.local.example/auth/callback", json.RootElement.GetProperty("redirectUri").GetString());
-        Assert.Equal("https://client.local.example/", json.RootElement.GetProperty("postLogoutRedirectUri").GetString());
+        Assert.Equal("https://client.local.example/app/", json.RootElement.GetProperty("postLogoutRedirectUri").GetString());
         Assert.Equal("https://source.local.example/activitypub-web", json.RootElement.GetProperty("sourceUrl").GetString());
         Assert.False(json.RootElement.GetProperty("allowInsecureDevelopmentOidc").GetBoolean());
         Assert.True(json.RootElement.GetProperty("capabilities").GetProperty("renote").GetBoolean());
@@ -293,14 +293,15 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
     [Fact]
     public async Task FrontendResponsesApplyRestrictiveBrowserSecurityPolicy()
     {
-        using HttpResponseMessage response = await client.GetAsync("/not-built-in-test-host", CancellationToken.None);
+        using HttpResponseMessage response = await client.GetAsync("/app/", CancellationToken.None);
 
         Assert.True(response.Headers.TryGetValues("Content-Security-Policy", out IEnumerable<string>? values));
         string policy = Assert.Single(values);
         Assert.Contains("frame-ancestors 'none'", policy, StringComparison.Ordinal);
         Assert.Contains("img-src 'self' data:", policy, StringComparison.Ordinal);
         Assert.Contains("connect-src 'self' https://client.local.example", policy, StringComparison.Ordinal);
-        Assert.Contains("script-src 'self' 'nonce-", policy, StringComparison.Ordinal);
+        Assert.Contains("script-src 'self' 'wasm-unsafe-eval'", policy, StringComparison.Ordinal);
+        Assert.DoesNotContain("'nonce-", policy, StringComparison.Ordinal);
         Assert.Contains("style-src-elem 'self'", policy, StringComparison.Ordinal);
         Assert.Contains("style-src-attr 'unsafe-inline'", policy, StringComparison.Ordinal);
         Assert.DoesNotContain("script-src 'self' 'unsafe-inline'", policy, StringComparison.Ordinal);
@@ -309,30 +310,24 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
     }
 
     [Fact]
-    public async Task FrontendRootIsServerRenderedWithoutWebAssemblyBootRuntime()
+    public async Task FrontendIsServedAsTheWebAssemblyShellAtTheConfiguredBasePath()
     {
-        using HttpResponseMessage response = await client.GetAsync("/", CancellationToken.None);
+        using HttpResponseMessage root = await client.GetAsync("/", CancellationToken.None);
+        using HttpResponseMessage response = await client.GetAsync("/app/", CancellationToken.None);
         string html = await response.Content.ReadAsStringAsync(CancellationToken.None);
 
+        Assert.Equal(HttpStatusCode.Redirect, root.StatusCode);
+        Assert.Equal("/app/", root.Headers.Location?.OriginalString);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
-        Assert.Contains("class=\"mk-app\"", html, StringComparison.Ordinal);
-        Assert.Contains("class=\"rsqzvsbo\"", html, StringComparison.Ordinal);
-        Assert.Contains("class=\"xfbouadm bg\"", html, StringComparison.Ordinal);
-        Assert.Contains("class=\"civpbkhh tl\"", html, StringComparison.Ordinal);
-        Assert.Contains("class=\"bghgjjyj _button inline gradate rounded\"", html, StringComparison.Ordinal);
-        Assert.Contains("id=\"components-reconnect-modal\"", html, StringComparison.Ordinal);
-        Assert.Contains("id=\"components-reconnect-current-attempt\"", html, StringComparison.Ordinal);
-        Assert.Contains("id=\"components-reconnect-max-retries\"", html, StringComparison.Ordinal);
-        Assert.Contains("src=\"/client-assets/misskey.svg\"", html, StringComparison.Ordinal);
-        Assert.Contains("src=\"_framework/blazor.web", html, StringComparison.Ordinal);
-        Assert.Contains("href=\"_content/ActivityPub.Misskey.Blazor/css/app", html, StringComparison.Ordinal);
-        Assert.Contains("href=\"_content/ActivityPub.Misskey.Blazor/css/misskey-v12-upstream", html, StringComparison.Ordinal);
-        Assert.Contains("href=\"_content/ActivityPub.Misskey.Blazor/vendor/fontawesome/css/all.min", html, StringComparison.Ordinal);
-        Assert.Contains("rel=\"modulepreload\" href=\"_content/ActivityPub.Misskey.Blazor/js/element-size", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("blazor.webassembly.js", html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("_framework/dotnet", html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("mk-app-shell", html, StringComparison.Ordinal);
+        Assert.Contains("<base href=\"/app/\"", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"app\"", html, StringComparison.Ordinal);
+        Assert.Contains("src=\"_framework/blazor.webassembly.js\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"_content/ActivityPub.Misskey.Blazor/css/app.css\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"_content/ActivityPub.Misskey.Blazor/css/misskey-v12-upstream.css\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("components-reconnect-modal", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("blazor.web.js", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("/_blazor", html, StringComparison.OrdinalIgnoreCase);
         string[] scriptTags = html.Split("<script", StringSplitOptions.RemoveEmptyEntries)
             .Skip(1)
             .Select(fragment => fragment[..fragment.IndexOf('>')])
@@ -341,25 +336,13 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
         Assert.DoesNotContain(scriptTags, tag => tag.Contains("vite", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain("data-v-", html, StringComparison.OrdinalIgnoreCase);
 
-        Assert.True(response.Headers.NonValidated.TryGetValues("Set-Cookie", out var cookies));
-        string antiforgeryCookie = Assert.Single(
-            cookies,
-            value => value.StartsWith("__Host-activitypub-oauth-csrf=", StringComparison.Ordinal));
-        Assert.Contains("path=/;", antiforgeryCookie, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("path=/app", antiforgeryCookie, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("secure", antiforgeryCookie, StringComparison.OrdinalIgnoreCase);
-
         string policy = Assert.Single(response.Headers.GetValues("Content-Security-Policy"));
-        const string noncePrefix = "'nonce-";
-        int nonceStart = policy.IndexOf(noncePrefix, StringComparison.Ordinal) + noncePrefix.Length;
-        int nonceEnd = policy.IndexOf('\'', nonceStart);
-        Assert.True(nonceStart >= noncePrefix.Length && nonceEnd > nonceStart);
-        string nonce = policy[nonceStart..nonceEnd];
-        Assert.Contains($"nonce=\"{nonce}\"", html, StringComparison.Ordinal);
+        Assert.Contains("script-src 'self' 'wasm-unsafe-eval'", policy, StringComparison.Ordinal);
+        Assert.DoesNotContain("'nonce-", policy, StringComparison.Ordinal);
 
-        using HttpResponseMessage secondResponse = await client.GetAsync("/", CancellationToken.None);
+        using HttpResponseMessage secondResponse = await client.GetAsync("/app/timeline/global", CancellationToken.None);
         string secondPolicy = Assert.Single(secondResponse.Headers.GetValues("Content-Security-Policy"));
-        Assert.DoesNotContain($"'nonce-{nonce}'", secondPolicy, StringComparison.Ordinal);
+        Assert.DoesNotContain("'nonce-", secondPolicy, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -402,7 +385,7 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
                 AllowAutoRedirect = false
             });
 
-        using HttpResponseMessage response = await captchaClient.GetAsync("/", CancellationToken.None);
+        using HttpResponseMessage response = await captchaClient.GetAsync("/app/", CancellationToken.None);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         string policy = Assert.Single(response.Headers.GetValues("Content-Security-Policy"));
@@ -410,7 +393,7 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
         {
             Assert.Contains("connect-src 'self' https://client.local.example https://hcaptcha.com https://*.hcaptcha.com", policy, StringComparison.Ordinal);
             Assert.Contains("frame-src https://hcaptcha.com https://*.hcaptcha.com", policy, StringComparison.Ordinal);
-            Assert.Contains("script-src 'self' 'nonce-", policy, StringComparison.Ordinal);
+            Assert.Contains("script-src 'self' 'wasm-unsafe-eval' https://hcaptcha.com https://*.hcaptcha.com", policy, StringComparison.Ordinal);
             Assert.Contains("https://hcaptcha.com https://*.hcaptcha.com; style-src 'self' https://hcaptcha.com https://*.hcaptcha.com; style-src-elem 'self' https://hcaptcha.com https://*.hcaptcha.com", policy, StringComparison.Ordinal);
             Assert.DoesNotContain("google.com/recaptcha", policy, StringComparison.Ordinal);
         }
@@ -426,7 +409,7 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
         {
             Assert.Contains("connect-src 'self' https://client.local.example https://challenges.cloudflare.com", policy, StringComparison.Ordinal);
             Assert.Contains("frame-src https://challenges.cloudflare.com", policy, StringComparison.Ordinal);
-            Assert.Contains("script-src 'self' 'nonce-", policy, StringComparison.Ordinal);
+            Assert.Contains("script-src 'self' 'wasm-unsafe-eval' https://challenges.cloudflare.com", policy, StringComparison.Ordinal);
             Assert.Contains("https://challenges.cloudflare.com; style-src 'self'", policy, StringComparison.Ordinal);
             Assert.DoesNotContain("google.com/recaptcha", policy, StringComparison.Ordinal);
             Assert.DoesNotContain("hcaptcha.com", policy, StringComparison.Ordinal);
@@ -697,9 +680,10 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using JsonDocument payload = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-        Assert.Single(payload.RootElement.EnumerateObject());
         string code = Assert.IsType<string>(payload.RootElement.GetProperty("code").GetString());
+        DateTimeOffset expiresAt = payload.RootElement.GetProperty("expiresAt").GetDateTimeOffset();
         Assert.Matches("^[2-9A-HJ-NP-Z]{26}$", code);
+        Assert.True(expiresAt > DateTimeOffset.UtcNow.AddDays(6));
 
         await using AsyncServiceScope scope = invitationFactory.Services.CreateAsyncScope();
         IDbContextFactory<LocalIdentityDbContext> identityFactory = scope.ServiceProvider
@@ -709,6 +693,7 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
             .AsNoTracking()
             .SingleAsync(candidate => candidate.CreatedBy == "fixture-admin");
         Assert.Equal(32, invitation.CodeHash.Length);
+        Assert.Equal(invitation.ExpiresAt, expiresAt, TimeSpan.FromSeconds(1));
         Assert.False(invitation.CodeHash.AsSpan().SequenceEqual(Encoding.ASCII.GetBytes(code)));
 
         IDbContextFactory<FederationDbContext> federationFactory = scope.ServiceProvider
@@ -869,15 +854,16 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
 
     private async Task<string> ReadFrontendAntiforgeryTokenAsync()
     {
-        using HttpResponseMessage response = await client.GetAsync("/reset-password", CancellationToken.None);
+        using HttpResponseMessage response = await client.GetAsync("/api/frontend/session", CancellationToken.None);
         response.EnsureSuccessStatusCode();
-        string html = await response.Content.ReadAsStringAsync(CancellationToken.None);
-        Match match = Regex.Match(
-            html,
-            "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"",
-            RegexOptions.CultureInvariant);
-        Assert.True(match.Success);
-        return WebUtility.HtmlDecode(match.Groups[1].Value);
+        using JsonDocument document = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(CancellationToken.None),
+            cancellationToken: CancellationToken.None);
+        string? requestToken = document.RootElement
+            .GetProperty("csrf")
+            .GetProperty("requestToken")
+            .GetString();
+        return Assert.IsType<string>(requestToken);
     }
 
     private async Task<HttpResponseMessage> PostConfirmationAsync(string token, string antiforgeryToken)
@@ -915,17 +901,14 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
     }
 
     [Fact]
-    public async Task AboutMisskeyIsServerRenderedFromThePinnedRazorPort()
+    public async Task AboutMisskeyDeepLinkReturnsTheSameWebAssemblyShell()
     {
-        using HttpResponseMessage response = await client.GetAsync("/about-misskey", CancellationToken.None);
+        using HttpResponseMessage response = await client.GetAsync("/app/about-misskey", CancellationToken.None);
         string html = await response.Content.ReadAsStringAsync(CancellationToken.None);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("class=\"_formRoot znqjceqz\"", html, StringComparison.Ordinal);
-        Assert.Contains("src=\"/client-assets/about-icon.png\"", html, StringComparison.Ordinal);
-        Assert.Contains("v12.119.2-port.1", html, StringComparison.Ordinal);
-        Assert.Equal(32, html.Split("_physics_circle_", StringSplitOptions.None).Length - 1);
-        Assert.Contains("https://source.local.example/activitypub-web", html, StringComparison.Ordinal);
+        Assert.Contains("<base href=\"/app/\"", html, StringComparison.Ordinal);
+        Assert.Contains("blazor.webassembly.js", html, StringComparison.Ordinal);
         string[] executableTags = html.Split("<script", StringSplitOptions.RemoveEmptyEntries)
             .Skip(1)
             .Select(fragment => fragment[..fragment.IndexOf('>')])
@@ -938,19 +921,17 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
     }
 
     [Fact]
-    public async Task AuthenticatedTimelineIsRenderedOnTheServerFromPersistentData()
+    public async Task TimelineDeepLinkReturnsOnlyTheWebAssemblyShellBeforeViewerAuthorization()
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/timeline/global");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/app/timeline/global");
         request.Headers.Authorization = new("Bearer", "fixture-alice");
         using HttpResponseMessage response = await client.SendAsync(request, CancellationToken.None);
         string html = await response.Content.ReadAsStringAsync(CancellationToken.None);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("data-timeline=\"global\"", html, StringComparison.Ordinal);
-        Assert.Contains("media-policy-visible-text", html, StringComparison.Ordinal);
         Assert.DoesNotContain("private-fixture-secret", html, StringComparison.Ordinal);
         Assert.DoesNotContain("silenced-public-secret", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("blazor.webassembly.js", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("blazor.webassembly.js", html, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -967,13 +948,14 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
 
     [Theory]
     [InlineData("/_content/ActivityPub.Misskey.Blazor/css/app.css", "text/css")]
+    [InlineData("/app/_content/ActivityPub.Misskey.Blazor/css/app.css", "text/css")]
     [InlineData("/_content/ActivityPub.Misskey.Blazor/css/misskey-v12-upstream.css", "text/css")]
+    [InlineData("/app/_content/ActivityPub.Misskey.Blazor/js/frontend-request-security.js", "text/javascript")]
     [InlineData("/_content/ActivityPub.Misskey.Blazor/vendor/fontawesome/css/all.min.css", "text/css")]
     [InlineData("/_content/ActivityPub.Misskey.Blazor/vendor/fontawesome/webfonts/fa-solid-900.woff2", "font/woff2")]
     [InlineData("/_content/ActivityPub.Misskey.Blazor/js/theme.js", "text/javascript")]
-    [InlineData("/_content/ActivityPub.Misskey.Blazor/js/register-service-worker.js", "text/javascript")]
     [InlineData("/_content/ActivityPub.Misskey.Blazor/vendor/matter-0.18.0.min.js", "text/javascript")]
-    [InlineData("/_framework/blazor.web.js", "text/javascript")]
+    [InlineData("/app/_framework/blazor.webassembly.js", "text/javascript")]
     public async Task FrontendBootAssetsAreServedThroughTheConfiguredPathBase(string path, string mediaType)
     {
         using HttpResponseMessage response = await client.GetAsync(path, CancellationToken.None);
@@ -998,36 +980,38 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
     public async Task ServiceWorkerCanControlOnlyTheConfiguredApplicationScopeAndIsNeverCached()
     {
         using HttpResponseMessage worker = await client.GetAsync(
-            "/_content/ActivityPub.Misskey.Blazor/service-worker.js",
+            "/app/service-worker.js",
             CancellationToken.None);
         using HttpResponseMessage registration = await client.GetAsync(
-            "/_content/ActivityPub.Misskey.Blazor/js/register-service-worker.js",
+            "/app/service-worker-registration.js",
             CancellationToken.None);
 
         Assert.Equal(HttpStatusCode.OK, worker.StatusCode);
-        Assert.Equal("/", Assert.Single(worker.Headers.GetValues("Service-Worker-Allowed")));
+        Assert.Equal("/app/", Assert.Single(worker.Headers.GetValues("Service-Worker-Allowed")));
         Assert.Contains("no-store", worker.Headers.CacheControl?.ToString(), StringComparison.Ordinal);
-        Assert.Contains("scope: '/'", await registration.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Contains("scope: './'", await registration.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task FrontendIsServedAtTheApplicationRootWithoutAPathBase()
+    public async Task FrontendUsesTheConfiguredApplicationBasePath()
     {
         using HttpResponseMessage rootResponse = await client.GetAsync("/", CancellationToken.None);
         using HttpResponseMessage loginAliasResponse = await client.GetAsync("/auth/login", CancellationToken.None);
 
-        Assert.Equal(HttpStatusCode.OK, rootResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, rootResponse.StatusCode);
+        Assert.Equal("/app/", rootResponse.Headers.Location?.OriginalString);
         Assert.Equal(HttpStatusCode.Redirect, loginAliasResponse.StatusCode);
+        Assert.StartsWith("/app/", loginAliasResponse.Headers.Location?.OriginalString, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task FrontendRootIsServerRenderedWithoutARedirectLoop()
+    public async Task FrontendBasePathDoesNotRedirectLoop()
     {
-        using HttpResponseMessage response = await client.GetAsync("/", CancellationToken.None);
+        using HttpResponseMessage response = await client.GetAsync("/app/", CancellationToken.None);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         string html = await response.Content.ReadAsStringAsync(CancellationToken.None);
-        Assert.Contains("class=\"mk-app\"", html, StringComparison.Ordinal);
+        Assert.Contains("blazor.webassembly.js", html, StringComparison.Ordinal);
     }
 
     [Fact]

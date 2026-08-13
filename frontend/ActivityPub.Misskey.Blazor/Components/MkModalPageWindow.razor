@@ -259,7 +259,7 @@
 
     private Uri? TryGetPageUri() => Runtime.PublicBaseUri is null
         ? null
-        : new Uri(Runtime.PublicBaseUri, ApplicationPath(currentPath));
+        : new Uri(Runtime.PublicBaseUri, "/app/" + ApplicationPath(currentPath));
 
     private async Task OnClosedAsync()
     {
@@ -273,10 +273,7 @@
         await Closed.InvokeAsync();
     }
 
-    private static string ApplicationPath(string path) =>
-        path.StartsWith("/", StringComparison.Ordinal)
-            ? path
-            : "/" + path.TrimStart('/');
+    private static string ApplicationPath(string path) => path.TrimStart('/');
 
     private static string NormalizePath(string path)
     {

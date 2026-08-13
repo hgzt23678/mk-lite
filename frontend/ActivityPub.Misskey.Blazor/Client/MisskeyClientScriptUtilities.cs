@@ -1,5 +1,5 @@
-using ActivityPub.Domain;
 using ActivityPub.Misskey.Blazor.BrowserInterop;
+using ActivityPub.Misskey.Blazor.Presentation;
 
 namespace ActivityPub.Misskey.Blazor.Client;
 

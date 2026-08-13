@@ -1,5 +1,4 @@
 @implements IAsyncDisposable
-@using ActivityPub.Application
 @inject ITimelinePresentationService Timeline
 @inject IAuthenticatedActorContext ActorContext
 @inject IMisskeyOverlayService Overlays
@@ -243,7 +242,7 @@
         {
             Overlays.ShowSignIn(new Uri(Navigation.Uri).PathAndQuery);
         }
-        catch (ClientPollVoteException exception)
+        catch (FrontendPollVoteException exception)
         {
             dialog = new("error", PollErrorText(exception.Error), ShowCancel: false);
         }
@@ -257,11 +256,11 @@
         }
     }
 
-    private string PollErrorText(ClientPollVoteError error) => error switch
+    private string PollErrorText(FrontendPollVoteError error) => error switch
     {
-        ClientPollVoteError.AlreadyVoted => Localizer.Translate("_poll.voted"),
-        ClientPollVoteError.Expired => Localizer.Translate("_poll.closed"),
-        ClientPollVoteError.InvalidChoice or ClientPollVoteError.Blocked or ClientPollVoteError.NotVisible =>
+        FrontendPollVoteError.AlreadyVoted => Localizer.Translate("_poll.voted"),
+        FrontendPollVoteError.Expired => Localizer.Translate("_poll.closed"),
+        FrontendPollVoteError.InvalidChoice or FrontendPollVoteError.Blocked or FrontendPollVoteError.NotVisible =>
             Localizer.Translate("somethingHappened"),
         _ => Localizer.Translate("notFound")
     };

@@ -1,0 +1,44 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0": {
+      "Microsoft.AspNetCore.App.Internal.Assets": {
+        "type": "Direct",
+        "requested": "[10.0.10, )",
+        "resolved": "10.0.10",
+        "contentHash": "8k0KoYKvNrSqP8E3oDJMBVKavlTEE6BacdLGtEDcxv9Hz0XxWFkD6JdLJsxXUlGeAfZ6YfvWmxKenl73qeCTSA=="
+      },
+      "Microsoft.JSInterop.WebAssembly": {
+        "type": "Transitive",
+        "resolved": "10.0.11",
+        "contentHash": "WtlvldXFOdft4tFW4Y3lTnRqZfGYebOBPMXZAy9Yp3gv0A88rNbDtXcuoppvqsVWe4cIG95iEXFmXB+nvuEN3Q=="
+      },
+      "activitypub.misskey.blazor": {
+        "type": "Project"
+      },
+      "activitypub.misskey.blazor.client": {
+        "type": "Project",
+        "dependencies": {
+          "ActivityPub.Misskey.Blazor": "[1.0.0, )",
+          "Microsoft.AspNetCore.Components.WebAssembly": "[10.0.11, )",
+          "Microsoft.AspNetCore.Components.WebAssembly.Authentication": "[10.0.11, )"
+        }
+      },
+      "Microsoft.AspNetCore.Components.WebAssembly": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.11, )",
+        "resolved": "10.0.11",
+        "contentHash": "OaZ+pEJzfejOtCkmepeJYYItNu3PA6Y2EajBwS8vr30mUjCOZWjVCr2sCqUOVw7D6+wmJwpNKtHqyzbtX/F7qQ==",
+        "dependencies": {
+          "Microsoft.JSInterop.WebAssembly": "10.0.11"
+        }
+      },
+      "Microsoft.AspNetCore.Components.WebAssembly.Authentication": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.11, )",
+        "resolved": "10.0.11",
+        "contentHash": "n2gOJsnbxuOdQY3iVVnxGd4XOHe0BHUo0XuQODXgo51JQ0gXzPb+vJOdjUucBHGRoqBe2F+tw+GH1fv8LiP7zw=="
+      }
+    }
+  }
+}

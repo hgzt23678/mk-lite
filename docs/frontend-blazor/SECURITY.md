@@ -63,11 +63,11 @@ CAPTCHA responseはhidden form fieldだけに保持し、C#、SignalR、ログ�
 
 ## Browser policy
 
-frontend responseはnonce付き`script-src`、same-origin `style-src-elem`、制限した`connect-src`、`frame-ancestors 'none'`、`object-src 'none'`を設定する。
+frontend responseは`script-src 'self' 'wasm-unsafe-eval'`、same-origin `style-src-elem`、制限した`connect-src`、`frame-ancestors 'none'`、`object-src 'none'`を設定する。一般の`unsafe-eval`と`unsafe-inline` scriptは許可しない。
 
 Misskeyのlayout、theme、motionに必要なstyle attributeだけを許可し、値は型付きinteropで数値化またはallow-list検証する。
 
-Blazor既定の再接続UIはshadow DOMへinline stylesheetを生成するため使用しない。`App.razor`に明示的な`components-reconnect-modal`を置き、同一originの`app.css`だけで描画する。これにより`style-src-elem 'self'`を緩和しない。
+WASMのAPI／WebSocket接続状態は既存のMisskey status barとstream indicatorで表示する。Interactive Serverの`components-reconnect-modal`や`/_blazor`は本番経路へ含めない。
 
 MFMは固定version parserの検証済みASTからRenderTreeへ変換し、未信頼HTMLを`MarkupString`へ直接渡さない。link、画像、theme値は危険なscheme、userinfo、CSS injectionを拒否する。
 
@@ -97,8 +97,8 @@ MFMとMatter.jsはlockfileへ固定し、生成スクリプトがversion、licen
 
 ## 検証済み範囲と残件
 
-API試験はCSP、nonce rotation、外部runtime config、Vue/Vite非混入を検証する。3-engineのTailnet試験はOIDC discovery、PKCE challenge、production CSP、console error 0件を検証した。
+API試験はWASM CSP、外部runtime config、Vue/Vite/Interactive Server非混入を検証する。旧Interactive Server Tailnet試験は移行前の履歴であり、WASM本番経路の成功証拠へ流用しない。
 
 password reset・email確認についてはPostgreSQL上のexpiry、cooldown、replay、並行claim、SMTP失敗後のreservation解放と、Blazor DOM・leave transition競合、API antiforgeryを自動検証した。実SMTP providerでのTLS証明書、配送性、bounce、Chromium/Firefox/WebKitのリンク操作は未検証である。
 
-全routeの認可、private media、Service Worker cache、plugin/AiScript sandboxは未完了であり、それらの安全性をこの結果から外挿しない。
+全routeの認可、private media、Service Worker cache、plugin/AiScript sandboxは個別の試験結果だけを根拠にし、WASM起動結果から安全性を外挿しない。

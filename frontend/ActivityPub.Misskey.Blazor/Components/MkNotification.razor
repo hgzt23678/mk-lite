@@ -404,9 +404,9 @@
         return summary.Trim();
     }
 
-    private static string NotePage(NotificationNoteViewModel note) => $"/notes/{note.Id}";
+    private static string NotePage(NotificationNoteViewModel note) => $"notes/{note.Id}";
 
-    private static string UserPage(NoteAuthorViewModel user) => $"/@{user.Acct}";
+    private static string UserPage(NoteAuthorViewModel user) => $"@{user.Acct}";
 
     public async ValueTask DisposeAsync()
     {

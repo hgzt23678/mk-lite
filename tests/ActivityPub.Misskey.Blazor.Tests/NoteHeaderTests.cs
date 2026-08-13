@@ -34,7 +34,7 @@ public sealed class NoteHeaderTests : BunitContext
 
         IElement name = root.Children[0];
         Assert.Equal("name", name.ClassName);
-        Assert.Equal("/@alice", name.GetAttribute("href"));
+        Assert.Equal("@alice", name.GetAttribute("href"));
         Assert.Equal("9alice", name.GetAttribute("data-user-preview"));
         Assert.Equal("Alice", name.TextContent.Trim());
 
@@ -46,7 +46,7 @@ public sealed class NoteHeaderTests : BunitContext
         IElement info = root.Children[3];
         Assert.Equal("info", info.ClassName);
         IElement createdAt = Assert.IsAssignableFrom<IElement>(info.QuerySelector(":scope > a.created-at"));
-        Assert.Equal("/notes/9note", createdAt.GetAttribute("href"));
+        Assert.Equal("notes/9note", createdAt.GetAttribute("href"));
         Assert.NotNull(createdAt.QuerySelector(":scope > time"));
         Assert.Empty(info.QuerySelectorAll(":scope > span"));
 
@@ -92,7 +92,7 @@ public sealed class NoteHeaderTests : BunitContext
             isBot),
         "hello",
         ContentWarning: null,
-        ActivityPub.Domain.Visibility.Public,
+        (Presentation.Visibility)Domain.Visibility.Public,
         ReplyId: null,
         RepliesCount: 0,
         RenotesCount: 0,

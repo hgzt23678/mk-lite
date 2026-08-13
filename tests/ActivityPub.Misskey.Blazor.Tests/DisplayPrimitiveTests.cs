@@ -10,6 +10,8 @@ using AngleSharp.Dom;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 
+using Visibility = ActivityPub.Misskey.Blazor.Presentation.Visibility;
+
 namespace ActivityPub.Misskey.Blazor.Tests;
 
 public sealed class DisplayPrimitiveTests : BunitContext
@@ -77,7 +79,7 @@ public sealed class DisplayPrimitiveTests : BunitContext
         {
             IElement root = component.Find("a");
             Assert.Equal("akbvjaqn isMe fixture", root.ClassName);
-            Assert.Equal("/@alice", root.GetAttribute("href"));
+            Assert.Equal("@alice", root.GetAttribute("href"));
             Assert.Equal("@alice", root.GetAttribute("data-user-preview"));
             Assert.Equal("mention", root.GetAttribute("data-contract"));
             Assert.Equal(

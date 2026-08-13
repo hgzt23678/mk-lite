@@ -34,7 +34,7 @@ public sealed class TimelinePresentationServiceTests
         var service = new TimelinePresentationService(query, commands, ids, context);
 
         NoteViewModel created = await service.CreateAsync(
-            new("server-rendered note", null, ActivityPub.Domain.Visibility.Public, null, null, []),
+            new("server-rendered note", null, ActivityPub.Misskey.Blazor.Presentation.Visibility.Public, null, null, []),
             "blazor-note-idempotency-1",
             CancellationToken.None);
 
@@ -204,7 +204,7 @@ public sealed class TimelinePresentationServiceTests
             []);
         ClientPostView post = original with
         {
-            Visibility = Visibility.MentionedOnly,
+            Visibility = ActivityPub.Domain.Visibility.MentionedOnly,
             LocalOnly = true,
             VisibleRecipients = [recipient]
         };

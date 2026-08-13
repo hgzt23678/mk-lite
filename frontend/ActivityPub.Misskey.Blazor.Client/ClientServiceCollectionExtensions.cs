@@ -1,0 +1,140 @@
+using ActivityPub.Misskey.Blazor.BrowserInterop;
+using ActivityPub.Misskey.Blazor.Client.Authentication;
+using ActivityPub.Misskey.Blazor.Identity;
+using ActivityPub.Misskey.Blazor.Overlays;
+using ActivityPub.Misskey.Blazor.Presentation;
+using ActivityPub.Misskey.Blazor.State;
+using ActivityPub.Misskey.Blazor.Streaming;
+
+namespace ActivityPub.Misskey.Blazor.Client;
+
+public static class ClientServiceCollectionExtensions
+{
+    public static IServiceCollection AddMisskeyBrowserUi(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddScoped<IClientStorage, BrowserStorage>();
+        services.AddScoped<IMisskeyIndexedStorage, MisskeyIndexedStorage>();
+        services.AddScoped<IMisskeyAccountState, BrowserMisskeyAccountState>();
+        services.AddSingleton<IThemeCatalog, ThemeCatalog>();
+        services.AddSingleton<IEmojiCatalog, EmojiCatalog>();
+        services.AddScoped<IThemeInterop, ThemeInterop>();
+        services.AddScoped<IThemeDeviceInterop, ThemeDeviceInterop>();
+        services.AddScoped<ICustomCssInterop, CustomCssInterop>();
+        services.AddScoped<ISettingsGeneralInterop, SettingsGeneralInterop>();
+        services.AddScoped<IPizzaxDeviceState, PizzaxDeviceState>();
+        services.AddScoped<IAuthenticatedActorContext, BrowserAuthenticatedActorContext>();
+        services.AddScoped<IPageMetadataState, PageMetadataState>();
+        services.AddScoped<IButtonRippleInterop, ButtonRippleInterop>();
+        services.AddScoped<IRippleEffectInterop, RippleEffectInterop>();
+        services.AddScoped<IClipboardInterop, ClipboardInterop>();
+        services.AddScoped<IGoogleSearchInterop, GoogleSearchInterop>();
+        services.AddScoped<IPrismSyntaxHighlightInterop, PrismSyntaxHighlightInterop>();
+        services.AddScoped<IKatexFormulaInterop, KatexFormulaInterop>();
+        services.AddScoped<IErrorAppearInterop, ErrorAppearInterop>();
+        services.AddScoped<IPaginationInterop, PaginationInterop>();
+        services.AddScoped<IDateSeparatedListInterop, DateSeparatedListInterop>();
+        services.AddScoped<IFormSuspenseInterop, FormSuspenseInterop>();
+        services.AddScoped<INotePageInterop, NotePageInterop>();
+        services.AddScoped<IViewportInterop, ViewportInterop>();
+        services.AddScoped<INavbarInterop, NavbarInterop>();
+        services.AddScoped<IUniversalShellInterop, UniversalShellInterop>();
+        services.AddScoped<IVisitorShellInterop, VisitorShellInterop>();
+        services.AddScoped<IWelcomeTimelineInterop, WelcomeTimelineInterop>();
+        services.AddScoped<IElementSizeInterop, ElementSizeInterop>();
+        services.AddScoped<INoteViewInterop, NoteViewInterop>();
+        services.AddScoped<INoteDetailedInterop, NoteDetailedInterop>();
+        services.AddScoped<ISpacerInterop, SpacerInterop>();
+        services.AddScoped<IFormInputInterop, FormInputInterop>();
+        services.AddScoped<IFormRangeInterop, FormRangeInterop>();
+        services.AddScoped<IAuthenticationFormInterop, AuthenticationFormInterop>();
+        services.AddScoped<ICaptchaInterop, CaptchaInterop>();
+        services.AddScoped<IPasswordResetFormInterop, PasswordResetFormInterop>();
+        services.AddScoped<IDialogWindowInterop, DialogWindowInterop>();
+        services.AddScoped<ISuccessFeedbackInterop, SuccessFeedbackInterop>();
+        services.AddScoped<IPageHeaderInterop, PageHeaderInterop>();
+        services.AddScoped<IStickyContainerInterop, StickyContainerInterop>();
+        services.AddScoped<IContainerInterop, BrowserContainerInterop>();
+        services.AddScoped<IFolderInterop, FolderInterop>();
+        services.AddScoped<IMisskeyLocaleInterop, MisskeyLocaleInterop>();
+        services.AddScoped<IAboutMisskeyPhysicsInterop, AboutMisskeyPhysicsInterop>();
+        services.AddScoped<IMarqueeInterop, MarqueeInterop>();
+        services.AddScoped<ITimeInterop, TimeInterop>();
+        services.AddScoped<IDigitalClockInterop, DigitalClockInterop>();
+        services.AddScoped<ICalendarWidgetInterop, CalendarWidgetInterop>();
+        services.AddScoped<IWidgetsInterop, WidgetsInterop>();
+        services.AddScoped<IAnalogClockInterop, AnalogClockInterop>();
+        services.AddScoped<IBlurhashImageInterop, BlurhashImageInterop>();
+        services.AddScoped<IMediaElementInterop, MediaElementInterop>();
+        services.AddScoped<IMediaGalleryInterop, MediaGalleryInterop>();
+        services.AddScoped<IImageViewerInterop, ImageViewerInterop>();
+        services.AddScoped<IMediaCaptionInterop, MediaCaptionInterop>();
+        services.AddScoped<IModalPageWindowInterop, ModalPageWindowInterop>();
+        services.AddScoped<IMkWindowInterop, MkWindowInterop>();
+        services.AddScoped<IToastInterop, ToastInterop>();
+        services.AddScoped<ISparkleInterop, SparkleInterop>();
+        services.AddScoped<IClientUpdateInterop, ClientUpdateInterop>();
+        services.AddScoped<IMkModalInterop, MkModalInterop>();
+        services.AddScoped<IModalInterop, ModalInterop>();
+        services.AddScoped<IMenuInterop, MenuInterop>();
+        services.AddScoped<IContextMenuInterop, ContextMenuInterop>();
+        services.AddScoped<ITagCloudInterop, TagCloudInterop>();
+        services.AddScoped<IUnixClockInterop, UnixClockInterop>();
+        services.AddScoped<IPostFormDialogInterop, PostFormDialogInterop>();
+        services.AddScoped<IVisibilityPickerInterop, VisibilityPickerInterop>();
+        services.AddScoped<IVisibilityTooltipInterop, VisibilityTooltipInterop>();
+        services.AddScoped<IReactionViewerInterop, ReactionViewerInterop>();
+        services.AddScoped<IRenoteButtonInterop, RenoteButtonInterop>();
+        services.AddScoped<INotificationInterop, NotificationInterop>();
+        services.AddScoped<INotificationsInterop, NotificationsInterop>();
+        services.AddScoped<INotificationToastInterop, NotificationToastInterop>();
+        services.AddScoped<IStreamIndicatorInterop, StreamIndicatorInterop>();
+        services.AddScoped<IUserPreviewInterop, UserPreviewInterop>();
+        services.AddScoped<IEmojiPickerDialogInterop, EmojiPickerDialogInterop>();
+        services.AddScoped<IEmojiPickerInterop, EmojiPickerInterop>();
+        services.AddScoped<IPostFormInterop, PostFormInterop>();
+        services.AddScoped<IAutocompleteInterop, AutocompleteInterop>();
+        services.AddScoped<IPostFormAttachesInterop, PostFormAttachesInterop>();
+        services.AddScoped<IMfmParserInterop, MfmParserInterop>();
+        services.AddScoped<IMisskeyOverlayService, MisskeyOverlayService>();
+        services.AddScoped<IMisskeyTransientFeedbackService, MisskeyTransientFeedbackService>();
+        services.AddScoped<IMisskeyStreamConnectionStatus, MisskeyStreamConnectionStatus>();
+
+        services.AddScoped<MisskeyBrowserApiClient>();
+        services.AddScoped<IInstancePresentationService, BrowserInstancePresentationService>();
+        services.AddScoped<IAnnouncementPresentationService, BrowserAnnouncementPresentationService>();
+        services.AddScoped<BrowserCurrentAccountPresentationService>();
+        services.AddScoped<ICurrentAccountPresentationService>(services =>
+            services.GetRequiredService<BrowserCurrentAccountPresentationService>());
+        services.AddScoped<IAboutPresentationService, BrowserAboutPresentationService>();
+        services.AddScoped<IAdminPresentationService, BrowserAdminPresentationService>();
+        services.AddScoped<IAnnouncementPagePresentationService, BrowserAnnouncementPagePresentationService>();
+        services.AddScoped<IAutocompletePresentationService, BrowserAutocompletePresentationService>();
+        services.AddScoped<IAvatarsPresentationService, BrowserAvatarsPresentationService>();
+        services.AddScoped<IComposerMediaService, BrowserComposerMediaService>();
+        services.AddScoped<IHashtagTrendPresentationService, BrowserHashtagTrendPresentationService>();
+        services.AddScoped<IMiauthAuthorizationService, BrowserMiauthAuthorizationService>();
+        services.AddScoped<INoteDeletionPresentationService, BrowserNoteDeletionPresentationService>();
+        services.AddScoped<BrowserNotificationPresentationService>();
+        services.AddScoped<INotificationPresentationService>(services =>
+            services.GetRequiredService<BrowserNotificationPresentationService>());
+        services.AddScoped<IReactionDetailsPresentationService, BrowserReactionDetailsPresentationService>();
+        services.AddScoped<IRenoteDetailsPresentationService, BrowserRenoteDetailsPresentationService>();
+        services.AddScoped<ISettingsPresentationService, BrowserSettingsPresentationService>();
+        services.AddScoped<IUserFollowRelationsPresentationService, BrowserUserFollowRelationsPresentationService>();
+        services.AddScoped<IUserPagePresentationService, BrowserUserPagePresentationService>();
+        services.AddScoped<IUserPreviewPresentationService, BrowserUserPreviewPresentationService>();
+        services.AddScoped<IUserSearchPresentationService, BrowserUserSearchPresentationService>();
+        services.AddScoped<IVisibleUsersPresentationService, BrowserVisibleUsersPresentationService>();
+        services.AddScoped<BrowserTimelinePresentationService>();
+        services.AddScoped<ITimelinePresentationService>(services =>
+            services.GetRequiredService<BrowserTimelinePresentationService>());
+        services.AddScoped<INotePagePresentationService>(services =>
+            services.GetRequiredService<BrowserTimelinePresentationService>());
+        services.AddScoped<BrowserMisskeyStreamConnection>();
+        services.AddScoped<ITimelineSubscriptionService, BrowserTimelineSubscriptionService>();
+        services.AddScoped<INotificationSubscriptionService, BrowserNotificationSubscriptionService>();
+        services.AddScoped<IRelationshipSubscriptionService, BrowserRelationshipSubscriptionService>();
+        return services;
+    }
+}

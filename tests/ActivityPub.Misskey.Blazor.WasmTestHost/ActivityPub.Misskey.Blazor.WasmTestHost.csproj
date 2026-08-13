@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../frontend/ActivityPub.Misskey.Blazor.Client/ActivityPub.Misskey.Blazor.Client.csproj" />
+  </ItemGroup>
+</Project>

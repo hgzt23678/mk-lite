@@ -24,7 +24,7 @@
     [Parameter, EditorRequired]
     public MisskeyPagePreviewViewModel Page { get; set; } = null!;
 
-    private string PageHref => $"/@{Uri.EscapeDataString(Page.User.Username)}/pages/{Uri.EscapeDataString(Page.Name)}";
+    private string PageHref => $"@{Uri.EscapeDataString(Page.User.Username)}/pages/{Uri.EscapeDataString(Page.Name)}";
     private string Summary => Page.Summary!.Length > 85 ? Page.Summary[..85] + "…" : Page.Summary;
     private string DisplayName => MisskeyScriptUtilities.GetUserName(Page.User.DisplayName, Page.User.Username);
     private string? ThumbnailUrl => IsSafeImageUrl(Page.EyeCatchingImageThumbnailUrl) ? Page.EyeCatchingImageThumbnailUrl : null;

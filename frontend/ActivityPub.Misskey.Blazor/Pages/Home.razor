@@ -175,7 +175,7 @@ else if (meta is not null)
 
     }
 
-    private static string InstanceHref(string host) => "/instance-info/" + Uri.EscapeDataString(host);
+    private static string InstanceHref(string host) => "instance-info/" + Uri.EscapeDataString(host);
 
     private void ShowMenu() => Overlays.ShowPopupMenu(menuSource,
     [

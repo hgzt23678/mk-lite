@@ -82,7 +82,7 @@
             (Note.Text.Split('\n').Length > 9 || Note.Text.Length > 500);
     }
 
-    private static string NoteHref(string id) => $"/notes/{Uri.EscapeDataString(id)}";
+    private static string NoteHref(string id) => $"notes/{Uri.EscapeDataString(id)}";
 
     private void ShowMore() => collapsed = false;
 }

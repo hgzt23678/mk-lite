@@ -3,6 +3,8 @@ using ActivityPub.Domain;
 using ActivityPub.Misskey.Blazor.Identity;
 using ActivityPub.Misskey.Blazor.Presentation;
 
+using Visibility = ActivityPub.Misskey.Blazor.Presentation.Visibility;
+
 namespace ActivityPub.Misskey.Blazor.Tests;
 
 public sealed class NotificationPresentationServiceTests

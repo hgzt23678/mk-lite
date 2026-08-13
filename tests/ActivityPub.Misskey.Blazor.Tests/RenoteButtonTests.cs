@@ -12,6 +12,8 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 
+using Visibility = ActivityPub.Misskey.Blazor.Presentation.Visibility;
+
 namespace ActivityPub.Misskey.Blazor.Tests;
 
 public sealed class RenoteButtonTests : BunitContext
@@ -217,7 +219,7 @@ public sealed class RenoteButtonTests : BunitContext
     }
 
     private static NoteViewModel Note(
-        Visibility visibility,
+        ActivityPub.Misskey.Blazor.Presentation.Visibility visibility,
         string authorId = "bob-id",
         string id = "9renote") => new(
         Guid.Parse("22222222-2222-2222-2222-222222222222"),

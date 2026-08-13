@@ -4,6 +4,8 @@ using ActivityPub.Domain;
 using ActivityPub.Misskey.Blazor.Identity;
 using ActivityPub.Misskey.Blazor.Streaming;
 
+using Visibility = ActivityPub.Misskey.Blazor.Presentation.Visibility;
+
 namespace ActivityPub.Misskey.Blazor.Tests;
 
 public sealed class RelationshipSubscriptionServiceTests
@@ -87,7 +89,7 @@ public sealed class RelationshipSubscriptionServiceTests
             "Follow",
             target,
             ActivityDirection.Outbound,
-            Visibility.MentionedOnly,
+            (Domain.Visibility)Visibility.MentionedOnly,
             "{\"type\":\"Follow\"}",
             new string('a', 64),
             false,

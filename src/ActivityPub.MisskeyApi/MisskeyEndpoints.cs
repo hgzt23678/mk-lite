@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using ActivityPub.Application;
 using ActivityPub.Domain;
+using ActivityPub.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -17,8 +18,11 @@ public static class MisskeyEndpoints
     public static IEndpointRouteBuilder MapMisskeyApi(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/streaming", MisskeyStreamingEndpoints.StreamAsync)
+            .WithMetadata(FrontendBrowserSessionMetadata.Instance)
             .RequireRateLimiting("local-api");
-        RouteGroupBuilder publicApi = endpoints.MapGroup("/api").RequireRateLimiting("local-api");
+        RouteGroupBuilder publicApi = endpoints.MapGroup("/api")
+            .WithMetadata(FrontendBrowserSessionMetadata.Instance)
+            .RequireRateLimiting("local-api");
         publicApi.MapPost("/meta", Meta);
         publicApi.MapPost("/username/available", UsernameAvailableAsync);
         publicApi.MapPost("/email-address/available", EmailAddressAvailableAsync);
@@ -33,15 +37,18 @@ public static class MisskeyEndpoints
         publicApi.MapPost("/hashtags/trend", TrendHashtagsAsync);
         publicApi.MapPost("/users/notes", UserNotesAsync);
         publicApi.MapPost("/notes/show", ShowNoteAsync);
+        publicApi.MapPost("/notes/renotes", RenotesAsync);
         publicApi.MapPost("/notes/global-timeline", (HttpContext context, MisskeyQueryService service, CancellationToken token) =>
             TimelineAsync(context, service, "public", localOnly: false, token));
         publicApi.MapPost("/notes/local-timeline", (HttpContext context, MisskeyQueryService service, CancellationToken token) =>
             TimelineAsync(context, service, "public", localOnly: true, token));
         publicApi.MapPost("/notes/reactions", ReactionsAsync);
         publicApi.MapPost("/announcements", AnnouncementsAsync);
+        publicApi.MapPost("/streaming/cursor", LatestStreamCursorAsync);
         publicApi.MapPost("/miauth/{session}/check", CheckMiAuthSessionAsync);
 
         RouteGroupBuilder authenticated = endpoints.MapGroup("/api")
+            .WithMetadata(FrontendBrowserSessionMetadata.Instance)
             .RequireAuthorization()
             .RequireRateLimiting("local-api");
         authenticated.MapPost("/i", MeAsync);
@@ -66,6 +73,7 @@ public static class MisskeyEndpoints
         authenticated.MapPost("/users/relation", RelationshipAsync).RequireAuthorization("misskey.read:following");
 
         RouteGroupBuilder api = endpoints.MapGroup("/api")
+            .WithMetadata(FrontendBrowserSessionMetadata.Instance)
             .RequireAuthorization()
             .RequireRateLimiting("local-api");
         api.MapPost("/notes/create", CreateNoteAsync).RequireAuthorization("misskey.write:notes");
@@ -75,6 +83,7 @@ public static class MisskeyEndpoints
         api.MapPost("/notes/polls/vote", VotePollAsync).RequireAuthorization("misskey.write:votes");
 
         RouteGroupBuilder admin = endpoints.MapGroup("/api/admin")
+            .WithMetadata(FrontendBrowserSessionMetadata.Instance)
             .RequireAuthorization("activitypub.admin")
             .RequireRateLimiting("local-api");
         admin.MapPost("/announcements/list", AdminAnnouncementsAsync);
@@ -395,6 +404,7 @@ public static class MisskeyEndpoints
     private static async Task<IResult> GenerateMiAuthTokenAsync(
         HttpContext context,
         IMisskeyAuthenticationService authentication,
+        IExternalEntityIdService externalIds,
         CancellationToken cancellationToken)
     {
         string? username = AuthenticatedUsername(context.User);
@@ -430,7 +440,18 @@ public static class MisskeyEndpoints
                     callbackUri: null,
                     permissions,
                     cancellationToken).ConfigureAwait(false);
-            return Results.Json(new { token = issued.Token });
+            string externalId = await externalIds.GetOrCreateAsync(
+                ApiDialect.Misskey,
+                ExternalEntityType.AccessToken,
+                issued.TokenId,
+                DateTimeOffset.UtcNow,
+                cancellationToken).ConfigureAwait(false);
+            return Results.Json(new
+            {
+                token = issued.Token,
+                id = externalId,
+                expiresAt = issued.ExpiresAt
+            });
         }
         catch (ArgumentException exception)
         {
@@ -498,6 +519,7 @@ public static class MisskeyEndpoints
                 description = token.Description,
                 iconUrl = token.IconUri,
                 createdAt = token.CreatedAt,
+                expiresAt = token.ExpiresAt,
                 lastUsedAt = token.LastUsedAt,
                 permission = token.Permissions
             });
@@ -556,7 +578,7 @@ public static class MisskeyEndpoints
             RegistrationInvitationIssueResult invitation = await invitations
                 .IssueAsync(operatorId, cancellationToken)
                 .ConfigureAwait(false);
-            return Results.Json(new { code = invitation.Code });
+            return Results.Json(new { code = invitation.Code, expiresAt = invitation.ExpiresAt });
         }
         catch (InvalidOperationException)
         {
@@ -1526,6 +1548,29 @@ public static class MisskeyEndpoints
         return note is null ? Missing("NO_SUCH_NOTE", "No such note.") : Results.Json(note);
     }
 
+    private static async Task<IResult> RenotesAsync(
+        HttpContext context,
+        MisskeyQueryService service,
+        CancellationToken cancellationToken)
+    {
+        JsonElement body = await ReadBodyAsync(context, cancellationToken).ConfigureAwait(false);
+        string? noteId = String(body, "noteId");
+        int limit = Integer(body, "limit", 10);
+        if (noteId is null || limit is < 1 or > 100)
+        {
+            return InvalidRequest();
+        }
+
+        IReadOnlyList<object>? renotes = await service.ReadRenotesAsync(
+            noteId,
+            limit,
+            await ViewerActorIriAsync(context.User, service, cancellationToken).ConfigureAwait(false),
+            cancellationToken).ConfigureAwait(false);
+        return renotes is null
+            ? Error(404, "No such note.", "NO_SUCH_NOTE", "12908022-2e21-46cd-ba6a-3edaf6093f46")
+            : Results.Json(renotes);
+    }
+
     private static async Task<IResult> TimelineAsync(
         HttpContext context,
         MisskeyQueryService service,
@@ -1548,6 +1593,16 @@ public static class MisskeyEndpoints
             localOnly,
             cancellationToken).ConfigureAwait(false);
         return Results.Json(notes);
+    }
+
+    private static async Task<IResult> LatestStreamCursorAsync(
+        HttpContext context,
+        IStreamEventStore store,
+        CancellationToken cancellationToken)
+    {
+        StreamEventPage page = await store.ReadAfterAsync(0, 1, cancellationToken).ConfigureAwait(false);
+        context.Response.Headers.CacheControl = "no-store";
+        return Results.Json(new { cursor = page.LatestCursor ?? 0 });
     }
 
     private static async Task<IResult> UserNotesAsync(

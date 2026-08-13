@@ -5,6 +5,8 @@ using ActivityPub.Misskey.Blazor.Identity;
 using ActivityPub.Misskey.Blazor.Presentation;
 using ActivityPub.Misskey.Blazor.Streaming;
 
+using Visibility = ActivityPub.Misskey.Blazor.Presentation.Visibility;
+
 namespace ActivityPub.Misskey.Blazor.Tests;
 
 public sealed class TimelineSubscriptionServiceTests
@@ -12,7 +14,7 @@ public sealed class TimelineSubscriptionServiceTests
     [Fact]
     public async Task EventRejectedByViewerPolicyAdvancesAsCheckpointWithoutProjectingContent()
     {
-        StreamEvent item = CreateEvent(Visibility.MentionedOnly);
+        StreamEvent item = CreateEvent((Domain.Visibility)Visibility.MentionedOnly);
         var query = new StubClientQuery
         {
             LocalActorIri = "https://local.example/users/alice",
@@ -110,7 +112,7 @@ public sealed class TimelineSubscriptionServiceTests
         Assert.Equal(1, disconnected);
     }
 
-    private static StreamEvent CreateEvent(Visibility visibility)
+    private static StreamEvent CreateEvent(ActivityPub.Domain.Visibility visibility)
     {
         DateTimeOffset now = new(2026, 8, 3, 12, 0, 0, TimeSpan.Zero);
         string actorIri = "https://remote.example/users/bob";

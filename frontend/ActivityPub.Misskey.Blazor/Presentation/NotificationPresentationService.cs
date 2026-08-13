@@ -1,11 +1,15 @@
 using System.Net;
 using System.Text.RegularExpressions;
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
 using ActivityPub.Domain;
 using ActivityPub.Misskey.Blazor.Identity;
+using ActivityPub.Misskey.Blazor.Server;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public enum MisskeyNotificationType
 {
     Follow,
@@ -89,6 +93,9 @@ public interface INotificationPresentationService
     Task<int> MarkAllReadAsync(CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed partial class NotificationPresentationService(
     IClientNotificationService notifications,
     IClientApiQueryService query,
@@ -426,7 +433,7 @@ public sealed partial class NotificationPresentationService(
             author,
             post.SourceText ?? ConvertSanitizedHtmlToText(post.SanitizedHtml),
             string.IsNullOrWhiteSpace(post.ContentWarning) ? null : post.ContentWarning,
-            post.Visibility,
+            FrontendVisibilityMapper.FromDomain(post.Visibility),
             replyId,
             post.RepliesCount,
             post.AnnouncesCount,
@@ -565,6 +572,9 @@ public sealed partial class NotificationPresentationService(
     private static partial Regex HtmlElementRegex();
 }
 
+#endif
+
+#if !MISSKEY_BLAZOR_SERVER
 public sealed class NotificationPaginationSource(
     INotificationPresentationService notifications,
     IReadOnlySet<MisskeyNotificationType>? includeTypes = null,
@@ -589,8 +599,11 @@ public sealed class NotificationPaginationSource(
 
     public string GetId(NotificationViewModel item) => item.Id;
 }
+#endif
 
+#if !MISSKEY_BLAZOR_SERVER
 public sealed class NotificationPresentationException(string errorCode) : Exception(errorCode)
 {
     public string ErrorCode { get; } = errorCode;
 }
+#endif

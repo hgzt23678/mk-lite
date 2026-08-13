@@ -69,7 +69,7 @@ public sealed class ButtonTests : BunitContext
 
         Assert.Empty(component.FindAll("button"));
         IElement link = component.Find("a.bghgjjyj._button.primary");
-        Assert.Equal("/about", link.GetAttribute("href"));
+        Assert.Equal("about", link.GetAttribute("href"));
         Assert.NotNull(link.QuerySelector(":scope > .ripples:empty"));
         Assert.Equal("詳細", link.QuerySelector(":scope > .content")?.TextContent);
 

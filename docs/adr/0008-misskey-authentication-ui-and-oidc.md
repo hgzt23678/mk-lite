@@ -27,15 +27,15 @@ Misskey UIはRazor Componentsが所有し、`MkSignin`、`MkSignup`、`MkForgotP
 
 local credentialの正本にはASP.NET Core Identityを使用する。password hash、lockout counter、email confirmation token、password reset token、TOTP、recovery code、passkey credentialを独自実装しない。
 
-Blazor circuitからresponse cookieを書き換えない。credentialを含むformはsame-originの通常HTTP POSTとし、antiforgery、body size、rate limitを適用する。password、TOTP、WebAuthn assertionはlog、telemetry、URL、Blazor render batchへ含めない。失敗時は安全なerror codeだけをqueryへ戻す。
+WASMからresponse cookieを書き換えない。credentialを含むformはsame-originの通常HTTP POSTとし、antiforgery、body size、rate limitを適用する。password、TOTP、WebAuthn assertionはlog、telemetry、URL、DOM patchへ含めない。失敗時は安全なerror codeだけを返す。
 
 Misskey local browser sessionは次の順序で確立する。
 
 1. `/app/auth/login`がMisskeyの`MkSigninDialog`相当routeを表示する。
 2. formがJSONまたはmultipartで`POST /api/signin`へ送信され、rate limitとbody制限を通過する。
 3. ASP.NET Core Identityがpassword、lockout、TOTPを検証し、passkey選択時は既存のWebAuthn challenge/assertion endpointへ分岐する。
-4. 成功時に専用Misskey `mk_` tokenをhash-backed storeへ発行し、同時にHttpOnly/Secure frontend session cookieを発行する。
-5. browserはcookieをsessionとして使用し、未改変Misskey clientはレスポンスの`i`をREST/Streaming Bearer tokenとして使用する。
+4. 未改変Misskey clientには専用Misskey `mk_` tokenをhash-backed storeへ発行し、同時にHttpOnly/Secure frontend session cookieを発行する。
+5. 明示的なWASM browser requestにはtokenを返さずCookie sessionだけを発行する。browserは`/api/frontend/session`でviewerとmemory-only CSRF contractを取得する。
 
 外部OIDCを構成した場合のAuthorization Code + PKCEはこのlocal pathとは別の明示的な認証境界として維持する。
 

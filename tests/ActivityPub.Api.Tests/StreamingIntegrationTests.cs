@@ -1,13 +1,20 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.WebSockets;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using ActivityPub.Application;
 using ActivityPub.Domain;
+using ActivityPub.Identity;
 using ActivityPub.Persistence;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ActivityPub.Api.Tests;
 
@@ -86,11 +93,287 @@ public sealed class StreamingIntegrationTests(ActivityPubApiFixture fixture)
 
         using JsonDocument envelope = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
         Assert.Equal("channel", envelope.RootElement.GetProperty("type").GetString());
+        Assert.False(envelope.RootElement.TryGetProperty("cursor", out _));
         JsonElement body = envelope.RootElement.GetProperty("body");
         Assert.Equal(channelId, body.GetProperty("id").GetString());
         Assert.Equal("note", body.GetProperty("type").GetString());
         Assert.Equal(createdId, body.GetProperty("body").GetProperty("id").GetString());
         Assert.Contains(marker, body.GetProperty("body").GetProperty("text").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MisskeyResumeAcknowledgesSubscriptionBeforeReplayingPayloadAndCheckpoint()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        long initialCursor = await GetLatestStreamCursorAsync(timeout.Token);
+        WebSocketClient socketClient = fixture.Server.CreateWebSocketClient();
+        socketClient.ConfigureRequest = request => request.Headers.Host = "local.example";
+        using WebSocket socket = await socketClient.ConnectAsync(
+            new Uri($"ws://local.example/streaming?resume=v1&cursor={initialCursor}"),
+            timeout.Token);
+
+        string marker = "misskey-resume-before-ack-" + Guid.NewGuid().ToString("N");
+        await CreatePublicStatusAsync(marker, timeout.Token);
+        string channelId = Guid.NewGuid().ToString("N");
+        await SendTextAsync(socket, JsonSerializer.Serialize(new
+        {
+            type = "connect",
+            body = new { channel = "globalTimeline", id = channelId }
+        }), timeout.Token);
+
+        using JsonDocument connected = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
+        Assert.Equal("connected", connected.RootElement.GetProperty("type").GetString());
+        Assert.Equal(channelId, connected.RootElement.GetProperty("body").GetProperty("id").GetString());
+
+        using JsonDocument payload = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
+        Assert.Equal("channel", payload.RootElement.GetProperty("type").GetString());
+        long payloadCursor = payload.RootElement.GetProperty("cursor").GetInt64();
+        Assert.True(payloadCursor > initialCursor);
+        Assert.Contains(
+            marker,
+            payload.RootElement.GetProperty("body").GetProperty("body").GetProperty("text").GetString(),
+            StringComparison.Ordinal);
+
+        using JsonDocument checkpoint = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
+        Assert.Equal("checkpoint", checkpoint.RootElement.GetProperty("type").GetString());
+        Assert.Equal(payloadCursor, checkpoint.RootElement.GetProperty("cursor").GetInt64());
+        Assert.Equal(payloadCursor, checkpoint.RootElement.GetProperty("body").GetProperty("cursor").GetInt64());
+    }
+
+    [Fact]
+    public async Task MisskeyResumeAdvancesCheckpointWhenAnEventIsFiltered()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        long initialCursor = await GetLatestStreamCursorAsync(timeout.Token);
+        WebSocketClient socketClient = fixture.Server.CreateWebSocketClient();
+        socketClient.ConfigureRequest = request => request.Headers.Host = "local.example";
+        using WebSocket socket = await socketClient.ConnectAsync(
+            new Uri($"ws://local.example/streaming?resume=v1&cursor={initialCursor}"),
+            timeout.Token);
+        await SendTextAsync(socket, JsonSerializer.Serialize(new
+        {
+            type = "connect",
+            body = new { channel = "globalTimeline", id = Guid.NewGuid().ToString("N") }
+        }), timeout.Token);
+        using JsonDocument connected = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
+        Assert.Equal("connected", connected.RootElement.GetProperty("type").GetString());
+
+        string marker = "misskey-resume-filtered-" + Guid.NewGuid().ToString("N");
+        using var create = new HttpRequestMessage(HttpMethod.Post, "/api/notes/create")
+        {
+            Content = JsonContent.Create(new
+            {
+                text = marker,
+                visibility = "specified",
+                visibleUserIds = new[] { fixture.MisskeyRemotePublisherId },
+                localOnly = false
+            })
+        };
+        create.Headers.TryAddWithoutValidation("Idempotency-Key", marker);
+        using HttpResponseMessage response = await client.SendAsync(create, timeout.Token);
+        response.EnsureSuccessStatusCode();
+
+        using JsonDocument checkpoint = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
+        Assert.Equal("checkpoint", checkpoint.RootElement.GetProperty("type").GetString());
+        Assert.True(checkpoint.RootElement.GetProperty("cursor").GetInt64() > initialCursor);
+    }
+
+    [Fact]
+    public async Task MisskeyResumeUsesStableResyncAndAuthenticationCloseContracts()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        WebSocketClient socketClient = fixture.Server.CreateWebSocketClient();
+        socketClient.ConfigureRequest = request => request.Headers.Host = "local.example";
+        using (WebSocket expired = await socketClient.ConnectAsync(
+                   new Uri("ws://local.example/streaming?resume=v1&cursor=-1"),
+                   timeout.Token))
+        {
+            using JsonDocument error = JsonDocument.Parse(await ReceiveTextAsync(expired, timeout.Token));
+            Assert.Equal("RESYNC_REQUIRED", error.RootElement.GetProperty("body").GetProperty("code").GetString());
+            WebSocketReceiveResult closed = await ReceiveCloseAsync(expired, timeout.Token);
+            Assert.Equal((WebSocketCloseStatus)4409, closed.CloseStatus);
+        }
+
+        using WebSocket unauthenticated = await socketClient.ConnectAsync(
+            new Uri("ws://local.example/streaming?resume=v1"),
+            timeout.Token);
+        await SendTextAsync(unauthenticated, JsonSerializer.Serialize(new
+        {
+            type = "connect",
+            body = new { channel = "homeTimeline", id = Guid.NewGuid().ToString("N") }
+        }), timeout.Token);
+        using JsonDocument authenticationError = JsonDocument.Parse(await ReceiveTextAsync(unauthenticated, timeout.Token));
+        Assert.Equal(
+            "AUTHENTICATION_REQUIRED",
+            authenticationError.RootElement.GetProperty("body").GetProperty("code").GetString());
+        WebSocketReceiveResult authenticationClosed = await ReceiveCloseAsync(unauthenticated, timeout.Token);
+        Assert.Equal((WebSocketCloseStatus)4401, authenticationClosed.CloseStatus);
+    }
+
+    [Fact]
+    public async Task MisskeyResumeUsesStableSlowConsumerCloseContract()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using WebApplicationFactory<Program> slowConsumerFactory = fixture.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IDurableStreamEventPump>();
+                services.AddScoped<IDurableStreamEventPump, SlowConsumerPump>();
+            }));
+        WebSocketClient socketClient = slowConsumerFactory.Server.CreateWebSocketClient();
+        socketClient.ConfigureRequest = request => request.Headers.Host = "local.example";
+        using WebSocket socket = await socketClient.ConnectAsync(
+            new Uri("ws://local.example/streaming?resume=v1"),
+            timeout.Token);
+        await SendTextAsync(socket, JsonSerializer.Serialize(new
+        {
+            type = "connect",
+            body = new { channel = "globalTimeline", id = Guid.NewGuid().ToString("N") }
+        }), timeout.Token);
+        using JsonDocument connected = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
+        Assert.Equal("connected", connected.RootElement.GetProperty("type").GetString());
+        using JsonDocument error = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
+        Assert.Equal("SLOW_CONSUMER", error.RootElement.GetProperty("body").GetProperty("code").GetString());
+        WebSocketReceiveResult closed = await ReceiveCloseAsync(socket, timeout.Token);
+        Assert.Equal((WebSocketCloseStatus)4408, closed.CloseStatus);
+    }
+
+    [Fact]
+    public async Task MisskeyResumeClosesBeforePublishingAfterNativeTokenRevocation()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        MisskeyIssuedToken issued;
+        await using (AsyncServiceScope issueScope = fixture.Services.CreateAsyncScope())
+        {
+            IMisskeyAuthenticationService authentication = issueScope.ServiceProvider
+                .GetRequiredService<IMisskeyAuthenticationService>();
+            issued = await authentication.IssueDirectAsync(
+                "alice",
+                "stream-revocation-test",
+                null,
+                null,
+                ["read:account"],
+                timeout.Token);
+        }
+
+        WebSocketClient socketClient = fixture.Server.CreateWebSocketClient();
+        socketClient.ConfigureRequest = request => request.Headers.Host = "local.example";
+        using WebSocket socket = await socketClient.ConnectAsync(
+            new Uri($"ws://local.example/streaming?resume=v1&i={issued.Token}"),
+            timeout.Token);
+        await SendTextAsync(socket, JsonSerializer.Serialize(new
+        {
+            type = "connect",
+            body = new { channel = "globalTimeline", id = Guid.NewGuid().ToString("N") }
+        }), timeout.Token);
+        using JsonDocument connected = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
+        Assert.Equal("connected", connected.RootElement.GetProperty("type").GetString());
+
+        await using (AsyncServiceScope revokeScope = fixture.Services.CreateAsyncScope())
+        {
+            IMisskeyAuthenticationService authentication = revokeScope.ServiceProvider
+                .GetRequiredService<IMisskeyAuthenticationService>();
+            Assert.True(await authentication.RevokeAsync(issued.ActorIri, issued.TokenId, timeout.Token));
+        }
+
+        string marker = "stream-after-revocation-" + Guid.NewGuid().ToString("N");
+        await CreatePublicStatusAsync(marker, timeout.Token);
+        await ReceiveAuthenticationExpiredAsync(socket, marker, timeout.Token);
+        WebSocketReceiveResult closed = await ReceiveCloseAsync(socket, timeout.Token);
+        Assert.Equal((WebSocketCloseStatus)4401, closed.CloseStatus);
+    }
+
+    [Fact]
+    public async Task MisskeyResumeClosesBeforePublishingAfterBrowserSessionRevocation()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var signInRequest = new HttpRequestMessage(HttpMethod.Post, "/api/signin")
+        {
+            Content = JsonContent.Create(new
+            {
+                username = "alice",
+                password = ActivityPubApiFixture.FixtureAlicePassword
+            })
+        };
+        signInRequest.Headers.TryAddWithoutValidation(
+            FrontendBrowserSessionMetadata.RequestHeaderName,
+            FrontendBrowserSessionMetadata.RequestHeaderValue);
+        using HttpResponseMessage signIn = await client.SendAsync(signInRequest, timeout.Token);
+        signIn.EnsureSuccessStatusCode();
+        Assert.True(signIn.Headers.NonValidated.TryGetValues("Set-Cookie", out var setCookies));
+        string sessionCookie = setCookies
+            .Select(value => value.Split(';', 2)[0])
+            .Single(value => value.StartsWith("__Host-activitypub-oauth-session=", StringComparison.Ordinal));
+
+        WebSocketClient socketClient = fixture.Server.CreateWebSocketClient();
+        socketClient.ConfigureRequest = request =>
+        {
+            request.Headers.Host = "local.example";
+            request.Headers.Remove("Origin");
+            request.Headers.Origin = "https://client.local.example";
+            request.Headers.Cookie = sessionCookie;
+            request.Headers[FrontendBrowserSessionMetadata.RequestHeaderName] =
+                FrontendBrowserSessionMetadata.RequestHeaderValue;
+        };
+        using WebSocket socket = await socketClient.ConnectAsync(
+            new Uri("ws://local.example/streaming?resume=v1"),
+            timeout.Token);
+        await SendTextAsync(socket, JsonSerializer.Serialize(new
+        {
+            type = "connect",
+            body = new { channel = "homeTimeline", id = Guid.NewGuid().ToString("N") }
+        }), timeout.Token);
+        using JsonDocument connected = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
+        Assert.Equal("connected", connected.RootElement.GetProperty("type").GetString());
+
+        await using (AsyncServiceScope revokeScope = fixture.Services.CreateAsyncScope())
+        {
+            UserManager<LocalIdentityUser> users = revokeScope.ServiceProvider
+                .GetRequiredService<UserManager<LocalIdentityUser>>();
+            LocalIdentityUser user = await users.FindByNameAsync("alice") ??
+                throw new InvalidOperationException("The fixture identity is missing.");
+            IdentityResult revoked = await users.UpdateSecurityStampAsync(user);
+            Assert.True(revoked.Succeeded);
+        }
+
+        string marker = "stream-after-session-revocation-" + Guid.NewGuid().ToString("N");
+        await CreatePublicStatusAsync(marker, timeout.Token);
+        await ReceiveAuthenticationExpiredAsync(socket, marker, timeout.Token);
+        WebSocketReceiveResult closed = await ReceiveCloseAsync(socket, timeout.Token);
+        Assert.Equal((WebSocketCloseStatus)4401, closed.CloseStatus);
+    }
+
+    [Fact]
+    public async Task MisskeyResumeRevalidatesAfterProjectionBeforeSendingDurablePayload()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var authentication = new ExpireBetweenProjectionAndSendAuthentication();
+        using WebApplicationFactory<Program> factory = fixture.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IMisskeyAuthenticationService>();
+                services.AddSingleton<IMisskeyAuthenticationService>(authentication);
+            }));
+        WebSocketClient socketClient = factory.Server.CreateWebSocketClient();
+        socketClient.ConfigureRequest = request => request.Headers.Host = "local.example";
+        using WebSocket socket = await socketClient.ConnectAsync(
+            new Uri($"ws://local.example/streaming?resume=v1&i={ExpireBetweenProjectionAndSendAuthentication.Token}"),
+            timeout.Token);
+        await SendTextAsync(socket, JsonSerializer.Serialize(new
+        {
+            type = "connect",
+            body = new { channel = "globalTimeline", id = Guid.NewGuid().ToString("N") }
+        }), timeout.Token);
+        using JsonDocument connected = JsonDocument.Parse(await ReceiveTextAsync(socket, timeout.Token));
+        Assert.Equal("connected", connected.RootElement.GetProperty("type").GetString());
+
+        string marker = "stream-projection-auth-race-" + Guid.NewGuid().ToString("N");
+        await CreatePublicStatusAsync(marker, timeout.Token);
+
+        await ReceiveAuthenticationExpiredAsync(socket, marker, timeout.Token);
+        WebSocketReceiveResult closed = await ReceiveCloseAsync(socket, timeout.Token);
+        Assert.Equal((WebSocketCloseStatus)4401, closed.CloseStatus);
+        Assert.Equal(4, authentication.ValidationCount);
     }
 
     [Fact]
@@ -366,6 +649,59 @@ public sealed class StreamingIntegrationTests(ActivityPubApiFixture fixture)
         }
     }
 
+    private static async Task<WebSocketReceiveResult> ReceiveCloseAsync(
+        WebSocket socket,
+        CancellationToken cancellationToken)
+    {
+        WebSocketReceiveResult result = await socket.ReceiveAsync(new byte[1], cancellationToken);
+        Assert.Equal(WebSocketMessageType.Close, result.MessageType);
+        if (socket.State == WebSocketState.CloseReceived)
+        {
+            await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
+        }
+
+        return result;
+    }
+
+    private static async Task ReceiveAuthenticationExpiredAsync(
+        WebSocket socket,
+        string forbiddenMarker,
+        CancellationToken cancellationToken)
+    {
+        for (int attempt = 0; attempt < 8; attempt++)
+        {
+            string frame = await ReceiveTextAsync(socket, cancellationToken);
+            Assert.DoesNotContain(forbiddenMarker, frame, StringComparison.Ordinal);
+            using JsonDocument document = JsonDocument.Parse(frame);
+            JsonElement root = document.RootElement;
+            if (root.GetProperty("type").GetString() != "error")
+            {
+                continue;
+            }
+
+            Assert.Equal(
+                "AUTHENTICATION_EXPIRED",
+                root.GetProperty("body").GetProperty("code").GetString());
+            return;
+        }
+
+        Assert.Fail("The stream did not report authentication expiry within the bounded frame window.");
+    }
+
+    private async Task<long> GetLatestStreamCursorAsync(CancellationToken cancellationToken)
+    {
+        using HttpResponseMessage response = await client.PostAsJsonAsync(
+            "/api/streaming/cursor",
+            new { },
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+        Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+        using JsonDocument body = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken);
+        return body.RootElement.GetProperty("cursor").GetInt64();
+    }
+
     private async Task CreatePublicStatusAsync(string marker, CancellationToken cancellationToken)
     {
         using var create = new HttpRequestMessage(HttpMethod.Post, "/api/v1/statuses")
@@ -452,5 +788,82 @@ public sealed class StreamingIntegrationTests(ActivityPubApiFixture fixture)
         });
         result.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "fixture-alice");
         return result;
+    }
+
+    private sealed class SlowConsumerPump : IDurableStreamEventPump
+    {
+        public async IAsyncEnumerable<StreamEvent> SubscribeAsync(
+            long afterCursor,
+            int bufferCapacity,
+            TimeSpan pollInterval,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.Yield();
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return await Task.FromException<StreamEvent>(new StreamSlowConsumerException());
+        }
+    }
+
+    private sealed class ExpireBetweenProjectionAndSendAuthentication : IMisskeyAuthenticationService
+    {
+        public const string Token = "mk_stream_projection_auth_race";
+
+        private static readonly Guid TokenId = new("84d3e56b-2573-46af-80d9-b1a692be65f3");
+        private int validationCount;
+
+        public int ValidationCount => Volatile.Read(ref validationCount);
+
+        public Task<MisskeyTokenPrincipal?> ValidateAsync(
+            string token,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int call = Interlocked.Increment(ref validationCount);
+            MisskeyTokenPrincipal? principal = call <= 3 && string.Equals(token, Token, StringComparison.Ordinal)
+                ? new(
+                    TokenId,
+                    "https://local.example/users/alice",
+                    "alice",
+                    ["read:account"],
+                    DateTimeOffset.UtcNow.AddMinutes(5))
+                : null;
+            return Task.FromResult(principal);
+        }
+
+        public Task<MisskeyIssuedToken> IssueDirectAsync(
+            string username,
+            string clientName,
+            string? description,
+            string? iconUri,
+            IReadOnlyCollection<string> permissions,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<MisskeyIssuedToken> IssueAsync(
+            string username,
+            string sessionKey,
+            string clientName,
+            string? description,
+            string? iconUri,
+            string? callbackUri,
+            IReadOnlyCollection<string> permissions,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<MisskeyIssuedToken?> ConsumeSessionAsync(
+            string sessionKey,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<MisskeyTokenSummary>> ListAsync(
+            string actorIri,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<bool> RevokeAsync(
+            string actorIri,
+            Guid tokenId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 }

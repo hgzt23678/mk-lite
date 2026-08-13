@@ -1,8 +1,8 @@
 # Routing contract
 
-The production frontend uses ASP.NET Core Razor Components with Interactive Server rendering. The
-public base path remains /app/ in deployment; the test host uses / so the same route components can
-be exercised without a proxy.
+The production frontend is a standalone Blazor WebAssembly application served by ASP.NET Core at
+`/app/`. Browser history and route evaluation remain client-side after the initial static shell is
+loaded. The Interactive Server test host is an oracle-only fixture and is not a production route.
 
 The route inventory is generated from the pinned Misskey v12.119.2 source and nirax.ts. It is not
 replaced by a list of links. Blazor's route table owns the component route, while query and hash

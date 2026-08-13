@@ -1,8 +1,11 @@
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
 using ActivityPub.Domain;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public interface IUserSearchPresentationService
 {
     Task<IReadOnlyList<UserPreviewViewModel>> SearchAsync(
@@ -12,6 +15,9 @@ public interface IUserSearchPresentationService
         CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class UserSearchPresentationService(
     IClientApiQueryService clientQuery,
     IExternalEntityIdService externalIds,
@@ -80,6 +86,9 @@ public sealed class UserSearchPresentationService(
     }
 }
 
+#endif
+
+#if !MISSKEY_BLAZOR_SERVER
 public sealed class UserSearchPaginationSource(
     IUserSearchPresentationService search,
     string query,
@@ -94,3 +103,4 @@ public sealed class UserSearchPaginationSource(
 
     public string GetId(UserPreviewViewModel item) => item.Id;
 }
+#endif

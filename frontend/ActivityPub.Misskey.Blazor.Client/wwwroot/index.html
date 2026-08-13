@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ja" dir="ltr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#86b300" />
+    <base href="/app/" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="/static-assets/favicon.png" />
+    <link rel="stylesheet" href="_content/ActivityPub.Misskey.Blazor/vendor/fontawesome/css/all.min.css" />
+    <link rel="stylesheet" href="_content/ActivityPub.Misskey.Blazor/vendor/prism/prism-okaidia.css" />
+    <link rel="stylesheet" href="_content/ActivityPub.Misskey.Blazor/vendor/katex/katex.min.css" />
+    <link rel="stylesheet" href="_content/ActivityPub.Misskey.Blazor/vendor/photoswipe/photoswipe.css" />
+    <link rel="stylesheet" href="_content/ActivityPub.Misskey.Blazor/css/misskey-v12-upstream.css" />
+    <link rel="stylesheet" href="_content/ActivityPub.Misskey.Blazor/css/app.css" />
+    <link rel="stylesheet" href="_content/ActivityPub.Misskey.Blazor/css/misskey-v12-default-theme.css" />
+    <link rel="stylesheet" href="ActivityPub.Misskey.Blazor.Client.styles.css" />
+    <link rel="modulepreload" href="_content/ActivityPub.Misskey.Blazor/js/element-size.js" />
+    <title>Misskey</title>
+</head>
+<body>
+    <noscript>このクライアントの利用には JavaScript が必要です。</noscript>
+    <div id="app"><div id="splash" aria-label="Loading"></div></div>
+    <script src="bootstrap-failure.js"></script>
+    <script src="_content/ActivityPub.Misskey.Blazor/js/interop-lifecycle.js"></script>
+    <script type="module" src="_content/ActivityPub.Misskey.Blazor/js/theme.js"></script>
+    <script type="module" src="_content/ActivityPub.Misskey.Blazor/js/overlay-stack.js"></script>
+    <script src="_framework/blazor.webassembly.js"></script>
+    <script type="module" src="service-worker-registration.js"></script>
+</body>
+</html>

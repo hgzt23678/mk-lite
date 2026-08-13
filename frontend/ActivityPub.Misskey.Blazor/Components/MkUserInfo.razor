@@ -53,7 +53,7 @@
     }.Where(value => !string.IsNullOrWhiteSpace(value)));
     private string? RootStyle => ReadAdditionalAttribute("style");
     private string? BannerStyle => SameOriginMediaUrl.CssBackgroundImage(User.BannerUrl);
-    private string UserPage => $"/@{User.User.Acct}";
+    private string UserPage => $"@{User.User.Acct}";
     private IReadOnlyDictionary<string, string> CustomEmojis =>
         User.User.Emojis ?? new Dictionary<string, string>(StringComparer.Ordinal);
     private IReadOnlyDictionary<string, object>? AttributesWithoutClassAndStyle => AdditionalAttributes is null

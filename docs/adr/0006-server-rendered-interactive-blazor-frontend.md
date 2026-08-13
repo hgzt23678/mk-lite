@@ -1,83 +1,41 @@
-# ADR 0006: Server-rendered interactive Blazor frontend
+# ADR 0006: Standalone Blazor WebAssembly frontend
 
 ## Status
 
-Accepted on 2026-08-03.
+Superseded and replaced on 2026-08-13.
 
-This decision supersedes the earlier WebAssembly frontend direction.
+The 2026-08-03 Interactive Server decision is no longer active. The filename remains stable so existing documentation links continue to resolve.
 
 ## Context
 
-Misskey 12.119.2 の画面をBlazorへ移植する方式として、WebAssemblyとサーバー実行の二案があった。
+Interactive Server reproduced the Razor UI but made every interaction, resize callback and stream update depend on a server circuit. Misskey's transition-heavy timeline exposed avoidable latency and required connection affinity during rolling deployment.
 
-運用者は、ブラウザーへ.NET runtimeとAPI access tokenを配るWebAssembly方式を採用せず、ASP.NET Coreが描画とUIイベント処理を担う方式を指定した。
-
-一方、投稿、配送、通知、Streaming cursorをBlazor circuitだけに保存すると、process障害とrolling deploymentで状態を失う。
-
-そのため、UIの実行場所と信頼できる記録の保存場所を分ける必要がある。
+The application already exposes Misskey HTTP contracts and a durable PostgreSQL stream event log. A browser-safe RCL can therefore retain the exact Razor DOM, CSS and animation implementation while moving presentation state and rendering into the browser.
 
 ## Decision
 
-本番frontendは、.NET 10 Blazor Web Appのstatic SSRとglobal Interactive Server renderingを使用する。
+The production frontend uses standalone .NET 10 Blazor WebAssembly under `/app/`.
 
-Razor ComponentsはRazor Class Libraryへ置き、ASP.NET Core API hostが同一originの`/app/`で配信する。
+- `ActivityPub.Misskey.Blazor` contains only browser-safe Components and contracts.
+- `ActivityPub.Misskey.Blazor.Client` owns WebAssembly bootstrap, same-origin HTTP adapters, authentication state and browser WebSocket streaming.
+- `ActivityPub.Api` serves the static Client and remains the security and persistence boundary.
+- Vue, Vite, Interactive Server, `blazor.web.js` and `/_blazor` are absent from the production path.
+- The Interactive Server project remains only as a comparison and component-test oracle.
 
-初期HTMLはserverで描画し、`PersistentComponentState`で初期query結果をinteractive circuitへ引き渡す。
+Authentication uses a Secure HttpOnly session Cookie. The session bootstrap returns a short-lived antiforgery request token that is held in process memory only. Browser storage and URL query strings never contain an access token, refresh token, MiAuth token or Cookie.
 
-この引き渡しにより、prerenderとinteractive初期化が同じDB queryや副作用を二重実行する状態を避ける。
+The browser obtains an initial durable cursor over authenticated HTTP and multiplexes timeline, notification and relationship subscriptions over one native Misskey WebSocket. PostgreSQL remains the reliable record. Redis notifications may wake readers but cannot replace the log.
 
-認証は既存OIDC境界とHttpOnly session cookieを使用する。
+## Consequences
 
-ブラウザーへaccess tokenとrefresh tokenを保存せず、変更操作にはBlazorの接続認証とASP.NET Core antiforgery境界を適用する。
+API instances no longer need SignalR circuit affinity. Reconnect can land on another instance and resume from a checkpoint cursor. API authorization, visibility filtering and mutation side effects remain server-side.
 
-UI commandは共通Application serviceを一度だけ呼び、Object、Activity、Deliveryを既存transactionで確定する。
+The first load includes the WebAssembly runtime. Payload size, cold start, memory, CSP (`wasm-unsafe-eval` without general `unsafe-eval`) and Service Worker behavior must be measured in browser tests.
 
-UI更新はPostgreSQLのdurable stream event logを各circuitがcursor付きで購読する。
-
-LISTEN/NOTIFYやBlazor SignalRは通知と表示の輸送に限り、失われてはならないeventの記録にはしない。
-
-Deck配置、theme、下書きなどの端末設定は型付きJavaScript moduleを介してbrowser storageへ保存する。
-
-token、Cookie、client secretをbrowser storageのkeyまたはvalueとして新規保存しない。
-
-Vue runtime、Vue Router、Pizzax、Vue SFCはproduction imageと通常起動経路へ含めない。
-
-固定したVue版は移行中のvisual oracleとbehavior oracleとして別のdevelopment gateに残す。
-
-## Scaling and deployment consequences
-
-Interactive Serverのcircuitはprocess-localなので、load balancerはWebSocket接続中のaffinityを維持する。
-
-affinityは永続性の根拠ではない。
-
-投稿、通知、配送、Streaming eventとcursor recoveryに必要な事実はPostgreSQLへ保存するため、切断後は別instanceで再接続できる。
-
-rolling deploymentは、新規接続を新instanceへ送り、旧instanceのcircuitをgraceful shutdown期間内にdrainする。
-
-drain期限を超えたcircuitは再接続し、保存済みcursor以降を再取得する。
-
-processをまたぐ同一circuitのlive migrationは対応範囲に含めない。
-
-外部SignalR serviceまたはRedis backplaneは必須にしない。
-
-将来導入する場合も、PostgreSQL event logの代替にはせず、fan-outの高速化だけに使用する。
-
-## Security consequences
-
-serverは利用者ごとの表示modelとoverlay状態をscoped serviceに分離し、singletonへ格納しない。
-
-private Objectは初期queryとstream eventの両方で同じviewer authorizationを通す。
-
-切断circuitの保持時間、未確認render batch、SignalR受信message size、並列invocation数には上限を設定する。
-
-Service Workerはnavigation、API response、media、認証情報をcacheしない。
+All Presentation services used by Razor must have real HTTP or WebSocket adapters. Missing backend contracts cannot be hidden with empty or constant client implementations.
 
 ## Rejected alternatives
 
-Blazor WebAssemblyは運用者の実行方式指定に反するため採用しない。
-
-Vueをiframeまたはmicrofrontendとして残す方式は、Vue runtimeを本番経路から除く完成条件を満たさないため採用しない。
-
-Blazor Serverのcomponentから自分自身のMisskey HTTP endpointを呼ぶ方式は、token転送と二重adapterを生むため採用しない。
-
-Razor Componentsは共有Application contractを直接使用し、HTTP固有のserializationとerror bodyはMisskey API adapterに残す。
+- Keeping Interactive Server in production preserves circuit latency and deployment affinity.
+- Storing bearer tokens in browser storage weakens the existing session boundary.
+- Wrapping Vue or loading it as a microfrontend violates the Vue-removal requirement.

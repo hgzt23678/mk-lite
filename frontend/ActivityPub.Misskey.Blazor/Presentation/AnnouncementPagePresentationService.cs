@@ -1,8 +1,11 @@
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Misskey.Blazor.Identity;
 using ActivityPub.MisskeyApi;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public sealed record AnnouncementPageViewModel(
     string Id,
     DateTimeOffset CreatedAt,
@@ -21,6 +24,9 @@ public interface IAnnouncementPagePresentationService
     Task<bool> MarkReadAsync(string id, CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class AnnouncementPagePresentationService(
     MisskeyAnnouncementService announcements,
     IAuthenticatedActorContext actorContext) : IAnnouncementPagePresentationService
@@ -57,6 +63,9 @@ public sealed class AnnouncementPagePresentationService(
     }
 }
 
+#endif
+
+#if !MISSKEY_BLAZOR_SERVER
 public sealed class AnnouncementPaginationSource(
     IAnnouncementPagePresentationService announcements) : IMisskeyPaginationSource<AnnouncementPageViewModel>
 {
@@ -76,8 +85,11 @@ public sealed class AnnouncementPaginationSource(
 
     public string GetId(AnnouncementPageViewModel item) => item.Id;
 }
+#endif
 
+#if !MISSKEY_BLAZOR_SERVER
 public sealed class AnnouncementPresentationException(string errorCode) : Exception(errorCode)
 {
     public string ErrorCode { get; } = errorCode;
 }
+#endif

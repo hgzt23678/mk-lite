@@ -256,8 +256,12 @@
         }
       },
       "activitypub.misskey.blazor": {
+        "type": "Project"
+      },
+      "activitypub.misskey.blazor.server": {
         "type": "Project",
         "dependencies": {
+          "ActivityPub.Misskey.Blazor": "[1.0.0, )",
           "ActivityPub.MisskeyApi": "[1.0.0, )"
         }
       },
@@ -266,6 +270,7 @@
         "dependencies": {
           "ActivityPub.Application": "[1.0.0, )",
           "ActivityPub.Domain": "[1.0.0, )",
+          "ActivityPub.Identity": "[1.0.0, )",
           "ActivityPub.Persistence": "[1.0.0, )"
         }
       },

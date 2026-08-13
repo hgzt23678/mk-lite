@@ -1,9 +1,12 @@
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
 using ActivityPub.Domain;
 using ActivityPub.Misskey.Blazor.Identity;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public sealed record SettingsProfileViewModel(
     string Username,
     string Name,
@@ -49,6 +52,9 @@ public interface ISettingsPresentationService
         CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class SettingsPresentationService(
     IClientApiQueryService query,
     IProfileUpdateService profiles,
@@ -155,3 +161,4 @@ public sealed class SettingsPresentationService(
             cancellationToken).ConfigureAwait(false);
     }
 }
+#endif

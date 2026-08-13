@@ -5,6 +5,9 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../frontend/ActivityPub.Misskey.Blazor/ActivityPub.Misskey.Blazor.csproj" />
+    <ProjectReference Include="../../frontend/ActivityPub.Misskey.Blazor.Server/ActivityPub.Misskey.Blazor.Server.csproj" />
+    <ProjectReference Include="../../src/ActivityPub.Application/ActivityPub.Application.csproj" />
+    <ProjectReference Include="../../src/ActivityPub.Domain/ActivityPub.Domain.csproj" />
     <PackageReference Include="bunit" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />

@@ -1,11 +1,15 @@
 using System.Net;
 using System.Text.RegularExpressions;
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
 using ActivityPub.Domain;
 using ActivityPub.Misskey.Blazor.Identity;
+using ActivityPub.Misskey.Blazor.Server;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public interface ITimelinePresentationService
 {
     Task<TimelinePageViewModel> ReadAsync(
@@ -68,7 +72,9 @@ public interface IUserPagePresentationService
 public sealed record UserPageViewModel(
     UserPreviewViewModel User,
     TimelinePageViewModel Notes);
+#endif
 
+#if MISSKEY_BLAZOR_SERVER
 public sealed partial class TimelinePresentationService(
     IClientApiQueryService query,
     IClientApiCommandService commands,
@@ -156,7 +162,7 @@ public sealed partial class TimelinePresentationService(
             new(
                 text,
                 "text/x.misskeymarkdown",
-                draft.Visibility,
+                FrontendVisibilityMapper.ToDomain(draft.Visibility),
                 draft.ContentWarning,
                 Sensitive: draft.Sensitive || !string.IsNullOrWhiteSpace(draft.ContentWarning),
                 draft.ReplyToId,
@@ -209,12 +215,31 @@ public sealed partial class TimelinePresentationService(
 
         Guid postId = await ResolveRequiredPostIdAsync(noteId, cancellationToken).ConfigureAwait(false);
         AuthenticatedActor actor = await actorContext.RequireAsync(cancellationToken).ConfigureAwait(false);
-        ClientPostView post = await commands.VotePollAsync(
-            actor.Username,
-            postId,
-            choiceIndex,
-            idempotencyKey,
-            cancellationToken).ConfigureAwait(false);
+        ClientPostView post;
+        try
+        {
+            post = await commands.VotePollAsync(
+                actor.Username,
+                postId,
+                choiceIndex,
+                idempotencyKey,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (ClientPollVoteException exception)
+        {
+            throw new FrontendPollVoteException(
+                exception.Error switch
+                {
+                    ClientPollVoteError.NoPoll => FrontendPollVoteError.NoPoll,
+                    ClientPollVoteError.InvalidChoice => FrontendPollVoteError.InvalidChoice,
+                    ClientPollVoteError.AlreadyVoted => FrontendPollVoteError.AlreadyVoted,
+                    ClientPollVoteError.Expired => FrontendPollVoteError.Expired,
+                    ClientPollVoteError.Blocked => FrontendPollVoteError.Blocked,
+                    ClientPollVoteError.NotVisible => FrontendPollVoteError.NotVisible,
+                    _ => throw new InvalidOperationException("The poll vote error is unsupported.", exception)
+                },
+                exception.Message);
+        }
         return await MapAsync(post, cancellationToken).ConfigureAwait(false);
     }
 
@@ -479,7 +504,7 @@ public sealed partial class TimelinePresentationService(
                 post.Account.Bot),
             post.SourceText ?? ConvertSanitizedHtmlToText(post.SanitizedHtml),
             string.IsNullOrWhiteSpace(post.ContentWarning) ? null : post.ContentWarning,
-            post.Visibility,
+            FrontendVisibilityMapper.FromDomain(post.Visibility),
             replyId,
             post.RepliesCount,
             post.AnnouncesCount,
@@ -542,3 +567,4 @@ public sealed partial class TimelinePresentationService(
     [GeneratedRegex("<[^>]+>", RegexOptions.CultureInvariant)]
     private static partial Regex HtmlElementRegex();
 }
+#endif

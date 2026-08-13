@@ -1,11 +1,14 @@
 using System.Runtime.CompilerServices;
+using ActivityPub.Misskey.Blazor.Presentation;
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
 using ActivityPub.Domain;
 using ActivityPub.Misskey.Blazor.Identity;
-using ActivityPub.Misskey.Blazor.Presentation;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Streaming;
 
+#if !MISSKEY_BLAZOR_SERVER
 public enum NotificationMutationKind
 {
     Checkpoint,
@@ -28,6 +31,9 @@ public interface INotificationSubscriptionService
         CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class NotificationSubscriptionService(
     IDurableStreamEventPump pump,
     IStreamEventStore store,
@@ -113,7 +119,11 @@ public sealed class NotificationSubscriptionService(
         (excluded is null || !excluded.Contains(type));
 }
 
+#endif
+
+#if !MISSKEY_BLAZOR_SERVER
 public sealed class NotificationCursorException(string errorCode) : Exception(errorCode)
 {
     public string ErrorCode { get; } = errorCode;
 }
+#endif

@@ -1,7 +1,9 @@
 using System.Net;
 using System.Security.Claims;
 using ActivityPub.Application;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -124,6 +126,7 @@ internal sealed class LocalAccountPrincipalFactory(
         identity.AddClaim(new Claim("sub", user.Id.ToString("N")));
         identity.AddClaim(new Claim("preferred_username", username));
         identity.AddClaim(new Claim("scope", "openid profile activitypub.read activitypub.write"));
+        identity.AddClaim(new Claim(FrontendBrowserSessionMetadata.SessionClaim, "true"));
         if (!string.IsNullOrWhiteSpace(user.LocalActorIri))
         {
             identity.AddClaim(new Claim(LocalAccountServiceCollectionExtensions.LocalActorClaim, user.LocalActorIri));
@@ -164,5 +167,29 @@ internal sealed class LocalAccountCookieEvents(
         }
 
         await base.ValidatePrincipal(context).ConfigureAwait(false);
+    }
+
+    public override Task RedirectToLogin(RedirectContext<CookieAuthenticationOptions> context)
+    {
+        if (FrontendBrowserSessionMetadata.IsExplicitBrowserRequest(context.HttpContext))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            context.Response.Headers.CacheControl = "no-store";
+            return Task.CompletedTask;
+        }
+
+        return base.RedirectToLogin(context);
+    }
+
+    public override Task RedirectToAccessDenied(RedirectContext<CookieAuthenticationOptions> context)
+    {
+        if (FrontendBrowserSessionMetadata.IsExplicitBrowserRequest(context.HttpContext))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            context.Response.Headers.CacheControl = "no-store";
+            return Task.CompletedTask;
+        }
+
+        return base.RedirectToAccessDenied(context);
     }
 }

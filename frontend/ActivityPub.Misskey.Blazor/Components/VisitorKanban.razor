@@ -8,7 +8,7 @@
     <div class="contents">
         <div class="wrapper">
             <h1 class="@(Full ? "full" : null)">
-                <a href="/" class="link">
+                <a href="" class="link">
                     @if (SafeLogoImageUrl is not null)
                     {
                         <img class="logo" src="@SafeLogoImageUrl" alt="logo" />
@@ -50,7 +50,7 @@
                 @if (PoweredBy)
                 {
                     <div class="powered-by">
-                        <b><a href="/">@Host</a></b>
+                        <b><a href="">@Host</a></b>
                         <small>Powered by <a href="https://github.com/misskey-dev/misskey" target="_blank" rel="noopener noreferrer">Misskey</a></small>
                     </div>
                 }
@@ -112,7 +112,7 @@
         get
         {
             string relative = Navigation.ToBaseRelativePath(Navigation.Uri);
-            return "/" + relative.TrimStart('/');
+            return relative.TrimStart('/');
         }
     }
 

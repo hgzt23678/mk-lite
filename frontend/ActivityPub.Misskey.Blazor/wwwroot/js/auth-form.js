@@ -1,3 +1,5 @@
+import { frontendRequestHeaders } from './frontend-request-security.js';
+
 function setBusy(form, busy) {
   form.classList.toggle('signing', busy);
   form.setAttribute('aria-busy', busy ? 'true' : 'false');
@@ -23,10 +25,7 @@ async function postFormTo(form, target, fields = {}) {
     credentials: 'same-origin',
     cache: 'no-store',
     redirect: 'error',
-    headers: {
-      Accept: 'application/json',
-      'X-ActivityPub-Frontend': '1',
-    },
+    headers: frontendRequestHeaders(target, true),
   });
   const contentType = response.headers.get('content-type') ?? '';
   if (!contentType.toLowerCase().startsWith('application/json')) {
@@ -383,6 +382,7 @@ export function attachSignUp(form, receiver, usernameAvailabilityUrl) {
           credentials: 'same-origin',
           cache: 'no-store',
           signal: usernameAvailabilityController.signal,
+          headers: frontendRequestHeaders(usernameAvailabilityUrl, false),
         });
         if (!response.ok) throw new Error('USERNAME_AVAILABILITY_FAILED');
         const result = await response.json();
@@ -485,9 +485,8 @@ export function attachInitialSetup(form, receiver) {
         cache: 'no-store',
         redirect: 'error',
         headers: {
-          Accept: 'application/json',
+          ...frontendRequestHeaders(form.action, true),
           'Content-Type': 'application/json',
-          'X-ActivityPub-Frontend': '1',
         },
         body: JSON.stringify({
           username: String(fields.get('username') ?? ''),

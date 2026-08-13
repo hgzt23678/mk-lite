@@ -1,7 +1,6 @@
 using System.Globalization;
 using ActivityPub.Misskey.Blazor.Localization;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Primitives;
 
 namespace ActivityPub.Misskey.Blazor.Tests;
 
@@ -79,7 +78,9 @@ public sealed class LocalizationTests
 
         context.Request.Headers.Cookie = $"{MisskeyLocaleRequestResolver.CookieName}=../../etc/passwd";
         Assert.Equal("fr-FR", resolver.Resolve(context));
-        Assert.Equal("ja-JP", resolver.ResolveAcceptLanguage(new StringValues("*;q=1,xx-ZZ;q=0.9")));
+        context = new DefaultHttpContext();
+        context.Request.Headers.AcceptLanguage = "*;q=1,xx-ZZ;q=0.9";
+        Assert.Equal("ja-JP", resolver.Resolve(context));
     }
 
     [Fact]

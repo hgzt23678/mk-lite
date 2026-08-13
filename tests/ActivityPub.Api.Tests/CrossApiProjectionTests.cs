@@ -92,6 +92,74 @@ public sealed class CrossApiProjectionTests(ActivityPubApiFixture fixture)
         await AssertSingleFederationMutationAsync(internalId);
     }
 
+    [Fact]
+    public async Task MisskeyRenotesReturnsDurableAnnounceRelationsWithoutFabricatingTheTarget()
+    {
+        Guid relationId;
+        await using (AsyncServiceScope scope = fixture.Services.CreateAsyncScope())
+        {
+            IDbContextFactory<FederationDbContext> factory = scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<FederationDbContext>>();
+            await using FederationDbContext db = await factory.CreateDbContextAsync();
+            string objectIri = await db.Objects
+                .Where(item => item.Id == fixture.PublicMediaObjectId)
+                .Select(item => item.Iri)
+                .SingleAsync();
+            string actorIri = await db.RemoteActors
+                .Where(item => item.PreferredUsername == "publisher")
+                .Select(item => item.Iri)
+                .SingleAsync();
+            AnnounceRelation relation = AnnounceRelation.Create(
+                actorIri,
+                objectIri,
+                "https://media-blocked.example/activities/renote-" + Guid.NewGuid().ToString("N"),
+                DateTimeOffset.UtcNow);
+            relationId = relation.Id;
+            db.AnnounceRelations.Add(relation);
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            using HttpResponseMessage response = await client.PostAsJsonAsync(
+                "/api/notes/renotes",
+                new { noteId = fixture.MisskeyPublicPostId, limit = 10 },
+                CancellationToken.None);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using JsonDocument document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+            JsonElement renote = Assert.Single(
+                document.RootElement.EnumerateArray(),
+                item => item.GetProperty("userId").GetString() == fixture.MisskeyRemotePublisherId);
+            Assert.Equal(fixture.MisskeyPublicPostId, renote.GetProperty("renoteId").GetString());
+            Assert.Equal(fixture.MisskeyPublicPostId, renote.GetProperty("renote").GetProperty("id").GetString());
+            Assert.Equal(fixture.MisskeyRemotePublisherId, renote.GetProperty("userId").GetString());
+
+            await using AsyncServiceScope verification = fixture.Services.CreateAsyncScope();
+            IExternalEntityIdService externalIds = verification.ServiceProvider.GetRequiredService<IExternalEntityIdService>();
+            Assert.Equal(
+                relationId,
+                await externalIds.ResolveAsync(
+                    ApiDialect.Misskey,
+                    ExternalEntityType.Post,
+                    renote.GetProperty("id").GetString()!,
+                    CancellationToken.None));
+        }
+        finally
+        {
+            await using AsyncServiceScope cleanup = fixture.Services.CreateAsyncScope();
+            IDbContextFactory<FederationDbContext> factory = cleanup.ServiceProvider
+                .GetRequiredService<IDbContextFactory<FederationDbContext>>();
+            await using FederationDbContext db = await factory.CreateDbContextAsync();
+            AnnounceRelation? relation = await db.AnnounceRelations.FindAsync(relationId);
+            if (relation is not null)
+            {
+                db.AnnounceRelations.Remove(relation);
+                await db.SaveChangesAsync();
+            }
+        }
+    }
+
     private async Task<(Guid InternalId, string OtherDialectId)> ResolveAndMapAsync(
         ApiDialect sourceDialect,
         ApiDialect targetDialect,

@@ -91,7 +91,7 @@ else
 
     private string AccountLabel => $"@{User.Acct}";
 
-    private string UserPage => $"/@{User.Acct}";
+    private string UserPage => $"@{User.Acct}";
 
     private string? ReadAdditionalAttribute(string name) =>
         AdditionalAttributes is not null && AdditionalAttributes.TryGetValue(name, out object? value)

@@ -21,8 +21,14 @@ in this production/build inventory.
 | `MailKit` | 4.17.0 | MIT | [jstedfast/MailKit](https://github.com/jstedfast/MailKit) |
 | `Microsoft.AspNetCore.Authentication.JwtBearer` | 10.0.11 | MIT | [dotnet/aspnetcore](https://github.com/dotnet/aspnetcore) |
 | `Microsoft.AspNetCore.Authentication.OpenIdConnect` | 10.0.11 | MIT | [dotnet/aspnetcore](https://github.com/dotnet/aspnetcore) |
+| `Microsoft.AspNetCore.Components.Authorization` | 10.0.11 | MIT | [dotnet/aspnetcore](https://github.com/dotnet/aspnetcore) |
+| `Microsoft.AspNetCore.Components.Web` | 10.0.11 | MIT | [dotnet/aspnetcore](https://github.com/dotnet/aspnetcore) |
+| `Microsoft.AspNetCore.Components.WebAssembly` | 10.0.11 | MIT | [dotnet/aspnetcore](https://github.com/dotnet/aspnetcore) |
+| `Microsoft.AspNetCore.Components.WebAssembly.Authentication` | 10.0.11 | MIT | [dotnet/aspnetcore](https://github.com/dotnet/aspnetcore) |
+| `Microsoft.AspNetCore.Components.WebAssembly.Server` | 10.0.11 | MIT | [dotnet/aspnetcore](https://github.com/dotnet/aspnetcore) |
 | `Microsoft.AspNetCore.DataProtection.EntityFrameworkCore` | 10.0.11 | MIT | [dotnet/aspnetcore](https://github.com/dotnet/aspnetcore) |
 | `Microsoft.AspNetCore.Identity.EntityFrameworkCore` | 10.0.10 | MIT | [dotnet/aspnetcore](https://github.com/dotnet/aspnetcore) |
+| `Microsoft.AspNetCore.WebUtilities` | 10.0.11 | MIT | [dotnet/aspnetcore](https://github.com/dotnet/aspnetcore) |
 | `Microsoft.EntityFrameworkCore` | 10.0.11 | MIT | [dotnet/efcore](https://github.com/dotnet/efcore) |
 | `Microsoft.EntityFrameworkCore.Design` | 10.0.10 | MIT | [dotnet/efcore](https://github.com/dotnet/efcore) |
 | `Microsoft.Extensions.Http.Resilience` | 10.9.0 | MIT | [dotnet/extensions](https://github.com/dotnet/extensions) |

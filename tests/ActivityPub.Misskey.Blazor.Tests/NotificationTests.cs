@@ -39,7 +39,7 @@ public sealed class NotificationTests : BunitContext
         Assert.Single(root.QuerySelectorAll(":scope > .tail > header > .name"));
         Assert.Single(root.QuerySelectorAll(":scope > .tail > header > .time"));
         IElement text = Assert.IsAssignableFrom<IElement>(root.QuerySelector(":scope > .tail > a.text"));
-        Assert.Equal("/notes/9note", text.GetAttribute("href"));
+        Assert.Equal("notes/9note", text.GetAttribute("href"));
         Assert.Equal(2, text.QuerySelectorAll(":scope > i").Length);
         IElement mfm = Assert.IsAssignableFrom<IElement>(text.QuerySelector(".havbbuyv"));
         Assert.DoesNotContain("nowrap", mfm.ClassList);

@@ -13,6 +13,8 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 
+using Visibility = ActivityPub.Misskey.Blazor.Presentation.Visibility;
+
 namespace ActivityPub.Misskey.Blazor.Tests;
 
 public sealed class NotificationsPageTests : BunitContext
@@ -147,7 +149,7 @@ public sealed class NotificationsPageTests : BunitContext
             author,
             $"text {noteId}",
             ContentWarning: null,
-            visibility,
+            (Visibility)visibility,
             ReplyId: null,
             RepliesCount: 0,
             RenotesCount: 0,

@@ -456,6 +456,90 @@ public sealed partial class MisskeyQueryService(
         return status is null ? null : await MapNoteAsync(status, viewerActorIri, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<object>?> ReadRenotesAsync(
+        string noteId,
+        int limit,
+        string? viewerActorIri,
+        CancellationToken cancellationToken)
+    {
+        Guid? postId = await externalIds.ResolveAsync(
+            ApiDialect.Misskey,
+            ExternalEntityType.Post,
+            noteId,
+            cancellationToken).ConfigureAwait(false);
+        if (postId is null)
+        {
+            return null;
+        }
+
+        ClientPostView? target = await query.FindPostAsync(
+            postId.Value,
+            viewerActorIri,
+            cancellationToken).ConfigureAwait(false);
+        if (target is null)
+        {
+            return null;
+        }
+
+        IReadOnlyList<ClientAnnounceActorView> values = await query.ReadPostAnnounceActorsAsync(
+            postId.Value,
+            Math.Clamp(limit, 1, 100),
+            viewerActorIri,
+            cancellationToken).ConfigureAwait(false);
+        object renote = await MapNoteAsync(target, viewerActorIri, cancellationToken).ConfigureAwait(false);
+        string targetId = await MapPostIdAsync(target.Id, target.CreatedAt, cancellationToken).ConfigureAwait(false);
+        var result = new List<object>(values.Count);
+        foreach (ClientAnnounceActorView value in values)
+        {
+            ClientAccountView? account = await query.FindAccountByIriAsync(
+                value.ActorIri,
+                cancellationToken).ConfigureAwait(false);
+            if (account is null)
+            {
+                continue;
+            }
+
+            Dictionary<string, object?> user = await MapAccountAsync(
+                account,
+                detailed: false,
+                isMe: string.Equals(value.ActorIri, viewerActorIri, StringComparison.Ordinal),
+                cancellationToken).ConfigureAwait(false);
+            string relationId = await externalIds.GetOrCreateAsync(
+                ApiDialect.Misskey,
+                ExternalEntityType.Post,
+                value.RelationId,
+                value.CreatedAt,
+                cancellationToken).ConfigureAwait(false);
+            result.Add(new
+            {
+                id = relationId,
+                createdAt = value.CreatedAt,
+                userId = user["id"],
+                user,
+                text = (string?)null,
+                cw = (string?)null,
+                visibility = "public",
+                localOnly = false,
+                visibleUserIds = Array.Empty<string>(),
+                renoteCount = 0,
+                repliesCount = 0,
+                reactions = new Dictionary<string, long>(),
+                reactionEmojis = new Dictionary<string, string>(),
+                emojis = new Dictionary<string, string>(),
+                fileIds = Array.Empty<string>(),
+                files = Array.Empty<object>(),
+                replyId = (string?)null,
+                renoteId = targetId,
+                renote,
+                uri = (string?)null,
+                url = (string?)null,
+                myReaction = (string?)null
+            });
+        }
+
+        return result;
+    }
+
     public async Task<object?> FindNoteByInternalIdAsync(
         Guid noteId,
         string? viewerActorIri,
@@ -981,6 +1065,7 @@ public sealed partial class MisskeyQueryService(
                 : CreateRemoteActorMediaProxyPath(id, account.HeaderUrl);
             value["bannerBlurhash"] = null;
             value["isLocked"] = account.Locked;
+            value["isExplorable"] = account.Discoverable;
             value["isSilenced"] = false;
             value["isSuspended"] = false;
             value["description"] = HtmlToText(account.SummaryHtml);

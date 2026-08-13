@@ -47,7 +47,7 @@ public sealed class SuperMenuTests : BunitContext
         button.Click();
         Assert.Equal(1, actionCalls);
 
-        Assert.NotNull(root.QuerySelector("a[href='/'].item > i.fa-fw.fas.fa-home"));
+        Assert.NotNull(root.QuerySelector("a[href=''].item > i.fa-fw.fas.fa-home"));
         IElement external = root.QuerySelector("a[href='https://misskey-hub.net']")!;
         Assert.Equal("_blank", external.GetAttribute("target"));
         Assert.Equal("noopener noreferrer", external.GetAttribute("rel"));
@@ -83,7 +83,7 @@ public sealed class SuperMenuTests : BunitContext
         using IRenderedComponent<MkSuperMenu> component = Render<MkSuperMenu>(parameters => parameters
             .Add(menu => menu.Definition, definition));
 
-        component.Find("a[href='/timeline']").Click();
+        component.Find("a[href='timeline']").Click();
         Assert.Equal("/timeline", new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath);
     }
 }

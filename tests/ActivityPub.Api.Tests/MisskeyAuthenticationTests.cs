@@ -21,7 +21,7 @@ using Microsoft.Extensions.Options;
 namespace ActivityPub.Api.Tests;
 
 [Collection(ActivityPubApiFixtureDefinition.Name)]
-public sealed class MisskeyAuthenticationTests(ActivityPubApiFixture fixture)
+public sealed class MisskeyAuthenticationTests : IDisposable
 {
     private static readonly string[] ReadAccountPermission = ["read:account"];
     private static readonly string[] UnsupportedPermission = ["activitypub.admin"];
@@ -31,11 +31,30 @@ public sealed class MisskeyAuthenticationTests(ActivityPubApiFixture fixture)
     private static readonly string[] WriteDrivePermission = ["write:drive"];
     private static readonly string[] PermissionPollChoices = ["allow", "deny"];
 
-    private readonly HttpClient client = fixture.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+    private readonly ActivityPubApiFixture fixture;
+    private readonly Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> clientFactory;
+    private readonly HttpClient client;
+
+    public MisskeyAuthenticationTests(ActivityPubApiFixture fixture)
     {
-        BaseAddress = new Uri("https://local.example"),
-        AllowAutoRedirect = false
-    });
+        this.fixture = fixture;
+        // The product sign-in limiter is intentionally process-local. Give each test its
+        // own application instance so one credential/lockout scenario cannot exhaust the
+        // IP bucket for an unrelated scenario in the shared PostgreSQL fixture.
+        clientFactory = fixture.WithWebHostBuilder(_ => { });
+        client = clientFactory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://local.example"),
+            AllowAutoRedirect = false
+        });
+    }
+
+    public void Dispose()
+    {
+        client.Dispose();
+        clientFactory.Dispose();
+        GC.SuppressFinalize(this);
+    }
 
     [Fact]
     public async Task V12SigninIssuesMisskeyTokenAndHttpOnlySessionCookie()
@@ -69,6 +88,108 @@ public sealed class MisskeyAuthenticationTests(ActivityPubApiFixture fixture)
     }
 
     [Fact]
+    public async Task WasmSessionBootstrapUsesHttpOnlyCookieWithoutExposingItsValue()
+    {
+        using var browser = fixture.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://client.local.example"),
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
+        using HttpResponseMessage anonymous = await SendFrontendSessionAsync(browser);
+
+        Assert.Equal(HttpStatusCode.OK, anonymous.StatusCode);
+        Assert.Equal("no-store", anonymous.Headers.CacheControl?.ToString());
+        Assert.Contains("Cookie", anonymous.Headers.Vary, StringComparer.OrdinalIgnoreCase);
+        using (JsonDocument anonymousJson = await JsonDocument.ParseAsync(await anonymous.Content.ReadAsStreamAsync()))
+        {
+            Assert.False(anonymousJson.RootElement.GetProperty("authenticated").GetBoolean());
+            Assert.Equal("X-CSRF-TOKEN", anonymousJson.RootElement.GetProperty("csrf").GetProperty("headerName").GetString());
+            Assert.False(string.IsNullOrWhiteSpace(
+                anonymousJson.RootElement.GetProperty("csrf").GetProperty("requestToken").GetString()));
+        }
+
+        using HttpResponseMessage signin = await SendFrontendSignInAsync(browser);
+        Assert.Equal(HttpStatusCode.OK, signin.StatusCode);
+        string signinPayload = await signin.Content.ReadAsStringAsync(CancellationToken.None);
+        Assert.DoesNotContain("\"i\"", signinPayload, StringComparison.Ordinal);
+        Assert.DoesNotContain("mk_", signinPayload, StringComparison.Ordinal);
+
+        using HttpResponseMessage authenticated = await SendFrontendSessionAsync(browser);
+        Assert.Equal(HttpStatusCode.OK, authenticated.StatusCode);
+        string payload = await authenticated.Content.ReadAsStringAsync(CancellationToken.None);
+        Assert.DoesNotContain("__Host-activitypub-oauth-session", payload, StringComparison.Ordinal);
+        Assert.DoesNotContain("mk_", payload, StringComparison.Ordinal);
+        using JsonDocument json = JsonDocument.Parse(payload);
+        Assert.True(json.RootElement.GetProperty("authenticated").GetBoolean());
+        JsonElement viewer = json.RootElement.GetProperty("viewer");
+        Assert.Equal("alice", viewer.GetProperty("username").GetString());
+        Assert.Equal("https://local.example/users/alice", viewer.GetProperty("actorIri").GetString());
+
+        using (HttpResponseMessage rejected = await SendFrontendApiAsync(browser, "/api/i"))
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        }
+
+        JsonElement csrf = json.RootElement.GetProperty("csrf");
+        using HttpResponseMessage me = await SendFrontendApiAsync(
+            browser,
+            "/api/i",
+            csrf.GetProperty("headerName").GetString()!,
+            csrf.GetProperty("requestToken").GetString()!);
+        Assert.Equal(HttpStatusCode.OK, me.StatusCode);
+    }
+
+    [Fact]
+    public async Task SessionCookieIsIgnoredWithoutExplicitFrontendMarker()
+    {
+        using var browser = fixture.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://client.local.example"),
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
+        using HttpResponseMessage signin = await browser.PostAsJsonAsync("/api/signin", new
+        {
+            username = "alice",
+            password = ActivityPubApiFixture.FixtureAlicePassword
+        });
+        Assert.Equal(HttpStatusCode.OK, signin.StatusCode);
+
+        using HttpResponseMessage response = await browser.GetAsync("/api/frontend/session", CancellationToken.None);
+        using JsonDocument json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(json.RootElement.GetProperty("authenticated").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ExplicitBearerAuthenticationTakesPriorityOverTheFrontendMarker()
+    {
+        using HttpResponseMessage signin = await client.PostAsJsonAsync("/api/signin", new
+        {
+            username = "alice",
+            password = ActivityPubApiFixture.FixtureAlicePassword
+        });
+        Assert.Equal(HttpStatusCode.OK, signin.StatusCode);
+        using JsonDocument signinJson = await JsonDocument.ParseAsync(await signin.Content.ReadAsStreamAsync());
+        string token = signinJson.RootElement.GetProperty("i").GetString()!;
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/i")
+        {
+            Content = JsonContent.Create(new { })
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.TryAddWithoutValidation(
+            FrontendBrowserSessionMetadata.RequestHeaderName,
+            FrontendBrowserSessionMetadata.RequestHeaderValue);
+        using HttpResponseMessage response = await client.SendAsync(request, CancellationToken.None);
+
+        string responseBody = await response.Content.ReadAsStringAsync(CancellationToken.None);
+        Assert.True(response.StatusCode == HttpStatusCode.OK, responseBody);
+    }
+
+    [Fact]
     public async Task V12SigninAcceptsTheMultipartContractUsedByMkSignin()
     {
         using var form = new MultipartFormDataContent();
@@ -90,6 +211,52 @@ public sealed class MisskeyAuthenticationTests(ActivityPubApiFixture fixture)
         Assert.Equal("succeeded", json.RootElement.GetProperty("status").GetString());
         Assert.Equal("/app/", json.RootElement.GetProperty("redirectUrl").GetString());
         Assert.StartsWith("mk_", json.RootElement.GetProperty("i").GetString(), StringComparison.Ordinal);
+    }
+
+    private static Task<HttpResponseMessage> SendFrontendSessionAsync(HttpClient browser)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/frontend/session");
+        request.Headers.TryAddWithoutValidation(
+            FrontendBrowserSessionMetadata.RequestHeaderName,
+            FrontendBrowserSessionMetadata.RequestHeaderValue);
+        return browser.SendAsync(request, CancellationToken.None);
+    }
+
+    private static Task<HttpResponseMessage> SendFrontendSignInAsync(HttpClient browser)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/signin")
+        {
+            Content = JsonContent.Create(new
+            {
+                username = "alice",
+                password = ActivityPubApiFixture.FixtureAlicePassword
+            })
+        };
+        request.Headers.TryAddWithoutValidation(
+            FrontendBrowserSessionMetadata.RequestHeaderName,
+            FrontendBrowserSessionMetadata.RequestHeaderValue);
+        return browser.SendAsync(request, CancellationToken.None);
+    }
+
+    private static Task<HttpResponseMessage> SendFrontendApiAsync(
+        HttpClient browser,
+        string path,
+        string? csrfHeaderName = null,
+        string? csrfToken = null)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, path)
+        {
+            Content = JsonContent.Create(new { })
+        };
+        request.Headers.TryAddWithoutValidation(
+            FrontendBrowserSessionMetadata.RequestHeaderName,
+            FrontendBrowserSessionMetadata.RequestHeaderValue);
+        if (!string.IsNullOrEmpty(csrfHeaderName) && !string.IsNullOrEmpty(csrfToken))
+        {
+            request.Headers.TryAddWithoutValidation(csrfHeaderName, csrfToken);
+        }
+
+        return browser.SendAsync(request, CancellationToken.None);
     }
 
     [Fact]
@@ -418,6 +585,8 @@ public sealed class MisskeyAuthenticationTests(ActivityPubApiFixture fixture)
         using JsonDocument json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
         string token = json.RootElement.GetProperty("token").GetString()!;
         Assert.StartsWith("mk_", token, StringComparison.Ordinal);
+        Assert.Matches("^[0-9a-z]{10}$", json.RootElement.GetProperty("id").GetString()!);
+        Assert.True(json.RootElement.GetProperty("expiresAt").GetDateTimeOffset() > DateTimeOffset.UtcNow);
 
         using HttpResponseMessage me = await client.PostAsJsonAsync("/api/i", new { i = token });
         Assert.Equal(HttpStatusCode.OK, me.StatusCode);
@@ -517,6 +686,7 @@ public sealed class MisskeyAuthenticationTests(ActivityPubApiFixture fixture)
         string externalTokenId = app.GetProperty("id").GetString()!;
         Assert.Matches("^[0-9a-z]{10}$", externalTokenId);
         Assert.Equal("MiAuth contract fixture", app.GetProperty("description").GetString());
+        Assert.True(app.GetProperty("expiresAt").GetDateTimeOffset() > app.GetProperty("createdAt").GetDateTimeOffset());
 
         using HttpResponseMessage revoke = await PostAsAliceAsync("/api/i/revoke-token", new
         {

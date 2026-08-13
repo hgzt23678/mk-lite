@@ -1,9 +1,12 @@
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
 using ActivityPub.Domain;
 using ActivityPub.Misskey.Blazor.Identity;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public sealed record UserFollowRelationListItem(
     string RelationId,
     UserPreviewViewModel User);
@@ -21,6 +24,9 @@ public interface IUserFollowRelationsPresentationService
         CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class UserFollowRelationsPresentationService(
     IClientApiQueryService query,
     IExternalEntityIdService externalIds,
@@ -94,6 +100,9 @@ public sealed class UserFollowRelationsPresentationService(
             cancellationToken);
 }
 
+#endif
+
+#if !MISSKEY_BLAZOR_SERVER
 public sealed class UserFollowRelationsPaginationSource(
     IUserFollowRelationsPresentationService service,
     string acct,
@@ -116,3 +125,4 @@ public sealed class UserFollowRelationsPaginationSource(
 
     public string GetId(UserFollowRelationListItem item) => item.RelationId;
 }
+#endif

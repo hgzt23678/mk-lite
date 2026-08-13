@@ -1,5 +1,6 @@
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if MISSKEY_BLAZOR_SERVER
 public sealed class UserPagePresentationService(
     IUserPreviewPresentationService users,
     TimelinePresentationService timeline) : IUserPagePresentationService
@@ -21,3 +22,4 @@ public sealed class UserPagePresentationService(
         return new(user, notes);
     }
 }
+#endif

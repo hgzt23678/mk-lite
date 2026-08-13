@@ -197,7 +197,8 @@
             {
                 return;
             }
-            catch (RelationshipCursorException exception) when (exception.ErrorCode == "STREAM_CURSOR_EXPIRED")
+            catch (RelationshipCursorException exception) when (
+                exception.ErrorCode is "STREAM_CURSOR_EXPIRED" or "STREAM_SLOW_CONSUMER")
             {
                 cursor = 0;
                 retry = 0;

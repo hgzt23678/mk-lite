@@ -1,6 +1,8 @@
 using ActivityPub.Domain;
 using ActivityPub.Misskey.Blazor.Client;
 
+using Visibility = ActivityPub.Misskey.Blazor.Presentation.Visibility;
+
 namespace ActivityPub.Misskey.Blazor.Tests;
 
 public sealed class SharePageTests

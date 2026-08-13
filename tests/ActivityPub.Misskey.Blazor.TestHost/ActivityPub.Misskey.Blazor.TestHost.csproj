@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../frontend/ActivityPub.Misskey.Blazor/ActivityPub.Misskey.Blazor.csproj" />
+    <ProjectReference Include="../../frontend/ActivityPub.Misskey.Blazor.Server/ActivityPub.Misskey.Blazor.Server.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="../../frontend/misskey-v12/public/static-assets/**/*"

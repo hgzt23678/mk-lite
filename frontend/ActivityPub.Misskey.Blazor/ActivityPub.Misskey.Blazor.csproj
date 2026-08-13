@@ -4,8 +4,16 @@
     <RootNamespace>ActivityPub.Misskey.Blazor</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <ProjectReference Include="../../src/ActivityPub.MisskeyApi/ActivityPub.MisskeyApi.csproj" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
+    <PackageReference Include="Microsoft.AspNetCore.WebUtilities" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="MisskeyFrontendServiceCollectionExtensions.cs" />
+    <Compile Remove="Localization/MisskeyFrontendLocalizationMiddleware.cs" />
+    <Compile Remove="Localization/MisskeyLocaleRequestResolver.cs" />
+    <Compile Remove="Localization/MisskeyLocalizer.cs" />
+    <Compile Remove="Security/FrontendCspNonce.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="wwwroot/data/locales/catalog.json"
@@ -17,5 +25,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="ActivityPub.Misskey.Blazor.Tests" />
+    <InternalsVisibleTo Include="ActivityPub.Misskey.Blazor.Server" />
   </ItemGroup>
 </Project>

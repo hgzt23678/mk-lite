@@ -34,7 +34,7 @@
 - **Emoji reactions**\
   Notes can carry Unicode and custom emoji reactions without collapsing every reaction into a single favourite state.
 - **Misskey v12 interface**\
-  The supported Misskey 12.119.2 UI is translated to Razor and server-side Interactive Blazor. The production path does not load Vue, an iframe or a replacement mock UI.
+  The supported Misskey 12.119.2 UI is translated to Razor and runs as standalone Blazor WebAssembly. The browser uses same-origin HTTP/WebSocket adapters and an HttpOnly session Cookie; the production path does not load Vue, an iframe or a replacement mock UI.
 - **Durable delivery**\
   PostgreSQL is the source of truth for inbox and outbound jobs, leases, retries and dead letters. Optional Redis acceleration never replaces the durable queue.
 - **Operations and media boundaries**\

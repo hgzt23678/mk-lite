@@ -48,7 +48,7 @@
             <main>@ChildContent</main>
             @if (!IsRoot)
             {
-                <div class="powered-by"><b><a href="/">@Host</a></b><small>Powered by <a href="https://github.com/misskey-dev/misskey" target="_blank" rel="noopener noreferrer">Misskey</a></small></div>
+                <div class="powered-by"><b><a href="">@Host</a></b><small>Powered by <a href="https://github.com/misskey-dev/misskey" target="_blank" rel="noopener noreferrer">Misskey</a></small></div>
             }
         </div>
     </div>
@@ -59,10 +59,10 @@
              class="@TrayBackgroundClass"
              @onclick="CloseTrayAsync"></div>
         <div @ref="trayElement" id="visitor-navigation-tray" class="@TrayClass" role="navigation" aria-label="@Localizer.Translate("menu")">
-            <NavLink href="/" Match="NavLinkMatch.All" class="link" ActiveClass="active" @onclick="CloseTrayAsync"><i class="fas fa-home icon"></i>@Localizer.Translate("home")</NavLink>
-            <NavLink href="/explore" class="link" ActiveClass="active" @onclick="CloseTrayAsync"><i class="fas fa-hashtag icon"></i>@Localizer.Translate("explore")</NavLink>
-            <NavLink href="/featured" class="link" ActiveClass="active" @onclick="CloseTrayAsync"><i class="fas fa-fire-alt icon"></i>@Localizer.Translate("featured")</NavLink>
-            <NavLink href="/channels" class="link" ActiveClass="active" @onclick="CloseTrayAsync"><i class="fas fa-satellite-dish icon"></i>@Localizer.Translate("channel")</NavLink>
+            <NavLink href="" Match="NavLinkMatch.All" class="link" ActiveClass="active" @onclick="CloseTrayAsync"><i class="fas fa-home icon"></i>@Localizer.Translate("home")</NavLink>
+            <NavLink href="explore" class="link" ActiveClass="active" @onclick="CloseTrayAsync"><i class="fas fa-hashtag icon"></i>@Localizer.Translate("explore")</NavLink>
+            <NavLink href="featured" class="link" ActiveClass="active" @onclick="CloseTrayAsync"><i class="fas fa-fire-alt icon"></i>@Localizer.Translate("featured")</NavLink>
+            <NavLink href="channels" class="link" ActiveClass="active" @onclick="CloseTrayAsync"><i class="fas fa-satellite-dish icon"></i>@Localizer.Translate("channel")</NavLink>
             <div class="action">
                 <button class="_buttonPrimary" type="button" @onclick="SignUp">@Localizer.Translate("signup")</button>
                 <button class="_button" type="button" @onclick="SignIn">@Localizer.Translate("login")</button>
@@ -251,7 +251,7 @@
         get
         {
             string relative = Navigation.ToBaseRelativePath(Navigation.Uri);
-            return "/" + relative.TrimStart('/');
+            return relative.TrimStart('/');
         }
     }
 

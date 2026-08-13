@@ -1056,7 +1056,7 @@ internal sealed class BrowserTestNotificationPresentationService : INotification
         Alice,
         Note.Text,
         Note.ContentWarning,
-        Visibility.Public,
+        ActivityPub.Misskey.Blazor.Presentation.Visibility.Public,
         ReplyId: null,
         RepliesCount: 0,
         RenotesCount: 0,
@@ -1105,7 +1105,7 @@ internal sealed class BrowserTestNotificationPresentationService : INotification
             InternalId = Guid.Parse("29292929-2929-2929-2929-292929292929"),
             Id = "9notification-direct-note",
             Text = "Direct notification fixture",
-            Visibility = Visibility.MentionedOnly
+            Visibility = ActivityPub.Misskey.Blazor.Presentation.Visibility.MentionedOnly
         }
     };
 
@@ -1367,13 +1367,13 @@ internal sealed class BrowserTestTimelinePresentationService : ITimelinePresenta
             {
                 "specified" => InitialNote with
                 {
-                    Visibility = Visibility.MentionedOnly,
+                    Visibility = ActivityPub.Misskey.Blazor.Presentation.Visibility.MentionedOnly,
                     LocalOnly = false,
                     VisibleUserIds = Enumerable.Range(0, 12).Select(index => $"9recipient{index}").ToArray()
                 },
                 "local-only" => InitialNote with
                 {
-                    Visibility = Visibility.Unlisted,
+                    Visibility = ActivityPub.Misskey.Blazor.Presentation.Visibility.Unlisted,
                     LocalOnly = true,
                     VisibleUserIds = []
                 },
@@ -1403,7 +1403,7 @@ internal sealed class BrowserTestTimelinePresentationService : ITimelinePresenta
             IsBot: false),
         "Misskey **v12** のMFM :party_parrot: #fediverse",
         ContentWarning: null,
-        Visibility.Public,
+        ActivityPub.Misskey.Blazor.Presentation.Visibility.Public,
         ReplyId: null,
         RepliesCount: 2,
         RenotesCount: 3,

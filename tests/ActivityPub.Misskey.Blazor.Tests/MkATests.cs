@@ -28,7 +28,7 @@ public sealed class MkATests : BunitContext
             .AddChildContent("Explore"));
 
         AngleSharp.Dom.IElement anchor = rendered.Find("a");
-        Assert.Equal("/app/explore", anchor.GetAttribute("href"));
+        Assert.Equal("app/explore", anchor.GetAttribute("href"));
         Assert.Equal("active", anchor.GetAttribute("class"));
         Assert.Equal("Explore", anchor.TextContent);
     }

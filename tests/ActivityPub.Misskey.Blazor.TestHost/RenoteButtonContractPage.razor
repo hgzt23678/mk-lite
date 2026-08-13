@@ -15,8 +15,8 @@
 </main>
 
 @code {
-    private NoteViewModel note = CreateNote(Visibility.Public, "9duke7z2w3");
-    private readonly NoteViewModel privateNote = CreateNote(Visibility.FollowersOnly, "9other");
+    private NoteViewModel note = CreateNote(ActivityPub.Misskey.Blazor.Presentation.Visibility.Public, "9duke7z2w3");
+    private readonly NoteViewModel privateNote = CreateNote(ActivityPub.Misskey.Blazor.Presentation.Visibility.FollowersOnly, "9other");
 
     private async Task RenoteAsync(NoteViewModel value)
     {
@@ -26,7 +26,7 @@
             CancellationToken.None);
     }
 
-    private static NoteViewModel CreateNote(Visibility visibility, string authorId) => new(
+    private static NoteViewModel CreateNote(ActivityPub.Misskey.Blazor.Presentation.Visibility visibility, string authorId) => new(
         Guid.Parse("017f22e2-79b0-7b1d-b2b4-3a89e9af0380"),
         "9dummqy0w3",
         new DateTimeOffset(2026, 8, 3, 12, 0, 0, TimeSpan.Zero),

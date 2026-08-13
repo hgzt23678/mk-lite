@@ -212,7 +212,7 @@ public sealed class FormPrimitiveTests : BunitContext
         AngleSharp.Dom.IElement root = component.Find(".ffcbddfc.inline.fixture-link[data-link=profile]");
         AngleSharp.Dom.IElement anchor = Assert.IsAssignableFrom<AngleSharp.Dom.IElement>(
             root.QuerySelector(":scope > a.main._button.active"));
-        Assert.Equal("/settings/profile", anchor.GetAttribute("href"));
+        Assert.Equal("settings/profile", anchor.GetAttribute("href"));
         Assert.Equal("false", anchor.GetAttribute("data-enhance-nav"));
         Assert.Equal("browser", anchor.GetAttribute("data-misskey-behavior"));
         Assert.Equal("プロフィール", anchor.QuerySelector(":scope > .text")?.TextContent);

@@ -14,6 +14,8 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 
+using Visibility = ActivityPub.Misskey.Blazor.Presentation.Visibility;
+
 namespace ActivityPub.Misskey.Blazor.Tests;
 
 public sealed class SubNoteContentTests : BunitContext
@@ -41,8 +43,8 @@ public sealed class SubNoteContentTests : BunitContext
         Assert.Equal("sub-note", root.GetAttribute("data-contract"));
         Assert.Contains("(private)", root.QuerySelector(":scope > .body")!.TextContent, StringComparison.Ordinal);
         Assert.Contains("(deleted)", root.QuerySelector(":scope > .body")!.TextContent, StringComparison.Ordinal);
-        Assert.Equal("/notes/reply-note", root.QuerySelector(":scope > .body > .reply")?.GetAttribute("href"));
-        Assert.Equal("/notes/renote-note", root.QuerySelector(":scope > .body > .rp")?.GetAttribute("href"));
+        Assert.Equal("notes/reply-note", root.QuerySelector(":scope > .body > .reply")?.GetAttribute("href"));
+        Assert.Equal("notes/renote-note", root.QuerySelector(":scope > .body > .rp")?.GetAttribute("href"));
         Assert.NotNull(root.QuerySelector(":scope > .body > .reply > .fa-reply"));
         Assert.Equal("RN: ...", root.QuerySelector(":scope > .body > .rp")?.TextContent);
 
@@ -179,7 +181,7 @@ public sealed class SubNoteContentTests : BunitContext
                 Emojis: emojis),
             text,
             contentWarning,
-            ActivityPub.Domain.Visibility.Public,
+            (Visibility)Domain.Visibility.Public,
             replyId,
             0,
             0,

@@ -4,7 +4,7 @@
 
 - frontend oracle: Misskey v12.119.2、commit `a5a74f4434b179cdb1f97af98bf294c8b18de0e2`
 - backend oracle: `mei23/dolphin`、`.cache/meidolphin`、commit `3ce200269f814547dc7dfc6b246abadf8a9c00ed`
-- production UI: ASP.NET Core static SSR + Interactive Server Blazor
+- production UI: standalone Blazor WebAssemblyをASP.NET Coreが同一originの`/app/`で配信
 - 対象範囲の正本: `artifacts/frontend-inventory/vue-to-blazor-mapping.json`、`artifacts/api-inventory/misskey-12.119.2.json`
 
 Misskey v12のDOM、CSS、画面挙動と、Dolphin基準のAPI・永続副作用・認可・連合を別々に検証する。画面だけを先に作らない。

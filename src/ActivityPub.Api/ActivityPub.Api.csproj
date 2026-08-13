@@ -8,10 +8,13 @@
   <ItemGroup>
     <InternalsVisibleTo Include="ActivityPub.Api.Tests" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
     <ProjectReference Include="../ActivityPub.Application/ActivityPub.Application.csproj" />
     <ProjectReference Include="../ActivityPub.Domain/ActivityPub.Domain.csproj" />
     <ProjectReference Include="../ActivityPub.Federation/ActivityPub.Federation.csproj" />
     <ProjectReference Include="../../frontend/ActivityPub.Misskey.Blazor/ActivityPub.Misskey.Blazor.csproj" />
+    <ProjectReference Include="../../frontend/ActivityPub.Misskey.Blazor.Client/ActivityPub.Misskey.Blazor.Client.csproj"
+                      ReferenceOutputAssembly="false" />
     <ProjectReference Include="../ActivityPub.Identity/ActivityPub.Identity.csproj" />
     <ProjectReference Include="../ActivityPub.Media/ActivityPub.Media.csproj" />
     <ProjectReference Include="../ActivityPub.MastodonApi/ActivityPub.MastodonApi.csproj" />

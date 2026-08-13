@@ -1,11 +1,14 @@
 using System.Net;
 using System.Text.RegularExpressions;
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
 using ActivityPub.Domain;
 using ActivityPub.Misskey.Blazor.Identity;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public interface IUserPreviewPresentationService
 {
     Task<UserPreviewViewModel> ReadAsync(string query, CancellationToken cancellationToken);
@@ -38,6 +41,9 @@ public sealed record UserPreviewViewModel(
     bool IsSilenced = false,
     bool IsSuspended = false);
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed partial class UserPreviewPresentationService(
     IClientApiQueryService clientQuery,
     IClientApiCommandService commands,
@@ -203,7 +209,11 @@ public sealed partial class UserPreviewPresentationService(
     private static partial Regex HtmlElementRegex();
 }
 
+#endif
+
+#if !MISSKEY_BLAZOR_SERVER
 public sealed class UserPreviewPresentationException(string errorCode) : Exception(errorCode)
 {
     public string ErrorCode { get; } = errorCode;
 }
+#endif

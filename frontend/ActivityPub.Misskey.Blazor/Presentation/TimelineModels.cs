@@ -1,6 +1,12 @@
-using ActivityPub.Domain;
-
 namespace ActivityPub.Misskey.Blazor.Presentation;
+
+public enum Visibility
+{
+    Public,
+    Unlisted,
+    FollowersOnly,
+    MentionedOnly
+}
 
 public enum TimelineKind
 {
@@ -111,4 +117,20 @@ public sealed record TimelineMutation(
 public sealed class TimelineCursorException(string errorCode) : Exception(errorCode)
 {
     public string ErrorCode { get; } = errorCode;
+}
+
+public enum FrontendPollVoteError
+{
+    NoPoll,
+    InvalidChoice,
+    AlreadyVoted,
+    Expired,
+    Blocked,
+    NotVisible
+}
+
+public sealed class FrontendPollVoteException(FrontendPollVoteError error, string message)
+    : InvalidOperationException(message)
+{
+    public FrontendPollVoteError Error { get; } = error;
 }

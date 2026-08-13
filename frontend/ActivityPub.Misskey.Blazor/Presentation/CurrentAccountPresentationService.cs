@@ -1,13 +1,19 @@
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
 using ActivityPub.Misskey.Blazor.Identity;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public interface ICurrentAccountPresentationService
 {
     Task<NoteAuthorViewModel> GetAsync(CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class CurrentAccountPresentationService(
     IClientApiQueryService query,
     IAuthenticatedActorContext actorContext) : ICurrentAccountPresentationService
@@ -26,3 +32,4 @@ public sealed class CurrentAccountPresentationService(
             account.Bot);
     }
 }
+#endif

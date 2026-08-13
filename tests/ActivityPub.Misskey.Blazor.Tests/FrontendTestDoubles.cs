@@ -3,6 +3,8 @@ using ActivityPub.Application;
 using ActivityPub.Domain;
 using Microsoft.AspNetCore.Components.Authorization;
 
+using Visibility = ActivityPub.Misskey.Blazor.Presentation.Visibility;
+
 namespace ActivityPub.Misskey.Blazor.Tests;
 
 internal sealed class FixedAuthenticationStateProvider(ClaimsPrincipal principal) : AuthenticationStateProvider
@@ -348,7 +350,7 @@ internal static class ClientViewFactory
             null,
             Sensitive: false,
             string.Empty,
-            Visibility.Public,
+            ActivityPub.Domain.Visibility.Public,
             "ja",
             "https://local.example/objects/note",
             "https://local.example/notes/note",

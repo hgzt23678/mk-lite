@@ -169,7 +169,7 @@ public sealed class NotificationsTests : BunitContext
             author,
             $"note {id}",
             ContentWarning: null,
-            ActivityPub.Domain.Visibility.Public,
+            ActivityPub.Misskey.Blazor.Presentation.Visibility.Public,
             ReplyId: null,
             RepliesCount: 0,
             RenotesCount: 0,

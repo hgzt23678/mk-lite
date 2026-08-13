@@ -12,6 +12,33 @@ public static class OAuthAuthorizationServerExtensions
 {
     public const string ExternalSessionScheme = "activitypub.external.session";
 
+    public static IServiceCollection AddActivityPubFrontendBrowserSession(
+        this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddAntiforgery(antiforgery =>
+        {
+            antiforgery.HeaderName = FrontendBrowserSessionMetadata.AntiforgeryHeaderName;
+            antiforgery.Cookie.Name = "__Host-activitypub-oauth-csrf";
+            antiforgery.Cookie.Path = "/";
+            antiforgery.Cookie.HttpOnly = true;
+            antiforgery.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always;
+            antiforgery.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax;
+        });
+        services.AddAuthentication()
+            .AddCookie(ExternalSessionScheme, cookie =>
+            {
+                cookie.Cookie.Name = "__Host-activitypub-oauth-session";
+                cookie.Cookie.Path = "/";
+                cookie.Cookie.HttpOnly = true;
+                cookie.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always;
+                cookie.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax;
+                cookie.ExpireTimeSpan = TimeSpan.FromMinutes(30);
+                cookie.SlidingExpiration = false;
+            });
+        return services;
+    }
+
     public static IServiceCollection AddActivityPubOAuthAuthorizationServer<TContext>(
         this IServiceCollection services,
         OAuthAuthorizationServerOptions options,
@@ -36,26 +63,6 @@ public static class OAuthAuthorizationServerExtensions
             "/.well-known/openid-configuration";
 
         services.AddSingleton(options);
-        services.AddAntiforgery(antiforgery =>
-        {
-            antiforgery.Cookie.Name = "__Host-activitypub-oauth-csrf";
-            antiforgery.Cookie.Path = "/";
-            antiforgery.Cookie.HttpOnly = true;
-            antiforgery.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always;
-            antiforgery.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax;
-        });
-        services.AddAuthentication()
-            .AddCookie(ExternalSessionScheme, cookie =>
-            {
-                cookie.Cookie.Name = "__Host-activitypub-oauth-session";
-                cookie.Cookie.Path = "/";
-                cookie.Cookie.HttpOnly = true;
-                cookie.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always;
-                cookie.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Lax;
-                cookie.ExpireTimeSpan = TimeSpan.FromMinutes(30);
-                cookie.SlidingExpiration = false;
-            });
-
         services.AddOpenIddict()
             .AddCore(core => core.UseEntityFrameworkCore().UseDbContext<TContext>())
             .AddServer(server =>

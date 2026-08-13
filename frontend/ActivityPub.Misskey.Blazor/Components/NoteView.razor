@@ -452,8 +452,8 @@
         AdditionalAttributes.TryGetValue(name, out object? value)
             ? Convert.ToString(value, CultureInfo.InvariantCulture)
             : null;
-    private static string NoteHref(string id) => $"/notes/{Uri.EscapeDataString(id)}";
-    private static string UserHref(NoteAuthorViewModel user) => $"/@{Uri.EscapeDataString(user.Acct)}";
+    private static string NoteHref(string id) => $"notes/{Uri.EscapeDataString(id)}";
+    private static string UserHref(NoteAuthorViewModel user) => $"@{Uri.EscapeDataString(user.Acct)}";
     private static string CreateIdempotencyKey(string operation) => $"blazor-{operation}-{Guid.NewGuid():N}";
     private static bool IsPureRenote(NoteViewModel note) =>
         note.Renote is not null &&

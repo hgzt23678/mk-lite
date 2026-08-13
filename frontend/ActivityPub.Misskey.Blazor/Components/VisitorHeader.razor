@@ -8,10 +8,10 @@
     {
         <div class="wide">
             <div class="content">
-                <NavLink href="/" Match="NavLinkMatch.All" class="link" ActiveClass="active"><i class="fas fa-home icon"></i>@Localizer.Translate("home")</NavLink>
-                <NavLink href="/explore" class="link" ActiveClass="active"><i class="fas fa-hashtag icon"></i>@Localizer.Translate("explore")</NavLink>
-                <NavLink href="/featured" class="link" ActiveClass="active"><i class="fas fa-fire-alt icon"></i>@Localizer.Translate("featured")</NavLink>
-                <NavLink href="/channels" class="link" ActiveClass="active"><i class="fas fa-satellite-dish icon"></i>@Localizer.Translate("channel")</NavLink>
+                <NavLink href="" Match="NavLinkMatch.All" class="link" ActiveClass="active"><i class="fas fa-home icon"></i>@Localizer.Translate("home")</NavLink>
+                <NavLink href="explore" class="link" ActiveClass="active"><i class="fas fa-hashtag icon"></i>@Localizer.Translate("explore")</NavLink>
+                <NavLink href="featured" class="link" ActiveClass="active"><i class="fas fa-fire-alt icon"></i>@Localizer.Translate("featured")</NavLink>
+                <NavLink href="channels" class="link" ActiveClass="active"><i class="fas fa-satellite-dish icon"></i>@Localizer.Translate("channel")</NavLink>
                 @if (HasPageInfo)
                 {
                     <div class="page active link">
@@ -145,14 +145,14 @@
 
     private void SignUp() => Overlays.ShowSignUp(CurrentReturnUrl);
 
-    private void Search() => Navigation.NavigateTo("/search");
+    private void Search() => Navigation.NavigateTo("search");
 
     private string CurrentReturnUrl
     {
         get
         {
             string relative = Navigation.ToBaseRelativePath(Navigation.Uri);
-            return "/" + relative.TrimStart('/');
+            return relative.TrimStart('/');
         }
     }
 }

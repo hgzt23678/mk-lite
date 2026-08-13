@@ -71,7 +71,7 @@ public sealed class VisitorShellTests : BunitContext
         {
             Assert.NotNull(component.Find(".header.sqxihjet > .wide > .content"));
             Assert.Equal(4, component.FindAll(".header .wide > .content > a.link").Count);
-            Assert.Equal("ホーム", component.Find(".header a.link[href='/']").TextContent);
+            Assert.Equal("ホーム", component.Find(".header a.link[href='']").TextContent);
             Assert.Equal("新規登録", component.Find(".header button.signup").TextContent);
             Assert.Equal("ログイン", component.Find(".header button.login").TextContent);
             Assert.Equal("configured.example", component.Find(".contents > .powered-by > b").TextContent);

@@ -8,7 +8,7 @@ using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
-using DomainVisibility = ActivityPub.Domain.Visibility;
+using DomainVisibility = ActivityPub.Misskey.Blazor.Presentation.Visibility;
 
 namespace ActivityPub.Misskey.Blazor.Tests;
 

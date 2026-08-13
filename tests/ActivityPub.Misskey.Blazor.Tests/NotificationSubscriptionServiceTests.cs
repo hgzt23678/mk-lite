@@ -5,6 +5,8 @@ using ActivityPub.Misskey.Blazor.Identity;
 using ActivityPub.Misskey.Blazor.Presentation;
 using ActivityPub.Misskey.Blazor.Streaming;
 
+using Visibility = ActivityPub.Misskey.Blazor.Presentation.Visibility;
+
 namespace ActivityPub.Misskey.Blazor.Tests;
 
 public sealed class NotificationSubscriptionServiceTests
@@ -20,8 +22,8 @@ public sealed class NotificationSubscriptionServiceTests
         var service = new NotificationSubscriptionService(
             new FinitePump(
             [
-                StreamEvent.FromNotification(foreign, Visibility.MentionedOnly, isLocal: false),
-                StreamEvent.FromNotification(expected, Visibility.MentionedOnly, isLocal: false)
+                StreamEvent.FromNotification(foreign, (Domain.Visibility)Visibility.MentionedOnly, isLocal: false),
+                StreamEvent.FromNotification(expected, (Domain.Visibility)Visibility.MentionedOnly, isLocal: false)
             ]),
             new FixedStore(new([], 1, 2, RequestedCursorExpired: false)),
             new FixedActorContext(),
@@ -51,7 +53,7 @@ public sealed class NotificationSubscriptionServiceTests
         UserNotification expected = Notification("https://local.example/users/alice", "muted");
         var presentation = new RecordingPresentation(expected.Id, View(expected.Id));
         var service = new NotificationSubscriptionService(
-            new FinitePump([StreamEvent.FromNotification(expected, Visibility.MentionedOnly, isLocal: false)]),
+            new FinitePump([StreamEvent.FromNotification(expected, (Domain.Visibility)Visibility.MentionedOnly, isLocal: false)]),
             new FixedStore(new([], 1, 2, RequestedCursorExpired: false)),
             new FixedActorContext(),
             presentation,

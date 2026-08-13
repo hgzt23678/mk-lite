@@ -1,3 +1,5 @@
+import { frontendRequestHeaders } from './frontend-request-security.js';
+
 function setBusy(form, busy) {
   form.classList.toggle('signing', busy);
   for (const button of form.querySelectorAll('[data-password-reset-submit]')) {
@@ -18,10 +20,7 @@ async function postForm(form) {
     credentials: 'same-origin',
     cache: 'no-store',
     redirect: 'error',
-    headers: {
-      Accept: 'application/json',
-      'X-ActivityPub-Frontend': '1',
-    },
+    headers: frontendRequestHeaders(form.action, true),
   });
   const contentType = response.headers.get('content-type') ?? '';
   if (!contentType.toLowerCase().startsWith('application/json')) {

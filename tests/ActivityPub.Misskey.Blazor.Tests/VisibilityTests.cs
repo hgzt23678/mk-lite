@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 
+using Visibility = ActivityPub.Misskey.Blazor.Presentation.Visibility;
+
 namespace ActivityPub.Misskey.Blazor.Tests;
 
 public sealed class VisibilityTests : BunitContext
@@ -147,7 +149,7 @@ public sealed class VisibilityTests : BunitContext
     }
 
     private static NoteViewModel CreateNote(
-        Visibility visibility,
+        ActivityPub.Misskey.Blazor.Presentation.Visibility visibility,
         bool localOnly,
         IReadOnlyList<string> visibleUserIds) => new(
         Guid.Parse("22222222-2222-2222-2222-222222222222"),

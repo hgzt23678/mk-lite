@@ -2,34 +2,22 @@
 
 ## State ownership
 
-認証済み利用者、Timeline subscription、compose中状態、overlay stackはcircuit scopeに置く。
+認証viewer、Timeline subscription、compose draft、overlay stackはWASM application scope内でaccount generationごとに分離する。logoutとaccount変更ではsubscriptionとoverlayを閉じ、古いcallbackを破棄する。
 
-異なる利用者の状態をsingleton serviceへ混在させない。
+投稿、follow、reaction、notification、Deliveryをbrowser stateだけで確定しない。これらの事実はserverのApplication commandがPostgreSQL transactionで確定し、browserはHTTP responseとdurable stream eventから再投影する。
 
-投稿、follow、reaction、notification、Deliveryをcircuit状態だけで確定しない。
+## Bootstrap
 
-これらの事実はApplication commandがPostgreSQL transactionで確定する。
+初期render前に`/api/frontend/config`を取得し、明示設定されたPublicBaseUri、API base、Authorityを検証する。続いて`/api/frontend/session`からviewerとCSRF contractを取得する。SSR stateやserver DTOをHTMLへ埋め込まない。
 
-## Prerender handoff
+session CookieはHttpOnlyのためC#やJavaScriptへ公開しない。CSRF request tokenはWASM memoryとES module closureだけに保持し、reload時は再取得する。
 
-初期query結果と購読開始cursorは`PersistentComponentState`へ保存する。
-
-static SSRが生成した状態をinteractive circuitが一度だけ取り出すため、DB queryの二重実行を避ける。
-
-永続化する値は表示modelと数値cursorだけであり、token、Cookie、秘密情報を含めない。
+Timelineの初期cursorは`/api/streaming/cursor`から取得し、WebSocket checkpoint受信時だけ再開cursorを更新する。event payloadを受信しただけではcursorを進めない。
 
 ## Browser persistence
 
-端末設定は`IClientStorage`を介して`localStorage`または`sessionStorage`へ保存する。
+端末設定は型付きstorage境界を介して保存する。storage keyは制御文字と`token`、`authorization`、`cookie`、`secret`を含む名前を拒否する。
 
-storage keyは制御文字と`token`、`authorization`、`cookie`、`secret`を含む名前を拒否する。
+theme、locale、Deck配置、下書きなど上流互換の端末設定だけを保存する。access token、refresh token、MiAuth token、session Cookie、CSRF token、private API response、private media URLはlocalStorage、sessionStorage、IndexedDB、Service Worker cacheへ保存しない。
 
-現在はTimeline resume cursorを`sessionStorage`へ保存し、上流互換の`lang`を`localStorage`へ保存する。
-
-client更新判定はMisskey 12.119.2と同じraw stringの`lastVersion`を読む。runtime versionが異なる場合は新しいraw値を書き、theme再構築のため`theme`を削除する。旧versionが有効で現在versionの方が新しく、かつ実AuthenticationStateが認証済みの場合だけ`MkUpdated`を表示する。初回、同一version、downgrade、壊れたversion、guestではpopupを表示しない。tokenやaccount情報はこの境界へ渡さない。
-
-`lang`は25件の対応localeだけを受理し、SSRで確定したsafe cookie、`html.lang`、`html.dir`、scoped localization stateへ同期する。
-
-Vue版の`locale` JSONは削除しないが、改竄可能なbrowser stateであるため翻訳源として使用しない。
-
-その他の既存keyとschema migrationはinventoryを基に後続sliceで実装するため、未検証keyを移行済みとは判定しない。
+`lang`は対応localeだけを受理し、`html.lang`と`html.dir`へ反映する。Vue版の旧storage値はversion付きmigrationで読むが、改竄可能なbrowser stateを認証・認可の根拠にしない。

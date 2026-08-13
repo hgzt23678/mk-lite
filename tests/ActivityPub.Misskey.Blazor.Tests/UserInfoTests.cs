@@ -31,11 +31,11 @@ public sealed class UserInfoTests : BunitContext
             IElement root = component.Find("._panel.vjnjpkug.user[data-contract='user-info']");
             Assert.Equal("background-image: url('/media/banner')", root.QuerySelector(":scope > .banner")?.GetAttribute("style"));
             IElement avatar = root.QuerySelector(":scope > .avatar")!;
-            Assert.Equal("/@alice@remote.example", avatar.GetAttribute("href"));
+            Assert.Equal("@alice@remote.example", avatar.GetAttribute("href"));
             Assert.Equal("/media/avatar", avatar.QuerySelector(":scope > img.inner")?.GetAttribute("src"));
             Assert.Null(avatar.GetAttribute("data-user-preview"));
             Assert.NotNull(avatar.QuerySelector(":scope > .indicator"));
-            Assert.Equal("/@alice@remote.example", root.QuerySelector(":scope > .title > .name")?.GetAttribute("href"));
+            Assert.Equal("@alice@remote.example", root.QuerySelector(":scope > .title > .name")?.GetAttribute("href"));
             Assert.Equal("Alice :wave:", root.QuerySelector(":scope > .title > .name")?.TextContent.Trim());
             Assert.Equal("@alice@remote.example", root.QuerySelector(":scope > .title > .username .mk-acct")?.TextContent.Trim());
             Assert.Equal("Hello #fediverse :wave:", root.QuerySelector(":scope > .description > .mfm")?.TextContent.Trim());

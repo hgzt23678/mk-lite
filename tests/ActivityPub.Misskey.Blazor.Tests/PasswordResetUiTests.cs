@@ -39,7 +39,7 @@ public sealed class PasswordResetUiTests : BunitContext
                 string.Empty,
                 component.Find(".bafeceda input[name=email]").ParentElement?.QuerySelector(":scope > .prefix")?.TextContent ?? string.Empty);
             Assert.NotNull(component.Find(".bafeceda > .main > button.bghgjjyj._formBlock.primary[type=submit]"));
-            Assert.NotNull(component.Find(".bafeceda > .sub > a._link[href='/about']"));
+            Assert.NotNull(component.Find(".bafeceda > .sub > a._link[href='about']"));
             Assert.DoesNotContain("現在利用できません", component.Markup, StringComparison.Ordinal);
         });
     }

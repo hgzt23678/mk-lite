@@ -1,9 +1,8 @@
 @page "/miauth/{Session}"
 @implements IDisposable
-@using ActivityPub.Application
 
 @inject IAuthenticatedActorContext ActorContext
-@inject IMisskeyAuthenticationService Authentication
+@inject IMiauthAuthorizationService Authentication
 @inject IMisskeyLocalizer Localizer
 @inject NavigationManager Navigation
 
@@ -128,13 +127,11 @@
         state = MiauthState.Waiting;
         try
         {
-            MisskeyIssuedToken issued = await Authentication.IssueAsync(
+            await Authentication.AuthorizeAsync(
                 actor.Username,
                 Session,
                 string.IsNullOrWhiteSpace(Name) ? "MiAuth application" : Name.Trim(),
-                description: null,
-                iconUri: SafeIcon(Icon),
-                callbackUri: null,
+                SafeIcon(Icon),
                 permissions,
                 lifetime.Token);
             state = MiauthState.Accepted;
@@ -143,7 +140,6 @@
             {
                 Navigation.NavigateTo(AppendSession(callback, Session), forceLoad: true);
             }
-            _ = issued.Token;
         }
         catch (ArgumentException)
         {
@@ -160,15 +156,15 @@
     private static IReadOnlyList<string> ParsePermissions(string? value) =>
         (value ?? string.Empty)
             .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .Where(permission => ActivityPub.Application.MisskeyPermissions.All.Contains(permission))
+            .Where(MisskeyFrontendPermissions.All.Contains)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
 
-    private static string? SafeIcon(string? icon) =>
+    private static Uri? SafeIcon(string? icon) =>
         Uri.TryCreate(icon, UriKind.Absolute, out Uri? uri) &&
         uri.Scheme is "https" or "http" &&
         string.IsNullOrEmpty(uri.UserInfo)
-            ? uri.AbsoluteUri
+            ? uri
             : null;
 
     private static bool IsAllowedCallback(Uri callback) =>

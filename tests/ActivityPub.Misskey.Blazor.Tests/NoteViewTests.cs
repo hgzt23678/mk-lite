@@ -60,7 +60,7 @@ public sealed class NoteViewTests : BunitContext
         IElement content = component.Find(".tkcbzcuz > .article > .main > .body > .content");
         Assert.Null(content.GetAttribute("style"));
         Assert.Contains("(非公開)", content.QuerySelector(":scope > .text")!.TextContent, StringComparison.Ordinal);
-        Assert.Equal("/notes/reply-id", content.QuerySelector(":scope > .text > .reply")?.GetAttribute("href"));
+        Assert.Equal("notes/reply-id", content.QuerySelector(":scope > .text > .reply")?.GetAttribute("href"));
         Assert.Equal("RN:", content.QuerySelector(":scope > .text > .rp")?.TextContent);
         Assert.NotNull(content.QuerySelector(":scope > .files > .hoawjimk"));
         Assert.NotNull(content.QuerySelector(":scope > .poll"));
@@ -188,7 +188,7 @@ public sealed class NoteViewTests : BunitContext
         author,
         text,
         null,
-        ActivityPub.Domain.Visibility.Public,
+        ActivityPub.Misskey.Blazor.Presentation.Visibility.Public,
         null,
         0,
         0,

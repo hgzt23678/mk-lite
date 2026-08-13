@@ -1,8 +1,11 @@
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
 using ActivityPub.Misskey.Blazor.State;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public sealed record AutocompleteUserViewModel(
     string Id,
     string Username,
@@ -34,6 +37,9 @@ public interface IAutocompletePresentationService
     void RememberEmoji(string emoji);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class AutocompletePresentationService(
     IClientApiQueryService clientQuery,
     IHashtagRepository hashtags,
@@ -177,3 +183,4 @@ public sealed class AutocompletePresentationService(
         return database.OrderBy(emoji => emoji.Name.Length).ToList();
     }
 }
+#endif

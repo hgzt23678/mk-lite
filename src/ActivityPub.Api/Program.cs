@@ -5,9 +5,6 @@ using ActivityPub.Federation;
 using ActivityPub.Identity;
 using ActivityPub.MastodonApi;
 using ActivityPub.Media;
-using ActivityPub.Misskey.Blazor;
-using ActivityPub.Misskey.Blazor.Localization;
-using ActivityPub.Misskey.Blazor.Presentation;
 using ActivityPub.MisskeyApi;
 using ActivityPub.Moderation;
 using ActivityPub.Operations;
@@ -44,14 +41,10 @@ if (hostFrontend)
     frontendOptions.Validate(isProduction);
 }
 
-if (hostFrontend && !oauthOptions.Enabled)
+if (hostFrontend && oauthOptions.Enabled &&
+    !string.Equals(oauthOptions.CallbackPath, "/auth/callback", StringComparison.Ordinal))
 {
-    throw new InvalidOperationException("The server-rendered frontend requires OAuth:Enabled.");
-}
-
-if (hostFrontend && !string.Equals(oauthOptions.CallbackPath, "/auth/callback", StringComparison.Ordinal))
-{
-    throw new InvalidOperationException("The server-rendered frontend requires OAuth:CallbackPath=/auth/callback.");
+    throw new InvalidOperationException("The browser frontend requires OAuth:CallbackPath=/auth/callback.");
 }
 
 bool keyManagementEnabled = builder.Configuration.GetValue("KeyManagement:Enabled", workerOptions.DeliveryEnabled);
@@ -90,31 +83,6 @@ builder.Logging.AddJsonConsole(options =>
 });
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = Math.Max(federationOptions.MaximumInboxBodyBytes, mediaOptions.MaximumUploadBytes));
 builder.Services.AddProblemDetails();
-if (hostFrontend)
-{
-    builder.Services.AddRazorComponents()
-        .AddInteractiveServerComponents(options =>
-        {
-            options.DetailedErrors = false;
-            options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(2);
-            options.JSInteropDefaultCallTimeout = TimeSpan.FromSeconds(15);
-            options.MaxBufferedUnacknowledgedRenderBatches = 10;
-        })
-        .AddHubOptions(options =>
-        {
-            options.ClientTimeoutInterval = TimeSpan.FromSeconds(60);
-            options.HandshakeTimeout = TimeSpan.FromSeconds(15);
-            options.KeepAliveInterval = TimeSpan.FromSeconds(15);
-            options.MaximumParallelInvocationsPerClient = 1;
-            options.MaximumReceiveMessageSize = 64 * 1024;
-        });
-    builder.Services.AddMisskeyBlazorFrontend(new MisskeyFrontendRuntimeConfiguration(
-        MisskeyFrontendRuntimeConfiguration.PortVersion,
-        frontendOptions.SourceUrl,
-        frontendOptions.PublicBaseUri,
-        localAccountOptions.Enabled));
-}
-
 builder.Services.AddSingleton(misskeyAuthenticationOptions);
 builder.Services.AddSingleton(localAccountOptions);
 builder.Services.AddSingleton(registrationProtectionOptions);
@@ -137,8 +105,13 @@ builder.Services.AddActivityPubFederation(federationOptions, isProduction, keyMa
 builder.Services.AddActivityPubApiAuthentication(
     authenticationOptions,
     oauthOptions.Enabled,
+    hostFrontend,
     isProduction,
     context => context.GetEndpoint()?.Metadata.GetMetadata<FrontendPathBaseRequiredMetadata>() is not null);
+if (hostFrontend)
+{
+    builder.Services.AddActivityPubFrontendBrowserSession();
+}
 if (oauthOptions.Enabled)
 {
     builder.Services.AddActivityPubOAuthAuthorizationServer<FederationDbContext>(
@@ -334,9 +307,26 @@ if (federationOptions.RequireHttps)
 }
 if (hostFrontend)
 {
-    app.UseMisskeyFrontendLocalization();
+    app.UseBlazorFrameworkFiles("/app");
 }
 app.UseFrontendAssets(frontendOptions, registrationProtectionOptions);
+if (hostFrontend)
+{
+    // The standalone client is rooted at /app/, so relative RCL module and stylesheet
+    // references resolve to /app/_content/*. Static web assets are canonically exposed
+    // at /_content/*; rewrite only that application-scoped alias before endpoint routing.
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path.StartsWithSegments(
+                "/app/_content",
+                out PathString remaining))
+        {
+            context.Request.Path = new PathString("/_content").Add(remaining);
+        }
+
+        await next(context).ConfigureAwait(false);
+    });
+}
 
 var webSocketOptions = new WebSocketOptions
 {
@@ -406,6 +396,7 @@ app.UseRateLimiter();
 app.UseCors("local-api");
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseFrontendBrowserAntiforgery();
 if (hostFrontend)
 {
     app.UseAntiforgery();
@@ -428,10 +419,10 @@ app.MapFrontendEndpoints(
     builder.Environment.IsDevelopment());
 if (hostFrontend)
 {
-    RazorComponentsEndpointConventionBuilder components = app
-        .MapRazorComponents<ActivityPub.Misskey.Blazor.App>()
-        .AddInteractiveServerRenderMode();
-    components.Add(builder => builder.Metadata.Add(FrontendPathBaseRequiredMetadata.Instance));
+    app.MapGet("/", () => Results.Redirect("/app/"))
+        .ExcludeFromDescription();
+    app.MapFallbackToFile("/app/{*path:nonfile}", "app/index.html")
+        .WithMetadata(FrontendPathBaseRequiredMetadata.Instance);
 }
 
 app.MapAdminEndpoints(keyManagementEnabled);

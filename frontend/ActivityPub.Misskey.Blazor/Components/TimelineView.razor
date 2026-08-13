@@ -4,7 +4,6 @@
 @inject IClientStorage Storage
 @inject IPizzaxDeviceState DeviceState
 @inject IMisskeyLocalizer Localizer
-@inject PersistentComponentState PersistentState
 
 <MkNotes @ref="pagingComponent"
          Source="paginationSource"
@@ -19,7 +18,6 @@
 
 @code {
     private readonly CancellationTokenSource lifetime = new();
-    private PersistingComponentStateSubscription persistenceSubscription;
     private MkNotes? pagingComponent;
     private TimelinePaginationSource paginationSource = default!;
     private CancellationTokenSource? streamCancellation;
@@ -55,19 +53,7 @@
     protected override void OnInitialized()
     {
         currentKind = Kind;
-        TimelinePersistentState? restored = null;
-        if (PersistentState.TryTakeFromJson(
-                PersistentStateKey(currentKind),
-                out TimelinePersistentState? state) &&
-            state is not null)
-        {
-            restored = state;
-            streamCursor = state.Cursor;
-            streamCursorReady = true;
-        }
-
-        paginationSource = CreatePaginationSource(currentKind, restored);
-        persistenceSubscription = PersistentState.RegisterOnPersisting(PersistStateAsync);
+        paginationSource = CreatePaginationSource(currentKind);
     }
 
     protected override async Task OnParametersSetAsync()
@@ -82,7 +68,7 @@
         streamCursor = 0;
         streamCursorReady = false;
         streamStartPending = true;
-        paginationSource = CreatePaginationSource(currentKind, seed: null);
+        paginationSource = CreatePaginationSource(currentKind);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -128,13 +114,10 @@
     public Task AddCreatedAsync(NoteViewModel created) =>
         pagingComponent?.UpsertAsync(created) ?? Task.CompletedTask;
 
-    private TimelinePaginationSource CreatePaginationSource(
-        TimelineKind kind,
-        TimelinePersistentState? seed) => new(
+    private TimelinePaginationSource CreatePaginationSource(TimelineKind kind) => new(
             Timeline,
             Stream,
             kind,
-            seed,
             CaptureInitialCursor);
 
     private void CaptureInitialCursor(TimelineKind kind, long cursor)
@@ -240,45 +223,70 @@
             {
             }
 
-            await foreach (TimelineMutation mutation in Stream.SubscribeAsync(
-                               kind,
-                               streamCursor,
-                               cancellationToken))
+            while (!cancellationToken.IsCancellationRequested)
             {
-                if (generation != streamGeneration || kind != currentKind)
+                try
                 {
+                    await foreach (TimelineMutation mutation in Stream.SubscribeAsync(
+                                       kind,
+                                       streamCursor,
+                                       cancellationToken))
+                    {
+                        if (generation != streamGeneration || kind != currentKind)
+                        {
+                            return;
+                        }
+
+                        streamCursor = mutation.Cursor;
+                        await InvokeAsync(async () =>
+                        {
+                            if (pagingComponent is null)
+                            {
+                                return;
+                            }
+
+                            if (mutation.Kind == TimelineMutationKind.Upsert && mutation.Note is not null)
+                            {
+                                await pagingComponent.UpsertAsync(mutation.Note);
+                                await NoteReceived.InvokeAsync(mutation.Note);
+                            }
+                            else if (mutation.Kind == TimelineMutationKind.Remove)
+                            {
+                                await pagingComponent.RemoveItemAsync(item => item.Id == mutation.NoteId);
+                            }
+                        });
+
+                        try
+                        {
+                            await Storage.WriteAsync(
+                                ClientStorageArea.Session,
+                                storageKey,
+                                streamCursor,
+                                cancellationToken);
+                        }
+                        catch (JSDisconnectedException)
+                        {
+                        }
+                    }
+
                     return;
                 }
-
-                streamCursor = mutation.Cursor;
-                await InvokeAsync(async () =>
+                catch (TimelineCursorException exception) when (
+                    exception.ErrorCode is "STREAM_CURSOR_EXPIRED" or "STREAM_SLOW_CONSUMER")
                 {
-                    if (pagingComponent is null)
+                    streamCursor = await Stream.GetLatestCursorAsync(cancellationToken);
+                    if (generation != streamGeneration || kind != currentKind)
                     {
                         return;
                     }
 
-                    if (mutation.Kind == TimelineMutationKind.Upsert && mutation.Note is not null)
+                    await InvokeAsync(async () =>
                     {
-                        await pagingComponent.UpsertAsync(mutation.Note);
-                        await NoteReceived.InvokeAsync(mutation.Note);
-                    }
-                    else if (mutation.Kind == TimelineMutationKind.Remove)
-                    {
-                        await pagingComponent.RemoveItemAsync(item => item.Id == mutation.NoteId);
-                    }
-                });
-
-                try
-                {
-                    await Storage.WriteAsync(
-                        ClientStorageArea.Session,
-                        storageKey,
-                        streamCursor,
-                        cancellationToken);
-                }
-                catch (JSDisconnectedException)
-                {
+                        if (pagingComponent is not null)
+                        {
+                            await pagingComponent.ReloadAsync();
+                        }
+                    });
                 }
             }
         }
@@ -325,23 +333,7 @@
         cancellation.Dispose();
     }
 
-    private Task PersistStateAsync()
-    {
-        if (pagingComponent is not null && !pagingComponent.IsFetching)
-        {
-            PersistentState.PersistAsJson(
-                PersistentStateKey(currentKind),
-                new TimelinePersistentState(
-                    pagingComponent.Items.ToArray(),
-                    pagingComponent.More,
-                    streamCursor));
-        }
-        return Task.CompletedTask;
-    }
-
     private static string CreateIdempotencyKey(string operation) => $"blazor-{operation}-{Guid.NewGuid():N}";
-    private static string PersistentStateKey(TimelineKind kind) =>
-        "misskey.timeline." + kind.ToString().ToLowerInvariant();
     private static string StreamStorageKey(TimelineKind kind) =>
         "misskey.timeline.cursor." + kind.ToString().ToLowerInvariant();
 
@@ -353,16 +345,10 @@
         }
 
         disposed = true;
-        persistenceSubscription.Dispose();
         await lifetime.CancelAsync();
         await StopStreamAsync();
         lifetime.Dispose();
     }
-
-    private sealed record TimelinePersistentState(
-        IReadOnlyList<NoteViewModel> Notes,
-        bool More,
-        long Cursor);
 
     private sealed class TimelinePaginationSource : IMisskeyPaginationSource<NoteViewModel>
     {
@@ -370,24 +356,17 @@
         private readonly ITimelineSubscriptionService stream;
         private readonly TimelineKind kind;
         private readonly Action<TimelineKind, long> captureInitialCursor;
-        private TimelinePersistentState? seed;
 
         public TimelinePaginationSource(
             ITimelinePresentationService timeline,
             ITimelineSubscriptionService stream,
             TimelineKind kind,
-            TimelinePersistentState? seed,
             Action<TimelineKind, long> captureInitialCursor)
         {
             this.timeline = timeline;
             this.stream = stream;
             this.kind = kind;
-            this.seed = seed;
             this.captureInitialCursor = captureInitialCursor;
-            if (seed is not null)
-            {
-                captureInitialCursor(kind, seed.Cursor);
-            }
         }
 
         public MisskeyPaginationOptions Options { get; } = new(Limit: 10);
@@ -397,20 +376,6 @@
             CancellationToken cancellationToken)
         {
             bool initial = request.UntilId is null && request.SinceId is null && request.Offset is null;
-            if (initial && seed is { } restored)
-            {
-                seed = null;
-                if (!restored.More || restored.Notes.Count == 0)
-                {
-                    return restored.Notes;
-                }
-
-                var response = new List<NoteViewModel>(restored.Notes.Count + 1);
-                response.AddRange(restored.Notes);
-                response.Add(restored.Notes[^1]);
-                return response;
-            }
-
             if (initial)
             {
                 long cursor = await stream.GetLatestCursorAsync(cancellationToken);

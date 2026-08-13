@@ -1,7 +1,10 @@
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.MisskeyApi;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public interface IAnnouncementPresentationService
 {
     Task<IReadOnlyList<VisitorAnnouncementViewModel>> ReadPublicAsync(
@@ -9,6 +12,9 @@ public interface IAnnouncementPresentationService
         CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class AnnouncementPresentationService(
     MisskeyAnnouncementService announcements) : IAnnouncementPresentationService
 {
@@ -27,3 +33,4 @@ public sealed class AnnouncementPresentationService(
             value.ImageUrl)).ToArray();
     }
 }
+#endif

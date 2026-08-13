@@ -267,7 +267,7 @@ public sealed class PollTests : BunitContext
         new NoteAuthorViewModel("alice-id", "alice", "alice", "Alice", "/static-assets/user-unknown.png", false),
         "poll fixture",
         null,
-        ActivityPub.Domain.Visibility.Public,
+        ActivityPub.Misskey.Blazor.Presentation.Visibility.Public,
         null,
         0,
         0,

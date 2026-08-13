@@ -1,11 +1,14 @@
 using System.Runtime.CompilerServices;
+using ActivityPub.Misskey.Blazor.Presentation;
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
 using ActivityPub.Domain;
 using ActivityPub.Misskey.Blazor.Identity;
-using ActivityPub.Misskey.Blazor.Presentation;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Streaming;
 
+#if !MISSKEY_BLAZOR_SERVER
 public interface ITimelineSubscriptionService
 {
     Task<long> GetLatestCursorAsync(CancellationToken cancellationToken);
@@ -16,6 +19,9 @@ public interface ITimelineSubscriptionService
         CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class TimelineSubscriptionService(
     IDurableStreamEventPump pump,
     IStreamEventStore store,
@@ -158,3 +164,4 @@ public sealed class TimelineSubscriptionService(
             cancellationToken).ConfigureAwait(false);
     }
 }
+#endif

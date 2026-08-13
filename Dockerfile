@@ -4,6 +4,7 @@ WORKDIR /source
 COPY .editorconfig Directory.Build.props Directory.Packages.props global.json LICENSE NOTICE.md ./
 COPY src/ ./src/
 COPY frontend/ActivityPub.Misskey.Blazor/ ./frontend/ActivityPub.Misskey.Blazor/
+COPY frontend/ActivityPub.Misskey.Blazor.Client/ ./frontend/ActivityPub.Misskey.Blazor.Client/
 COPY frontend/misskey-v12/public/static-assets/ ./frontend/misskey-v12/public/static-assets/
 COPY frontend/misskey-v12/public/client-assets/ ./frontend/misskey-v12/public/client-assets/
 RUN dotnet restore src/ActivityPub.Api/ActivityPub.Api.csproj --locked-mode \

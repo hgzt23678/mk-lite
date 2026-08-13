@@ -16,6 +16,7 @@ public static class ApiAuthenticationExtensions
         this IServiceCollection services,
         ApiAuthenticationOptions options,
         bool localOAuthEnabled,
+        bool frontendBrowserSessionEnabled,
         bool isProduction,
         Func<HttpContext, bool>? isFrontendPage = null)
     {
@@ -34,7 +35,11 @@ public static class ApiAuthenticationExtensions
                 policy.ForwardDefaultSelector = context =>
                 {
                     string authorization = context.Request.Headers.Authorization.ToString();
-                    if (localOAuthEnabled && (isFrontendPage?.Invoke(context) ?? false))
+                    if (frontendBrowserSessionEnabled &&
+                        ((isFrontendPage?.Invoke(context) ?? false) ||
+                         string.IsNullOrEmpty(authorization) &&
+                         (FrontendBrowserSessionMetadata.IsExplicitBrowserRequest(context) ||
+                          FrontendBrowserSessionMetadata.IsBrowserWebSocketRequest(context))))
                     {
                         return OAuthAuthorizationServerExtensions.ExternalSessionScheme;
                     }
@@ -120,6 +125,7 @@ public static class ApiAuthenticationExtensions
             .AddPolicy("misskey.read", policy => policy
                 .RequireAuthenticatedUser()
                 .RequireAssertion(context =>
+                    IsFrontendSession(context.User) ||
                     HasScope(context.User, "activitypub.read") ||
                     HasScope(context.User, "activitypub.write") ||
                     context.User.HasClaim(claim => claim.Type == "misskey.permission" &&
@@ -128,6 +134,7 @@ public static class ApiAuthenticationExtensions
             .AddPolicy("misskey.write", policy => policy
                 .RequireAuthenticatedUser()
                 .RequireAssertion(context =>
+                    IsFrontendSession(context.User) ||
                     HasScope(context.User, "activitypub.write") ||
                     context.User.HasClaim(claim => claim.Type == "misskey.permission" &&
                         claim.Value.StartsWith("write:", StringComparison.Ordinal))))
@@ -151,7 +158,8 @@ public static class ApiAuthenticationExtensions
                 .RequireAuthenticatedUser()
                 .RequireClaim("sub")
                 .RequireRole("activitypub-admin")
-                .RequireAssertion(context => HasScope(context.User, "activitypub.admin")));
+                .RequireAssertion(context =>
+                    IsFrontendSession(context.User) || HasScope(context.User, "activitypub.admin")));
         return services;
     }
 
@@ -175,11 +183,13 @@ public static class ApiAuthenticationExtensions
 
     private static void MisskeyPermissionPolicy(AuthorizationPolicyBuilder policy, string permission) =>
         policy.RequireAuthenticatedUser().RequireAssertion(context =>
+            IsFrontendSession(context.User) ||
             context.User.HasClaim("misskey.permission", permission) ||
             !IsMisskeyToken(context.User) && HasScope(context.User, "activitypub.write"));
 
     private static void MisskeyReadPermissionPolicy(AuthorizationPolicyBuilder policy, string permission) =>
         policy.RequireAuthenticatedUser().RequireAssertion(context =>
+            IsFrontendSession(context.User) ||
             context.User.HasClaim("misskey.permission", permission) ||
             !IsMisskeyToken(context.User) &&
             (HasScope(context.User, "activitypub.read") || HasScope(context.User, "activitypub.write")));
@@ -190,4 +200,7 @@ public static class ApiAuthenticationExtensions
             identity.AuthenticationType,
             MisskeyTokenAuthenticationHandler.SchemeName,
             StringComparison.Ordinal));
+
+    private static bool IsFrontendSession(ClaimsPrincipal principal) =>
+        principal.HasClaim(FrontendBrowserSessionMetadata.SessionClaim, "true");
 }

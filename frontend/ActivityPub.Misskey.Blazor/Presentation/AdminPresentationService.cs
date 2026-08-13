@@ -1,10 +1,13 @@
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
 using ActivityPub.Domain;
 using ActivityPub.Misskey.Blazor.Identity;
 using ActivityPub.MisskeyApi;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public sealed record AdminAnnouncementViewModel(
     string Id,
     DateTimeOffset CreatedAt,
@@ -43,6 +46,9 @@ public interface IAdminPresentationService
     Task<AdminInvitationViewModel> CreateInvitationAsync(CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class AdminPresentationService(
     MisskeyAnnouncementService announcements,
     IRelayCommandService relays,
@@ -137,3 +143,4 @@ public sealed class AdminPresentationService(
         _ => "requesting"
     };
 }
+#endif

@@ -96,6 +96,26 @@ public sealed class TimelineViewTests : BunitContext
         });
     }
 
+    [Fact]
+    public void CursorFailureReloadsTheTimelineAndResubscribesFromTheFreshCursor()
+    {
+        stream.FailFirstSubscription = true;
+        timeline.Responses.Enqueue(new TimelinePageViewModel([], null));
+        timeline.Responses.Enqueue(new TimelinePageViewModel([], null));
+
+        using IRenderedComponent<TimelineView> component = Render<TimelineView>(parameters => parameters
+            .Add(view => view.Kind, TimelineKind.Global));
+
+        component.WaitForAssertion(() =>
+        {
+            Assert.True(timeline.Reads.Count >= 2);
+            Assert.True(stream.Subscriptions.Count >= 2);
+            Assert.Equal(41, stream.Subscriptions[0].AfterCursor);
+            Assert.Equal(84, stream.Subscriptions[1].AfterCursor);
+            Assert.DoesNotContain("STREAM_CURSOR_EXPIRED", component.Markup, StringComparison.Ordinal);
+        });
+    }
+
     private sealed class RecordingTimeline : ITimelinePresentationService
     {
         public Queue<TimelinePageViewModel> Responses { get; } = [];
@@ -138,8 +158,10 @@ public sealed class TimelineViewTests : BunitContext
     private sealed class ControlledTimelineSubscription : ITimelineSubscriptionService
     {
         public List<Subscription> Subscriptions { get; } = [];
+        public bool FailFirstSubscription { get; set; }
+        private long latestCursor = 41;
 
-        public Task<long> GetLatestCursorAsync(CancellationToken cancellationToken) => Task.FromResult(41L);
+        public Task<long> GetLatestCursorAsync(CancellationToken cancellationToken) => Task.FromResult(latestCursor);
 
         public async IAsyncEnumerable<TimelineMutation> SubscribeAsync(
             TimelineKind kind,
@@ -148,6 +170,12 @@ public sealed class TimelineViewTests : BunitContext
         {
             var subscription = new Subscription(kind, afterCursor);
             Subscriptions.Add(subscription);
+            if (FailFirstSubscription && Subscriptions.Count == 1)
+            {
+                latestCursor = 84;
+                throw new TimelineCursorException("STREAM_CURSOR_EXPIRED");
+            }
+
             try
             {
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);

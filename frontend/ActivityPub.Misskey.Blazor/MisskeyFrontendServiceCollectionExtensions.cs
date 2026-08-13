@@ -48,6 +48,7 @@ public static class MisskeyFrontendServiceCollectionExtensions
         services.AddScoped<ISettingsGeneralInterop, SettingsGeneralInterop>();
         services.AddScoped<IPizzaxDeviceState, PizzaxDeviceState>();
         services.AddScoped<IAuthenticatedActorContext, AuthenticatedActorContext>();
+        services.AddScoped<IMiauthAuthorizationService, ActivityPub.Misskey.Blazor.Server.ServerMiauthAuthorizationService>();
         services.AddScoped<IPageMetadataState, PageMetadataState>();
         services.AddScoped<IButtonRippleInterop, ButtonRippleInterop>();
         services.AddScoped<IRippleEffectInterop, RippleEffectInterop>();

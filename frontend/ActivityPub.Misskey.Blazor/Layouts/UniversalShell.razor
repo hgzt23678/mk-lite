@@ -371,10 +371,10 @@
             await attachment.InvokeVoidAsync("scrollTop", lifetime.Token);
             return;
         }
-        Navigation.NavigateTo("/");
+        Navigation.NavigateTo("");
     }
 
-    private void GoNotifications() => Navigation.NavigateTo("/my/notifications");
+    private void GoNotifications() => Navigation.NavigateTo("my/notifications");
     private void Compose() => Overlays.ShowPostForm();
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs args)

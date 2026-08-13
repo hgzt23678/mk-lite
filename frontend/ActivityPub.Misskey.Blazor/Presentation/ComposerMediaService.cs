@@ -1,10 +1,13 @@
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
 using ActivityPub.Domain;
 using ActivityPub.Misskey.Blazor.Identity;
+#endif
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public interface IComposerMediaService
 {
     Task<ComposerMediaViewModel> UploadAsync(
@@ -14,6 +17,9 @@ public interface IComposerMediaService
         CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class ComposerMediaService(
     IServiceProvider services,
     IAuthenticatedActorContext actorContext) : IComposerMediaService
@@ -37,7 +43,7 @@ public sealed class ComposerMediaService(
                 actor.ActorIri,
                 fileName,
                 declaredMediaType,
-                Visibility.MentionedOnly,
+                ActivityPub.Domain.Visibility.MentionedOnly,
                 content),
             cancellationToken).ConfigureAwait(false);
         string servedUrl = $"/media/{result.Id:D}";
@@ -55,6 +61,9 @@ public sealed class ComposerMediaService(
     }
 }
 
+#endif
+
+#if !MISSKEY_BLAZOR_SERVER
 public sealed record ComposerMediaViewModel(
     Guid Id,
     string Name,
@@ -74,3 +83,4 @@ public sealed class ComposerMediaUnavailableException : Exception
     {
     }
 }
+#endif

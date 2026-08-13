@@ -67,9 +67,7 @@
             : null;
 
     private string RouteHref(MkSuperMenuEntry item) =>
-        item.To is { Length: > 0 } route && route.StartsWith("/", StringComparison.Ordinal)
-            ? route
-            : "/" + (item.To ?? string.Empty);
+        (item.To ?? string.Empty).TrimStart('/');
 
     private async Task InvokeAsync(MkSuperMenuEntry item)
     {

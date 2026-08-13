@@ -2,6 +2,8 @@ using ActivityPub.Domain;
 using ActivityPub.Misskey.Blazor.Components;
 using ActivityPub.Misskey.Blazor.Overlays;
 
+using Visibility = ActivityPub.Misskey.Blazor.Presentation.Visibility;
+
 namespace ActivityPub.Misskey.Blazor.Tests;
 
 public sealed class OverlayServiceTests

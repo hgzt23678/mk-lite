@@ -2,58 +2,42 @@
 
 ## Runtime
 
-本番frontendはASP.NET Core host内のRazor Componentsとして実行する。
+本番frontendは.NET 10のstandalone Blazor WebAssemblyである。
 
-`App.razor`がstatic SSRのHTML documentを生成し、`Routes.razor`以下をInteractive Server render modeで動かす。
+ASP.NET Core API hostは同一originの`/app/`へ静的shell、Razor Class LibraryのCSS・JavaScript、`_framework`成果物を配信する。deep linkは`/app/{*path:nonfile}`から同じshellへ戻し、その後のroute、history、overlay、端末状態はbrowser内で処理する。
 
-外部pathは`/app/`であり、component routeは`UsePathBase("/app")`の内側で評価する。
+本番HTMLは`blazor.webassembly.js`を使用する。Interactive Server、server circuit、`blazor.web.js`、`/_blazor`、Vue、Viteは製品経路へ含めない。旧Interactive Server hostは比較用TestHostへ隔離する。
 
-framework boot scriptは`blazor.web.js`であり、`blazor.webassembly.js`とWebAssembly runtimeを配信しない。
-
-## Dependency direction
-
-移植基準はfrontendとbackendで分離する。RazorのDOM、class、CSS、motion、responsive挙動はMisskey v12.119.2をoracleとし、Applicationから下のAPI、永続化、連合、モデレーション、メディア、キュー挙動は`mei23/dolphin`をbackend baselineとする。画面が表示できても、Dolphin基準の永続副作用や認可を満たさなければ実装済みとは判定しない。
-
-依存方向は次のとおりである。
+## Project boundary
 
 ```text
-Razor Component
-  -> Presentation service and scoped UI state
-  -> Application query/command contract
-  -> Domain
-  -> PostgreSQL, Federation, Media
+ActivityPub.Misskey.Blazor
+  browser-safe Razor Components / Presentation contracts / CSS / JS modules
+        ^
+ActivityPub.Misskey.Blazor.Client
+  WebAssembly bootstrap / HTTP adapters / browser streaming / auth state
+
+ActivityPub.Api
+  static WASM hosting / HTTP and WebSocket endpoints
+        -> ActivityPub.MisskeyApi -> Application -> Domain -> Persistence
 ```
 
-Misskey HTTP adapterとRazor Componentsは同じApplication contractを使う。
+WASM ClientとRCLは`ActivityPub.MisskeyApi`、Application、Domain、Persistence、Identity、EF Core、Npgsqlを参照しない。browserは同一originのMisskey HTTP契約と`/streaming`だけを使用する。Mastodon adapterを経由しない。
 
-一方のadapterがもう一方のendpointをHTTPで呼ぶ構成にはしない。
+## Authentication and request integrity
 
-## Authentication
+認証の正本はSecure、HttpOnly、SameSite=Laxのserver session Cookieである。WASM起動時に`GET /api/frontend/config`を読み、PublicBaseUri、API base、Authorityを明示設定から取得する。Host headerや現在位置から公開IRIやAuthorityを生成しない。現在位置のoriginは同一origin transportの検証だけに使う。
 
-外部OIDC loginはAuthorization CodeとPKCE S256を使用し、callbackは`/app/auth/callback`へ固定する。
-
-認証結果はHttpOnly、Secure、SameSite=Laxのserver session cookieへ保存する。
-
-Razor Componentsは`AuthenticationStateProvider`からusernameを得た後、DB上のlocal Actorへ解決する。
-
-OIDCの`actor` claimだけをlocal Actorの根拠として信用しない。
+`GET /api/frontend/session`は認証viewerとantiforgery contractを`no-store`で返す。request tokenはC# memoryとJavaScript module closureだけに保持し、localStorage、sessionStorage、IndexedDB、URL、logへ保存しない。unsafeなCookie requestは`X-ActivityPub-Frontend: 1`とantiforgery headerを必須にする。
 
 ## Durable streaming
 
-Timelineは初期queryの直前にPostgreSQL stream event logの最新cursorを取得する。
+browserは単一WebSocket上でtimeline、notification、relationship channelを多重化する。初期cursorは`POST /api/streaming/cursor`で取得する。server payloadのcursorはcheckpoint受信時だけ永続的な再開位置として採用し、reconnectは指数backoffとjitterを使用する。
 
-初期query後は、そのcursorより新しいeventだけを購読するため、queryとsubscriptionの間に発生した更新を失わない。
-
-各eventはviewer、Mute、Silence、visibility、local-only条件を再検証してから表示modelへ変換する。
-
-購読bufferが上限を超えた場合は接続を閉じ、保存済みcursorから回復する。
+PostgreSQLのstream event logが信頼できる記録であり、RedisとLISTEN/NOTIFYはwake-up用途に限定する。tokenまたはCookie sessionはhandshakeだけでなくheartbeatとpayload送信前にも再検証する。
 
 ## JavaScript boundary
 
-JavaScriptはbrowser APIと、同等性を独自再実装できない固定version parser/engineの薄い型付きadapterに限定する。
+JavaScriptはbrowser APIと、同等性を独自再実装できない固定version parserの型付きadapterに限定する。storage、Service Worker、ResizeObserver、IntersectionObserver、animation frame、MFM parser、overlay、media操作が該当する。
 
-現在の境界はstorage、Service Worker登録、ResizeObserver、IntersectionObserver、page header計測、popup/focus、animation frame、MFM parser、Matter.js物理演算である。
-
-Vue lifecycle、Vue Router、Pizzax、component renderingをJavaScriptへ残さない。
-
-各moduleは`IJSObjectReference`をscoped serviceが所有し、observer、event listener、timer、animation frame、Matter.js world/engineをcomponentまたはcircuit終了時にdisposeする。
+Vue lifecycle、Vue Router、Pizzax、component renderingをJavaScriptへ残さない。`IJSObjectReference`、`DotNetObjectReference`、observer、listener、timer、Blob URLはcomponent破棄時に解放する。

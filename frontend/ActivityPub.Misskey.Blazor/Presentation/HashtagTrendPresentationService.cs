@@ -1,7 +1,10 @@
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public sealed record HashtagTrendViewModel(string Tag, long UsersCount, IReadOnlyList<long> Chart);
 
 public interface IHashtagTrendPresentationService
@@ -9,6 +12,9 @@ public interface IHashtagTrendPresentationService
     Task<IReadOnlyList<HashtagTrendViewModel>> ReadAsync(CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class HashtagTrendPresentationService(IHashtagRepository hashtags)
     : IHashtagTrendPresentationService
 {
@@ -23,3 +29,4 @@ public sealed class HashtagTrendPresentationService(IHashtagRepository hashtags)
             trend.Chart)).ToArray();
     }
 }
+#endif

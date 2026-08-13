@@ -1,8 +1,11 @@
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
 using ActivityPub.Domain;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public interface IAvatarsPresentationService
 {
     Task<IReadOnlyList<NoteAuthorViewModel>> ReadAsync(
@@ -10,6 +13,9 @@ public interface IAvatarsPresentationService
         CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class AvatarsPresentationService(
     IClientApiQueryService query,
     IExternalEntityIdService externalIds,
@@ -66,7 +72,11 @@ public sealed class AvatarsPresentationService(
     }
 }
 
+#endif
+
+#if !MISSKEY_BLAZOR_SERVER
 public sealed class AvatarsPresentationException(string errorCode) : Exception(errorCode)
 {
     public string ErrorCode { get; } = errorCode;
 }
+#endif

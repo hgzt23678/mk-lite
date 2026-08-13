@@ -4,13 +4,28 @@
 
 frontendのvisual／behavior oracleはMisskey v12.119.2である。画面の機能到達範囲、APIの永続副作用、認可、ActivityPub連合、モデレーション、メディア、キューのbackend基準は`mei23/dolphin`であり、Misskey v12の画面実装から逆算しない。
 
-この文書は、2026-08-04 UTCの基準試験と、2026-08-12 UTCに追加したsupported範囲の再検証を記録する。
+この文書は、2026-08-04 UTCの基準試験、2026-08-12 UTCに追加したsupported範囲の再検証、および2026-08-13 UTCのstandalone WebAssembly移行検証を記録する。
 
 現在の成果物はMisskey 12.119.2フロントエンドの完全移植ではない。
 
-Inventoryは535 sourceを分類し、現在の生成mappingは`implemented` 329、`in-progress` 0、`blocked` 0、`planned` 0、`excluded` 206、`unclassified` 0である。excludedの内訳は、専用backend feature 34件と、Dolphinの未提供または不完全な契約をまとめた `remaining-dolphin-contract-gaps` 172件である。
+Inventoryは535 sourceを分類し、現在の生成mappingは`implemented` 330、`in-progress` 0、`blocked` 0、`planned` 0、`excluded` 205、`unclassified` 0である。excludedの内訳は、専用backend feature 34件と、Dolphinの未提供または不完全な契約をまとめた `remaining-dolphin-contract-gaps` 171件である。
 
 したがって、以下の結果は検証済みの垂直スライスだけを裏付ける。
+
+## 2026-08-13 UTC standalone WebAssembly移行検証
+
+- `ActivityPub.Misskey.Blazor`をbrowser-safe Razor class libraryとし、server実装を`ActivityPub.Misskey.Blazor.Server`、実行入口を`ActivityPub.Misskey.Blazor.Client`へ分離した。ClientはApplication、Domain、Persistence、Identity、MisskeyApi、EF Core、Npgsqlを参照しない。
+- ASP.NET Coreの本番経路は`/app/`へstandalone Clientを配信し、`blazor.webassembly.js`を起動する。`blazor.web.js`、`/_blazor`、Vue、Viteは通常経路へ含めない。`/app/_content`は静的web assetの`/_content`へ安全に解決し、deep linkはAPI、Streaming、Media、ActivityPub endpointを横取りしない。
+- browser認証はHttpOnly session Cookieを正本とし、`/api/frontend/session`が返すantiforgery tokenをWASM memoryだけに保持する。変更要求はsame-origin、frontend marker、CSRF headerを要求し、tokenをWeb Storage、IndexedDB、URLへ保存しない。
+- Timeline、通知、relationshipは単一WebSocketを多重化する。PostgreSQL durable cursor、checkpoint後だけのcursor確定、bounded queue、jitter付き再接続、slow consumer／cursor期限切れからの再同期を実装した。
+- durable eventのprojection中にCookie security stampが失効する競合を再現した。projection後かつ送信直前にも認証を再検証し、失効後のpayloadを送らず`AUTHENTICATION_EXPIRED`とclose code 4401で終了する。決定的raceと実Cookie失効を含むStreaming統合試験16/16が成功した。
+- `dotnet restore --locked-mode`、`dotnet format --verify-no-changes`、Release buildは成功し、buildは警告0／エラー0だった。
+- Release全.NET testは973/973成功した。内訳はDomain 60、Federation 61、Media 41、Moderation 2、Property 3、Persistence 92、Misskey Blazor 540、API 174である。
+- standalone WASM Chromium smokeは1/1成功した。実WASM boot、Cookie session、memory-only CSRF、cursor bootstrap、実Client WebSocket checkpoint、非透明なshell、初期化失敗時の安全な表示を確認し、console error、page error、404、CSP violationは0件だった。
+- frontend inventoryは535 source、400 Vue SFC、115 route、262 static API endpoint、14 Streaming channelで差分なしだった。WASM境界監査、NuGet／frontend license、第三者通知検査は成功した。
+- NuGetのdirect／transitive vulnerability検査とnpm high severity auditはいずれも既知脆弱性0件だった。
+
+このcheckpointはstandalone WASM実行境界の完成を裏付けるが、Dolphin契約がない205 sourceの機能や、未実施の全ブラウザーvisual／長時間soak／rolling deploymentまで完了したという主張ではない。
 
 ## 2026-08-12 UTC 現行再検証
 
@@ -28,13 +43,15 @@ Inventoryは535 sourceを分類し、現在の生成mappingは`implemented` 329�
 この再検証は、excluded sourceを実装済みと宣言するものではない。Dolphin契約が追加されるまでは、excluded画面を固定値や空配列で起動可能に見せず、capability unavailableとして扱う。
 機械可読な記録は `artifacts/frontend-verification/20260812-current.json` に保存する。
 
-## 検証済みの実行方式
+## 現行の実行方式
 
-本番frontendはASP.NET Coreのstatic SSRとInteractive Serverを使用する。
+本番frontendはstandalone Blazor WebAssemblyであり、ASP.NET Coreが同一originの`/app/`へ静的shellと`_framework`成果物を配信する。
 
-`/app/`のHTMLは`blazor.web.js`を読み込み、WebAssembly runtime、Vue runtime、Vite clientを読み込まない。
+`/app/`のHTMLは`blazor.webassembly.js`を読み込む。`blazor.web.js`、`blazor.server.js`、`/_blazor`、Vue runtime、Vite clientは本番経路へ含めない。
 
-OIDCは明示設定されたAuthorityを使用し、Authorization CodeとPKCE S256で`/app/auth/callback`へ戻る。
+認証済みブラウザーはHttpOnly session Cookieを使用する。`GET /api/frontend/session`がviewerとCSRF contractを返し、request tokenはWASM memoryだけに保持する。変更要求は同一origin、`X-ActivityPub-Frontend: 1`、antiforgery headerを要求する。
+
+Timeline、通知、relationshipは一つのbrowser WebSocketを多重化し、`POST /api/streaming/cursor`から開始する。cursorはcheckpoint受信時だけ確定し、切断後はPostgreSQLのdurable event logから再開する。
 
 Tailnet公開URLは`https://exekey-net.tail319568.ts.net:9443/app/`である。
 

@@ -136,6 +136,11 @@ public sealed class ActivityPubApiFixture : WebApplicationFactory<Program>, IAsy
                             return FixtureAuthenticationHandler.SchemeName;
                         }
 
+                        if (FrontendBrowserSessionMetadata.IsExplicitBrowserRequest(context))
+                        {
+                            return OAuthAuthorizationServerExtensions.ExternalSessionScheme;
+                        }
+
                         if (authorization.StartsWith("Bearer mk_", StringComparison.Ordinal) ||
                             string.IsNullOrEmpty(authorization) &&
                             (context.Request.Path.StartsWithSegments("/api") || context.Request.Path.StartsWithSegments("/streaming")))

@@ -1,9 +1,12 @@
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
 using ActivityPub.Domain;
 using ActivityPub.Misskey.Blazor.Identity;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public interface IRenoteDetailsPresentationService
 {
     Task<IReadOnlyList<NoteAuthorViewModel>> ReadAsync(
@@ -12,6 +15,9 @@ public interface IRenoteDetailsPresentationService
         CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class RenoteDetailsPresentationService(
     IClientApiQueryService query,
     IExternalEntityIdService externalIds,
@@ -61,3 +67,4 @@ public sealed class RenoteDetailsPresentationService(
         return users;
     }
 }
+#endif

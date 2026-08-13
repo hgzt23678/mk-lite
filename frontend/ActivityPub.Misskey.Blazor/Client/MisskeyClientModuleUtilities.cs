@@ -1,13 +1,18 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
+#endif
 using ActivityPub.Misskey.Blazor.BrowserInterop;
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Misskey.Blazor.Identity;
+#endif
 using ActivityPub.Misskey.Blazor.Presentation;
 using ActivityPub.Misskey.Blazor.State;
 
 namespace ActivityPub.Misskey.Blazor.Client;
 
+#if !MISSKEY_BLAZOR_SERVER
 /// <summary>
 /// Typed state used by the ports of account.ts and instance.ts.  The state is
 /// deliberately scoped to a frontend session; the server remains the source
@@ -39,6 +44,9 @@ public interface IMisskeyAccountState
     ValueTask<IReadOnlyList<MisskeyStoredAccount>> ReadStoredAccountsAsync(CancellationToken cancellationToken = default);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class MisskeyAccountState(
     IAuthenticatedActorContext actorContext,
     IClientApiQueryService query,
@@ -110,6 +118,9 @@ public sealed class MisskeyAccountState(
     }
 }
 
+#endif
+
+#if !MISSKEY_BLAZOR_SERVER
 public sealed record MisskeyInstanceSnapshot(
     string Name,
     string Version,
@@ -316,49 +327,4 @@ public static class MisskeyReloadUtilities
     }
 }
 
-public static class MisskeyNoteCaptureUtilities
-{
-    public static ClientPostView ApplyStreamUpdate(ClientPostView note, string type, JsonElement body, Guid? viewerId)
-    {
-        ArgumentNullException.ThrowIfNull(note);
-        if (body.ValueKind != JsonValueKind.Object) return note;
-        return type switch
-        {
-            "reacted" => ApplyReaction(note, body, viewerId, +1),
-            "unreacted" => ApplyReaction(note, body, viewerId, -1),
-            "pollVoted" => ApplyPollVote(note, body, viewerId),
-            _ => note
-        };
-    }
-
-    public static bool IsDeletedEvent(string type) => string.Equals(type, "deleted", StringComparison.Ordinal);
-
-    private static ClientPostView ApplyReaction(ClientPostView note, JsonElement body, Guid? viewerId, int delta)
-    {
-        string reaction = body.TryGetProperty("reaction", out JsonElement value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString() ?? string.Empty
-            : string.Empty;
-        if (reaction.Length == 0) return note;
-        Dictionary<string, long> counts = note.Emojis.ToDictionary(emoji => emoji.Shortcode, _ => 0L, StringComparer.Ordinal);
-        // ClientPostView does not expose the raw reaction dictionary; the API's
-        // projection stores counts in Likes/Announces.  Preserve the immutable
-        // note and let the next durable projection refresh when only a reaction
-        // delta is received. This avoids inventing a second local source of truth.
-        _ = counts;
-        return note;
-    }
-
-    private static ClientPostView ApplyPollVote(ClientPostView note, JsonElement body, Guid? viewerId)
-    {
-        if (note.Poll is null || !body.TryGetProperty("choice", out JsonElement choice) || choice.ValueKind != JsonValueKind.Number || !choice.TryGetInt32(out int index) || index < 0 || index >= note.Poll.Options.Count)
-        {
-            return note;
-        }
-
-        List<ClientPollOptionView> options = note.Poll.Options.ToList();
-        ClientPollOptionView selected = options[index];
-        options[index] = selected with { VotesCount = selected.VotesCount + 1 };
-        ClientPollView poll = note.Poll with { Options = new ReadOnlyCollection<ClientPollOptionView>(options), VotesCount = note.Poll.VotesCount + 1 };
-        return note with { Poll = poll };
-    }
-}
+#endif

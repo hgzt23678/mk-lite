@@ -103,9 +103,7 @@ else
 
     private string? ResolvedTo => string.IsNullOrEmpty(To)
         ? null
-        : To.StartsWith("/", StringComparison.Ordinal)
-            ? To
-            : "/" + To;
+        : To.TrimStart('/');
 
     protected override void OnParametersSet()
     {

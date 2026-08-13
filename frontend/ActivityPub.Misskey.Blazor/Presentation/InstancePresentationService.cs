@@ -1,13 +1,19 @@
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.MisskeyApi;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public interface IInstancePresentationService
 {
     Task<InstanceSummaryViewModel> GetAsync(CancellationToken cancellationToken);
     Task<IReadOnlyList<FederationInstanceViewModel>> ReadFederationInstancesAsync(CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class InstancePresentationService(
     MisskeyMetadataService metadata,
     MisskeyQueryService query) : IInstancePresentationService
@@ -76,6 +82,9 @@ public sealed class InstancePresentationService(
     }
 }
 
+#endif
+
+#if !MISSKEY_BLAZOR_SERVER
 public sealed record InstanceSummaryViewModel(
     string Name,
     string Description,
@@ -116,3 +125,4 @@ public sealed record FederationInstanceViewModel(
     long FollowersCount = 0,
     DateTimeOffset? LatestRequestSentAt = null,
     DateTimeOffset? LastCommunicatedAt = null);
+#endif

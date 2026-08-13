@@ -7,7 +7,6 @@ using System.Text.Json.Serialization;
 using ActivityPub.Application;
 using ActivityPub.Domain;
 using ActivityPub.Identity;
-using ActivityPub.Misskey.Blazor.Security;
 using ActivityPub.MisskeyApi;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
@@ -22,6 +21,7 @@ namespace ActivityPub.Server;
 
 internal static class FrontendEndpoints
 {
+    private const string FrontendHome = "/app/";
     private const long MaximumAuthenticationFormBytes = 16_384;
     private const string MisskeyPasskeyChallengeCookie = "__Host-activitypub-misskey-passkey-challenge";
     private static readonly JsonSerializerOptions WebJsonOptions = new(JsonSerializerDefaults.Web);
@@ -37,7 +37,7 @@ internal static class FrontendEndpoints
         endpoints.MapGet("/api/frontend/config", () =>
         {
             Uri redirectUri = new(options.PublicBaseUri, "/auth/callback");
-            Uri postLogoutRedirectUri = new(options.PublicBaseUri, "/");
+            Uri postLogoutRedirectUri = new(options.PublicBaseUri, FrontendHome);
             Uri apiBaseUri = new(options.PublicBaseUri, "/api/");
             bool allowInsecureDevelopmentOidc = isDevelopment &&
                 options.PublicBaseUri.Scheme == Uri.UriSchemeHttp &&
@@ -45,6 +45,7 @@ internal static class FrontendEndpoints
             return Results.Json(new
             {
                 enabled = options.Enabled,
+                localAccountsEnabled = localAccounts.Enabled,
                 instanceName = options.PublicBaseUri.IdnHost,
                 publicBaseUri = options.PublicBaseUri.AbsoluteUri.TrimEnd('/'),
                 apiBaseUri = apiBaseUri.AbsoluteUri,
@@ -71,6 +72,12 @@ internal static class FrontendEndpoints
             });
         })
         .RequireRateLimiting("discovery");
+
+        endpoints.MapGet(
+                "/api/frontend/session",
+                (HttpContext context, IAntiforgery antiforgery) => FrontendSession(context, antiforgery))
+            .WithMetadata(FrontendBrowserSessionMetadata.Instance)
+            .RequireRateLimiting("local-api");
 
         // Misskey v12 clients post credentials to the instance root API. This route
         // intentionally remains available independently of the Blazor UI switch so
@@ -528,13 +535,16 @@ internal static class FrontendEndpoints
             actorId,
             account.CreatedAt,
             cancellationToken).ConfigureAwait(false);
-        MisskeyIssuedToken issued = await misskeyAuthentication.IssueDirectAsync(
-            result.User.UserName ?? request.Username,
-            "Misskey v12 sign-in",
-            description: null,
-            iconUri: null,
-            MisskeyPermissions.All.ToArray(),
-            cancellationToken).ConfigureAwait(false);
+        bool frontendBrowser = WantsJson(context);
+        MisskeyIssuedToken? issued = frontendBrowser
+            ? null
+            : await misskeyAuthentication.IssueDirectAsync(
+                result.User.UserName ?? request.Username,
+                "Misskey v12 sign-in",
+                description: null,
+                iconUri: null,
+                MisskeyPermissions.All.ToArray(),
+                cancellationToken).ConfigureAwait(false);
 
         ClaimsPrincipal principal = await principalFactory.CreateAsync(result.User).ConfigureAwait(false);
         string redirectUrl = SafeReturnUrl(request.ReturnUrl);
@@ -549,13 +559,19 @@ internal static class FrontendEndpoints
                 RedirectUri = null
             }).ConfigureAwait(false);
 
-        return Results.Json(new
-        {
-            id = externalId,
-            i = issued.Token,
-            status = "succeeded",
-            redirectUrl
-        });
+        return frontendBrowser
+            ? Results.Json(new
+            {
+                status = "succeeded",
+                redirectUrl
+            })
+            : Results.Json(new
+            {
+                id = externalId,
+                i = issued!.Token,
+                status = "succeeded",
+                redirectUrl
+            });
     }
 
     private static IResult BuildMisskeyPasskeyChallenge(HttpContext context, string requestOptionsJson)
@@ -943,7 +959,7 @@ internal static class FrontendEndpoints
                 ? Results.Json(
                     new { status = "failed", errorCode = "INITIAL_SETUP_REQUIRED" },
                     statusCode: StatusCodes.Status409Conflict)
-                : Results.Redirect("/");
+                : Results.Redirect(FrontendHome);
         }
 
         IFormCollection? form = await ReadBoundedFormAsync(context, antiforgery, cancellationToken).ConfigureAwait(false);
@@ -1293,7 +1309,7 @@ internal static class FrontendEndpoints
         context.Response.Headers.CacheControl = "no-store";
         return WantsJson(context)
             ? Results.Json(new { status = "accepted" }, statusCode: StatusCodes.Status202Accepted)
-            : Results.Redirect("/");
+            : Results.Redirect(FrontendHome);
     }
 
     private static async Task<IResult> CompletePasswordResetAsync(
@@ -1316,8 +1332,8 @@ internal static class FrontendEndpoints
         if (result.Status == PasswordResetCompletionStatus.Succeeded)
         {
             return WantsJson(context)
-                ? Results.Json(new { status = "succeeded", redirectUrl = "/" })
-                : Results.Redirect("/");
+                ? Results.Json(new { status = "succeeded", redirectUrl = FrontendHome })
+                : Results.Redirect(FrontendHome);
         }
 
         string errorCode = result.SafeErrorCodes.Count == 0
@@ -1328,7 +1344,7 @@ internal static class FrontendEndpoints
             : StatusCodes.Status400BadRequest;
         return WantsJson(context)
             ? Results.Json(new { status = "failed", errorCode }, statusCode: status)
-            : Results.Redirect("/reset-password?resetError=" + Uri.EscapeDataString(errorCode));
+            : Results.Redirect("/app/reset-password?resetError=" + Uri.EscapeDataString(errorCode));
     }
 
     private static async Task<IResult> RequestEmailConfirmationAsync(
@@ -1352,7 +1368,7 @@ internal static class FrontendEndpoints
         context.Response.Headers.CacheControl = "no-store";
         return WantsJson(context)
             ? Results.Json(new { status = "accepted" }, statusCode: StatusCodes.Status202Accepted)
-            : Results.Redirect("/");
+            : Results.Redirect(FrontendHome);
     }
 
     private static async Task<IResult> CompleteEmailConfirmationAsync(
@@ -1380,7 +1396,7 @@ internal static class FrontendEndpoints
                 : StatusCodes.Status400BadRequest;
             return WantsJson(context)
                 ? Results.Json(new { status = "failed", errorCode = "INVALID_OR_EXPIRED_TOKEN" }, statusCode: status)
-                : Results.Redirect("/signup-complete?confirmationError=INVALID_OR_EXPIRED_TOKEN");
+                : Results.Redirect("/app/signup-complete?confirmationError=INVALID_OR_EXPIRED_TOKEN");
         }
 
         bool wantsJson = WantsJson(context);
@@ -1396,8 +1412,8 @@ internal static class FrontendEndpoints
                 RedirectUri = wantsJson ? null : "/"
             }).ConfigureAwait(false);
         return wantsJson
-            ? Results.Json(new { status = "succeeded", redirectUrl = "/" })
-            : Results.Redirect("/");
+            ? Results.Json(new { status = "succeeded", redirectUrl = FrontendHome })
+            : Results.Redirect(FrontendHome);
     }
 
     private static async Task<IResult> LogoutAsync(
@@ -1407,7 +1423,7 @@ internal static class FrontendEndpoints
     {
         await antiforgery.ValidateRequestAsync(context).ConfigureAwait(false);
         await context.SignOutAsync(OAuthAuthorizationServerExtensions.ExternalSessionScheme).ConfigureAwait(false);
-        return Results.Redirect("/");
+        return Results.Redirect(FrontendHome);
     }
 
     private static string SafeReturnUrl(string? value)
@@ -1416,7 +1432,7 @@ internal static class FrontendEndpoints
             value.StartsWith("//", StringComparison.Ordinal) || value.Contains('\\') ||
             value.Contains("://", StringComparison.Ordinal))
         {
-            return "/";
+            return FrontendHome;
         }
 
         return value;
@@ -1461,7 +1477,7 @@ internal static class FrontendEndpoints
 
     private static string AuthenticationDialogLocation(string dialog, string? errorCode, string returnUrl)
     {
-        string location = $"/?auth={Uri.EscapeDataString(dialog)}&returnUrl={Uri.EscapeDataString(returnUrl)}";
+        string location = $"{FrontendHome}?auth={Uri.EscapeDataString(dialog)}&returnUrl={Uri.EscapeDataString(returnUrl)}";
         return string.IsNullOrEmpty(errorCode)
             ? location
             : location + "&authError=" + Uri.EscapeDataString(errorCode);
@@ -1469,6 +1485,64 @@ internal static class FrontendEndpoints
 
     private static bool WantsJson(HttpContext context) =>
         string.Equals(context.Request.Headers["X-ActivityPub-Frontend"], "1", StringComparison.Ordinal);
+
+    private static IResult FrontendSession(HttpContext context, IAntiforgery antiforgery)
+    {
+        AntiforgeryTokenSet tokens = antiforgery.GetAndStoreTokens(context);
+        context.Response.Headers.CacheControl = "no-store";
+        context.Response.Headers.Vary = "Cookie";
+
+        ClaimsPrincipal principal = context.User;
+        if (principal.Identity?.IsAuthenticated != true)
+        {
+            return Results.Json(new
+            {
+                authenticated = false,
+                csrf = new
+                {
+                    headerName = tokens.HeaderName,
+                    requestToken = tokens.RequestToken
+                }
+            });
+        }
+
+        string? username = principal.FindFirst("preferred_username")?.Value ?? principal.Identity.Name;
+        string? actorIri = principal.FindFirst(LocalAccountServiceCollectionExtensions.LocalActorClaim)?.Value;
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(actorIri))
+        {
+            return Results.Json(new
+            {
+                authenticated = false,
+                csrf = new
+                {
+                    headerName = tokens.HeaderName,
+                    requestToken = tokens.RequestToken
+                }
+            });
+        }
+
+        string[] roles = principal.FindAll(ClaimTypes.Role)
+            .Select(claim => claim.Value)
+            .Where(role => !string.IsNullOrWhiteSpace(role) && role.Length <= 128 && !role.Any(char.IsControl))
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        return Results.Json(new
+        {
+            authenticated = true,
+            viewer = new
+            {
+                username,
+                actorIri,
+                roles
+            },
+            csrf = new
+            {
+                headerName = tokens.HeaderName,
+                requestToken = tokens.RequestToken
+            }
+        });
+    }
 
     private static string ToClientStatus(string errorCode) => errorCode == "TWO_FACTOR_REQUIRED"
         ? "two-factor-required"
@@ -1505,18 +1579,16 @@ internal static class FrontendEndpoints
 
         app.Use(async (context, next) =>
         {
-            if (context.Request.Path.Equals("/_content/ActivityPub.Misskey.Blazor/service-worker.js"))
+            if (context.Request.Path.Equals("/app/service-worker.js"))
             {
                 context.Response.OnStarting(() =>
                 {
-                    context.Response.Headers["Service-Worker-Allowed"] = "/";
+                    context.Response.Headers["Service-Worker-Allowed"] = FrontendHome;
                     context.Response.Headers.CacheControl = "no-cache,no-store";
                     return Task.CompletedTask;
                 });
             }
 
-            string nonce = FrontendCspNonce.Create();
-            context.Items[FrontendCspNonce.HttpContextItemKey] = nonce;
             context.Response.OnStarting(() =>
             {
                 string authorityOrigin = options.Authority.GetLeftPart(UriPartial.Authority);
@@ -1554,7 +1626,7 @@ internal static class FrontendEndpoints
                 // this origin. Every value written by our interop boundary is allow-listed or
                 // numeric (see theme.js, modal.js, and button-ripple.js).
                 context.Response.Headers.ContentSecurityPolicy =
-                    $"default-src 'self'; base-uri 'self'; connect-src 'self' {authorityOrigin}{captchaConnect}; font-src 'self'; form-action 'self'; {captchaFrame}frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self' 'nonce-{nonce}'{captchaScript}; style-src 'self'{captchaStyle}; style-src-elem 'self'{captchaStyle}; style-src-attr 'unsafe-inline'; upgrade-insecure-requests";
+                    $"default-src 'self'; base-uri 'self'; connect-src 'self' {authorityOrigin}{captchaConnect}; font-src 'self'; form-action 'self'; {captchaFrame}frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'{captchaScript}; style-src 'self'{captchaStyle}; style-src-elem 'self'{captchaStyle}; style-src-attr 'unsafe-inline'; upgrade-insecure-requests";
                 context.Response.Headers["Referrer-Policy"] = "no-referrer";
                 context.Response.Headers.XContentTypeOptions = "nosniff";
                 context.Response.Headers.Append("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");

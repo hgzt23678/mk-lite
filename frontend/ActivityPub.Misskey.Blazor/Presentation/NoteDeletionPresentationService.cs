@@ -1,13 +1,19 @@
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
 using ActivityPub.Misskey.Blazor.Identity;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Presentation;
 
+#if !MISSKEY_BLAZOR_SERVER
 public interface INoteDeletionPresentationService
 {
     Task DeleteAsync(NoteViewModel note, string idempotencyKey, CancellationToken cancellationToken);
 }
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class NoteDeletionPresentationService(
     IAuthenticatedActorContext actorContext,
     IClientApiCommandService commands) : INoteDeletionPresentationService
@@ -32,3 +38,4 @@ public sealed class NoteDeletionPresentationService(
             cancellationToken).ConfigureAwait(false);
     }
 }
+#endif

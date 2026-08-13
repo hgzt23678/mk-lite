@@ -15,6 +15,8 @@
   </Folder>
   <Folder Name="/frontend/">
     <Project Path="frontend/ActivityPub.Misskey.Blazor/ActivityPub.Misskey.Blazor.csproj" />
+    <Project Path="frontend/ActivityPub.Misskey.Blazor.Client/ActivityPub.Misskey.Blazor.Client.csproj" />
+    <Project Path="frontend/ActivityPub.Misskey.Blazor.Server/ActivityPub.Misskey.Blazor.Server.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ActivityPub.Domain.Tests/ActivityPub.Domain.Tests.csproj" />
@@ -26,6 +28,7 @@
     <Project Path="tests/ActivityPub.Moderation.Tests/ActivityPub.Moderation.Tests.csproj" />
     <Project Path="tests/ActivityPub.Misskey.Blazor.Tests/ActivityPub.Misskey.Blazor.Tests.csproj" />
     <Project Path="tests/ActivityPub.Misskey.Blazor.TestHost/ActivityPub.Misskey.Blazor.TestHost.csproj" />
+    <Project Path="tests/ActivityPub.Misskey.Blazor.WasmTestHost/ActivityPub.Misskey.Blazor.WasmTestHost.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/ActivityPub.Load/ActivityPub.Load.csproj" />

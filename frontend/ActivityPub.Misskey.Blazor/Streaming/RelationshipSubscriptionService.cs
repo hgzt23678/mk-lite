@@ -1,10 +1,13 @@
 using System.Runtime.CompilerServices;
+#if MISSKEY_BLAZOR_SERVER
 using ActivityPub.Application;
 using ActivityPub.Domain;
 using ActivityPub.Misskey.Blazor.Identity;
+#endif
 
 namespace ActivityPub.Misskey.Blazor.Streaming;
 
+#if !MISSKEY_BLAZOR_SERVER
 public interface IRelationshipSubscriptionService
 {
     Task<long> GetLatestCursorAsync(CancellationToken cancellationToken);
@@ -17,6 +20,9 @@ public interface IRelationshipSubscriptionService
 
 public sealed record RelationshipMutation(long Cursor, bool Changed);
 
+#endif
+
+#if MISSKEY_BLAZOR_SERVER
 public sealed class RelationshipSubscriptionService(
     IDurableStreamEventPump pump,
     IStreamEventStore store,
@@ -84,7 +90,11 @@ public sealed class RelationshipSubscriptionService(
     }
 }
 
+#endif
+
+#if !MISSKEY_BLAZOR_SERVER
 public sealed class RelationshipCursorException(string errorCode) : Exception(errorCode)
 {
     public string ErrorCode { get; } = errorCode;
 }
+#endif

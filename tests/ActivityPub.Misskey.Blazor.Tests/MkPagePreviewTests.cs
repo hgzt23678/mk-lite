@@ -27,7 +27,7 @@ public sealed class MkPagePreviewTests : BunitContext
             .Add(item => item.Page, new MisskeyPagePreviewViewModel("hello", "Hello page", summary, user, "https://remote.example/page.png")));
 
         AngleSharp.Dom.IElement root = component.Find("a.vhpxefrj._block");
-        Assert.Equal("/@alice/pages/hello", root.GetAttribute("href"));
+        Assert.Equal("@alice/pages/hello", root.GetAttribute("href"));
         Assert.Contains("https://remote.example/page.png", root.QuerySelector(".thumbnail")?.GetAttribute("style"));
         Assert.Equal(86, root.QuerySelector("article > p")?.TextContent.Length);
         Assert.Equal("Alice", root.QuerySelector("footer > p")?.TextContent);

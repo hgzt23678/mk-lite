@@ -5,7 +5,7 @@
 @inject IMisskeyLocalizer Localizer
 @implements IAsyncDisposable
 
-<a href="@To"
+<a href="@ApplicationTarget"
    class="@CssClass"
    target="@(Behavior == "window" ? "_blank" : null)"
    rel="@(Behavior == "window" ? "noopener noreferrer" : null)"
@@ -38,6 +38,7 @@
     public RenderFragment? ChildContent { get; set; }
 
     private bool disposed;
+    private string ApplicationTarget => To.TrimStart('/');
 
     private string? CssClass => string.Join(' ', new[]
     {
@@ -77,17 +78,17 @@
 
         if (Behavior == "browser")
         {
-            Navigation.NavigateTo(To, forceLoad: true);
+            Navigation.NavigateTo(ApplicationTarget, forceLoad: true);
         }
         else if (args.ShiftKey || Behavior is "window" or "modalWindow")
         {
             // A new tab is the safe same-origin equivalent when no server circuit window
             // host is available. The original target remains the exact href.
-            Navigation.NavigateTo(To, forceLoad: false);
+            Navigation.NavigateTo(ApplicationTarget, forceLoad: false);
         }
         else
         {
-            Navigation.NavigateTo(To);
+            Navigation.NavigateTo(ApplicationTarget);
         }
 
         return Task.CompletedTask;
@@ -121,7 +122,7 @@
         Uri baseUri = new(Navigation.BaseUri, UriKind.Absolute);
         Uri absolute = Uri.TryCreate(To, UriKind.Absolute, out Uri? absoluteTo)
             ? absoluteTo
-            : new Uri(baseUri, To);
+            : new Uri(baseUri, ApplicationTarget);
         await Clipboard.WriteTextAsync(absolute.AbsoluteUri, CancellationToken.None);
     }
 

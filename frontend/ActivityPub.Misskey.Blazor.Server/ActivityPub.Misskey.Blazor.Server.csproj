@@ -1,0 +1,89 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <AssemblyName>ActivityPub.Misskey.Blazor.Server</AssemblyName>
+    <RootNamespace>ActivityPub.Misskey.Blazor</RootNamespace>
+    <DefineConstants>$(DefineConstants);MISSKEY_BLAZOR_SERVER</DefineConstants>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultContentItems>false</EnableDefaultContentItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../ActivityPub.Misskey.Blazor/ActivityPub.Misskey.Blazor.csproj" />
+    <ProjectReference Include="../../src/ActivityPub.MisskeyApi/ActivityPub.MisskeyApi.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="FrontendVisibilityMapper.cs" />
+    <Compile Include="MisskeyNoteCaptureUtilities.cs" />
+    <Compile Include="ServerMiauthAuthorizationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/MisskeyFrontendServiceCollectionExtensions.cs"
+             Link="MisskeyFrontendServiceCollectionExtensions.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Localization/MisskeyFrontendLocalizationMiddleware.cs"
+             Link="Localization/MisskeyFrontendLocalizationMiddleware.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Localization/MisskeyLocaleRequestResolver.cs"
+             Link="Localization/MisskeyLocaleRequestResolver.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Localization/MisskeyLocalizer.cs"
+             Link="Localization/MisskeyLocalizer.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Security/FrontendCspNonce.cs"
+             Link="Security/FrontendCspNonce.cs" />
+
+    <Compile Include="../ActivityPub.Misskey.Blazor/Client/MisskeyClientModuleUtilities.cs"
+             Link="Client/MisskeyClientModuleUtilities.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Identity/AuthenticatedActorContext.cs"
+             Link="Identity/AuthenticatedActorContext.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/AboutPresentationService.cs"
+             Link="Presentation/AboutPresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/AdminPresentationService.cs"
+             Link="Presentation/AdminPresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/AnnouncementPagePresentationService.cs"
+             Link="Presentation/AnnouncementPagePresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/AnnouncementPresentationService.cs"
+             Link="Presentation/AnnouncementPresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/AutocompletePresentationService.cs"
+             Link="Presentation/AutocompletePresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/AvatarsPresentationService.cs"
+             Link="Presentation/AvatarsPresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/ComposerMediaService.cs"
+             Link="Presentation/ComposerMediaService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/CurrentAccountPresentationService.cs"
+             Link="Presentation/CurrentAccountPresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/HashtagTrendPresentationService.cs"
+             Link="Presentation/HashtagTrendPresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/InstancePresentationService.cs"
+             Link="Presentation/InstancePresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/NoteDeletionPresentationService.cs"
+             Link="Presentation/NoteDeletionPresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/NotificationPresentationService.cs"
+             Link="Presentation/NotificationPresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/ReactionDetailsPresentationService.cs"
+             Link="Presentation/ReactionDetailsPresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/RenoteDetailsPresentationService.cs"
+             Link="Presentation/RenoteDetailsPresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/SettingsPresentationService.cs"
+             Link="Presentation/SettingsPresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/TimelinePresentationService.cs"
+             Link="Presentation/TimelinePresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/UserFollowRelationsPresentationService.cs"
+             Link="Presentation/UserFollowRelationsPresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/UserPreviewPresentationService.cs"
+             Link="Presentation/UserPreviewPresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/UserPagePresentationService.cs"
+             Link="Presentation/UserPagePresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/UserSearchPresentationService.cs"
+             Link="Presentation/UserSearchPresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Presentation/VisibleUsersPresentationService.cs"
+             Link="Presentation/VisibleUsersPresentationService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Streaming/NotificationSubscriptionService.cs"
+             Link="Streaming/NotificationSubscriptionService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Streaming/RelationshipSubscriptionService.cs"
+             Link="Streaming/RelationshipSubscriptionService.cs" />
+    <Compile Include="../ActivityPub.Misskey.Blazor/Streaming/ServerTimelineStream.cs"
+             Link="Streaming/ServerTimelineStream.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <RazorComponent Include="App.razor" />
+    <RazorComponent Include="_Imports.razor" />
+  </ItemGroup>
+</Project>

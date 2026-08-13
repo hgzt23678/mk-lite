@@ -168,7 +168,7 @@ public sealed class NoteDetailedTests : BunitContext
 
     private static NoteViewModel Note(string id, string text, NoteAuthorViewModel author) => new(
         Guid.NewGuid(), id, new DateTimeOffset(2026, 8, 4, 12, 0, 0, TimeSpan.Zero), author, text, null,
-        ActivityPub.Domain.Visibility.Public, null, 0, 0, 0, false, new Dictionary<string, long>(StringComparer.Ordinal), null,
+        ActivityPub.Misskey.Blazor.Presentation.Visibility.Public, null, 0, 0, 0, false, new Dictionary<string, long>(StringComparer.Ordinal), null,
         [], [], [], new Dictionary<string, string>(StringComparer.Ordinal), null, null);
 
     private static NoteAuthorViewModel Alice() => new("alice-id", "alice", "alice", "Alice", "/media/alice", false);

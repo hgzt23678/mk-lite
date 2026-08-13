@@ -25,7 +25,7 @@ public sealed class MisskeyFilterTests
     [Fact]
     public void NotePageRejectsPathInjection()
     {
-        Assert.Equal("/notes/note-id", MisskeyNoteFilter.Page("note-id"));
+        Assert.Equal("notes/note-id", MisskeyNoteFilter.Page("note-id"));
         Assert.Throws<ArgumentException>(() => MisskeyNoteFilter.Page("note/id"));
     }
 

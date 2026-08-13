@@ -23,7 +23,7 @@
         </div>
         <div class="middle">
             <a class="item index @ActiveClass(string.Empty, exact: true)"
-               href="/"
+               href=""
                title="@Localizer.Translate("timeline")">
                 <i class="icon fas fa-home fa-fw"></i><span class="text">@Localizer.Translate("timeline")</span>
             </a>
@@ -61,7 +61,7 @@
             }
             @if (ShowControlPanel)
             {
-                <a class="item @ActiveClass("admin")" href="/admin" title="@Localizer.Translate("controlPanel")">
+                <a class="item @ActiveClass("admin")" href="admin" title="@Localizer.Translate("controlPanel")">
                     <i class="icon fas fa-door-open fa-fw"></i><span class="text">@Localizer.Translate("controlPanel")</span>
                 </a>
             }
@@ -73,7 +73,7 @@
             }
             @if (ShowSettings)
             {
-                <a class="item @ActiveClass("settings")" href="/settings" title="@Localizer.Translate("settings")">
+                <a class="item @ActiveClass("settings")" href="settings" title="@Localizer.Translate("settings")">
                     <i class="icon fas fa-cog fa-fw"></i><span class="text">@Localizer.Translate("settings")</span>
                 </a>
             }
@@ -324,7 +324,7 @@
         item.Href is not null && RouteAvailable(item.Href);
 
     private static bool RouteAvailable(string path) => AvailableRoutes.Contains(path.Trim('/'));
-    private static string AppHref(string relativePath) => $"/{relativePath.TrimStart('/')}";
+    private static string AppHref(string relativePath) => relativePath.TrimStart('/');
 
     private string ActiveClass(string relativePath, bool exact = false)
     {

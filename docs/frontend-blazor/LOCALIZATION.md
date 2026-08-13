@@ -34,19 +34,13 @@ interpolationは引数の列挙順に進め、各`{name}`の最初の一件だ�
 
 25言語はfallback後に各1632個のstring leafを持つことを起動時と自動試験で検査する。
 
-## SSRとinteractive circuit
+## WASM bootstrap
 
-document requestでは、検証済み`misskey.lang` cookieを`Accept-Language`より優先する。
+WASMはruntimeの`CurrentUICulture`から対応localeを選び、exact locale、primary language、`ja-JP`の順に解決する。Host、PublicBaseUri、Tailscale hostnameはlocale選択へ使用しない。
 
-cookieが無効な場合はquality付き`Accept-Language`を評価し、exact locale、primary language、`ja-JP`の順に解決する。
+`MisskeyLocalizationHost`は起動後に型付きES moduleから上流互換の`localStorage.lang`を読み、25件のallowlistを通過した値だけを適用する。選択結果は`html.lang`、`html.dir`、localizer stateへ同期する。
 
-Host、PublicBaseUri、Tailscale hostnameはlocale選択へ使用しない。
-
-document middlewareはSSR前にrequest cultureを選択localeへ設定し、同じlocaleを`Path=/app`、`SameSite=Lax`、一年期限のcookieへ確定する。
-
-HTTPSではcookieへ`Secure`を付ける。
-
-このcookieを最初のSignalR接続も送信するため、Firefoxでdocumentとcircuitの`Accept-Language`が異なる場合もhydrate後に言語が反転しない。
+locale変更はbrowser内で完結し、server circuitやSignalRへ依存しない。
 
 ## 旧Vue storageの移行
 
@@ -68,7 +62,7 @@ module、storage listener、`DotNetObjectReference`、JavaScript handleはcompon
 
 `LocalizationHostTests`はhydrate時のstate変更、descendant rerender、JavaScript handleのdisposeを検証する。
 
-`localization-parity.spec.ts`はChromium、Firefox、WebKitでSSR、API、storage移行、cookie、`html.lang`、`html.dir`、`MkContainer`の`showMore`を検証する。
+`localization-parity.spec.ts`はChromium、Firefox、WebKitでWASM起動、storage移行、`html.lang`、`html.dir`、`MkContainer`の`showMore`を検証する。
 
 この基盤の完了は、全画面のhard-coded labelが移植済みであることを意味しない。
 

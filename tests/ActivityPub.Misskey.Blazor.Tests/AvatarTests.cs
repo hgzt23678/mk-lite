@@ -38,7 +38,7 @@ public sealed class AvatarTests : BunitContext
         IElement root = component.Find("a");
         Assert.Equal("eiwwqkts _noSelect cat fixture-avatar consumer-avatar", root.ClassName);
         Assert.Equal("color: #979695; width: 64px; height: 64px;", root.GetAttribute("style"));
-        Assert.Equal("/@alice@remote.example", root.GetAttribute("href"));
+        Assert.Equal("@alice@remote.example", root.GetAttribute("href"));
         Assert.Equal("@alice@remote.example", root.GetAttribute("title"));
         Assert.Equal("_blank", root.GetAttribute("target"));
         Assert.Equal("alice-id", root.GetAttribute("data-user-preview"));

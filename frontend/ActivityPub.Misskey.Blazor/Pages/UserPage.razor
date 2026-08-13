@@ -125,7 +125,7 @@
 
     private string? BannerStyle => SameOriginMediaUrl.CssBackgroundImage(user?.BannerUrl);
 
-    private string UserHref(string suffix = "") => $"/@{user?.User.Acct}{suffix}";
+    private string UserHref(string suffix = "") => $"@{user?.User.Acct}{suffix}";
 
     private MkPageHeaderMetadata? HeaderMetadata => user is null
         ? null

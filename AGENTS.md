@@ -4,7 +4,7 @@
 
 この文書は`/root/new-project`以下の全作業へ適用する。
 
-このリポジトリは、.NET 10、ASP.NET Core、PostgreSQLによるActivityPubサーバーと、Misskey 12.119.2のUIをRazorへ移植したサーバーサイドInteractive Blazorフロントエンドを含む。
+このリポジトリは、.NET 10、ASP.NET Core、PostgreSQLによるActivityPubサーバーと、Misskey 12.119.2のUIをRazorへ移植したstandalone Blazor WebAssemblyフロントエンドを含む。
 
 最優先目標は、既存機能を整理し直すことではなく、未完了の移植を機能単位で完了させることである。
 
@@ -109,9 +109,13 @@ Driveやchartなどバックエンド契約が存在しない機能は、`docs/f
 
 ## フロントエンドの不変条件
 
-主要UIはASP.NET Coreのstatic SSRとInteractive Serverを使用する。
+主要UIはstandalone Blazor WebAssemblyを使用し、ASP.NET Coreが同一originの`/app/`で静的成果物を配信する。
 
-Blazor WebAssemblyへ変更してはならない。
+本番経路へInteractive Server、Blazor circuit、`blazor.web.js`、`/_blazor`を再導入してはならない。比較用のInteractive Server TestHostは製品経路から分離する。
+
+WASM成果物へApplication、Domain、Persistence、MisskeyApi、Identity、EF Core、Npgsqlなどのserver assemblyを含めない。Razor Componentはbrowser-safe Presentation interfaceだけへ依存し、実処理は同一originのMisskey HTTP APIと`/streaming` WebSocketへ接続する。
+
+認証はHttpOnly session Cookieを正本とし、CSRF request tokenはWASM memoryだけに保持する。access token、refresh token、MiAuth tokenをlocalStorage、sessionStorage、IndexedDB、URLへ保存しない。
 
 アプリケーションの基準pathは`/app/`を維持する。
 
@@ -243,7 +247,7 @@ dotnet test ActivityPubServer.slnx --configuration Release --no-build
 
 移植状況の正本は`upstream-port-map.json`であり、Markdownに記載された古い件数ではない。
 
-2026-08-12 UTCの現行生成mappingは535件のうち、`implemented` 329件、`in-progress` 0件、`blocked` 0件、`planned` 0件、`excluded` 206件、`unclassified` 0件である。excludedは専用backend feature 34件と、Dolphinの未提供または不完全な契約を明示する `remaining-dolphin-contract-gaps` 172件に分かれる。ここでの`implemented`は該当sourceに対する証拠付き分類であり、フロントエンド全体の完成を意味しない。
+2026-08-13 UTCのsource inventoryは535件を分類する。製品port mapは現行supported scopeの`implemented` 330件を収録し、残りはDolphin backend契約の専用exclusionまたは`remaining-dolphin-contract-gaps`としてinventory側へ記録する。ここでの`implemented`は該当sourceに対する証拠付き分類であり、WASM本番経路やフロントエンド全体の完成を意味しない。
 
 この数は作業開始時に必ず再生成または再集計し、固定値として扱わない。
 
