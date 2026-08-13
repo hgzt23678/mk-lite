@@ -111,13 +111,14 @@ frontend runtime configはOIDC authority、callback、source URLを検証し、p
 
 ## License とsource提供
 
-frontendはGNU AGPL v3 onlyである。
-`LICENSE` と `NOTICE.md` をpackageに含める。
+リポジトリとfrontendはGNU AGPL v3 onlyである。
+ルートと各Misskey由来frontendディレクトリの`LICENSE`と`NOTICE.md`を配布sourceに含める。
 `Frontend:SourceUrl` は配信中の変更を再現できる完全な対応sourceのexact revisionを指す。
 release ownerはnetwork useと配布条件を法務確認する。
 
 依存licenseはexact lockfileからfail-closedで検査する。
 npm metadataにlicense fieldがないpackageは、配布archive内のlicenseをexact versionごとに監査した場合だけ許可する。
+browserへ配布する第三者artifactのlicense本文は`frontend/ActivityPub.Misskey.Blazor/wwwroot/vendor`へ同梱し、生成scriptの`--check`で欠落を拒否する。
 
 ## 検証方法
 
@@ -132,8 +133,8 @@ node eng/check-frontend-licenses.mjs
 docker build --tag activitypub-server:frontend .
 ```
 
-2026-08-04 UTCの再現では、固定upstream 573/573 files、strict adapter typecheck、Vitest 14 tests、Vue oracle production build、npm audit 0 vulnerabilities、license gateを通過した。
-Blazorでは263件の.NET試験、192件のローカル3-browser試験、3件のTailnet試験を通した。登録・ログイン共通部品を含む40個の`in-progress` sourceだけが対象であり、登録・ログインflow全体の成功を意味しない。
+2026-08-13 UTCの再現では、固定upstream 573/573 files、inventory 535 source、Blazor component test 536件、solution全体の.NET試験913件、認証・登録・passkeyのChromium smoke 11件を通した。
+mappingは`implemented` 329、`excluded` 206、`in-progress`、`planned`、`blocked`、`unclassified`はいずれも0である。`excluded`はDolphin側に必要なbackend契約が存在しない機能であり、完全互換の宣言には含めない。
 登録、ログイン、全route visual differential、全Vue挙動、全animation、未実装Misskey APIの契約試験は未完了である。
 
 参照元は [Misskey 12.119.2](https://github.com/misskey-dev/misskey/tree/12.119.2/packages/client) と [同tagのlicense](https://github.com/misskey-dev/misskey/blob/12.119.2/LICENSE) である。

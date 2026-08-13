@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -11,9 +11,13 @@ const frontendRequire = createRequire(path.join(repositoryRoot, 'frontend/misske
 const packageJsonPath = frontendRequire.resolve('matter-js/package.json');
 const packageRoot = path.dirname(packageJsonPath);
 const sourcePath = path.join(packageRoot, 'build/matter.min.js');
+const licenseSourcePath = path.join(packageRoot, 'LICENSE');
 const outputPath = path.join(
   repositoryRoot,
   'frontend/ActivityPub.Misskey.Blazor/wwwroot/vendor/matter-0.18.0.min.js');
+const licenseOutputPath = path.join(
+  repositoryRoot,
+  'frontend/ActivityPub.Misskey.Blazor/wwwroot/vendor/matter/LICENSE.txt');
 
 const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8'));
 if (packageJson.version !== '0.18.0' || packageJson.license !== 'MIT') {
@@ -21,6 +25,7 @@ if (packageJson.version !== '0.18.0' || packageJson.license !== 'MIT') {
 }
 
 const source = await readFile(sourcePath, 'utf8');
+const license = await readFile(licenseSourcePath, 'utf8');
 const digest = createHash('sha256').update(source).digest('hex');
 const generated = [
   `/* Pinned matter-js ${packageJson.version} (${packageJson.license}); source SHA-256: ${digest}. */`,
@@ -29,10 +34,17 @@ const generated = [
 
 if (process.argv.includes('--check')) {
   const current = await readFile(outputPath, 'utf8').catch(() => '');
+  const currentLicense = await readFile(licenseOutputPath, 'utf8').catch(() => '');
   if (current !== generated) {
     process.stderr.write('Generated Matter.js browser artifact is stale.\n');
     process.exitCode = 1;
   }
+  if (currentLicense !== license) {
+    process.stderr.write('Bundled Matter.js license is stale.\n');
+    process.exitCode = 1;
+  }
 } else {
+  await mkdir(path.dirname(licenseOutputPath), { recursive: true });
   await writeFile(outputPath, generated, 'utf8');
+  await writeFile(licenseOutputPath, license, 'utf8');
 }
