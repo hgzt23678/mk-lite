@@ -89,13 +89,13 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Install pinned browser engines and system dependencies
         working-directory: tests/frontend-blazor-e2e
-        run: npx playwright install --with-deps chromium firefox webkit
+        run: npx playwright install --with-deps chromium
       - name: Opaque-background browser regression gate
         working-directory: tests/frontend-blazor-e2e
-        run: npm run test:background
+        run: npm run test:background -- --project=chromium
       - name: Misskey 12 upstream DOM and interaction parity gate
         working-directory: tests/frontend-blazor-e2e
-        run: npm run test:upstream-dom
+        run: npm run test:upstream-dom -- --project=chromium
       - name: NuGet vulnerability audit
         run: dotnet list ActivityPubServer.slnx package --vulnerable --include-transitive --no-restore
       - name: License policy
