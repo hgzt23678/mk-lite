@@ -67,6 +67,7 @@ const sources = [
   'components/MkMediaList.vue',
   'components/MkMediaVideo.vue',
   'components/MkNote.vue',
+  'components/MkNoteDetailed.vue',
   'components/MkNotifications.vue',
   'components/MkNoteHeader.vue',
   'components/MkNotes.vue',
@@ -97,12 +98,21 @@ const sources = [
   'ui/visitor/kanban.vue',
   'ui/universal.vue',
   'ui/universal.widgets.vue',
+  'components/MkInstanceCardMini.vue',
+  'components/MkUserCardMini.vue',
+  'pages/note.vue',
 ];
 
 // CSS Modules are part of the rendered Misskey contract. These names come from the pinned
 // 12.119.2 oracle build in frontend/misskey-v12/dist and keep module styles from leaking through
 // generic selectors such as `.content` and `.root`.
 const moduleClassMaps = new Map([
+  ['components/MkInstanceCardMini.vue', new Map([
+    ['root', '_root_gc11e_1'],
+  ])],
+  ['components/MkUserCardMini.vue', new Map([
+    ['root', '_root_18erp_1'],
+  ])],
   ['components/MkMarquee.vue', new Map([
     ['wrap', '_wrap_1hc4p_1'],
     ['content', '_content_1hc4p_9'],
@@ -224,7 +234,7 @@ const generated = [
   ' */',
   ...sections,
   '',
-].join('\n\n');
+].join('\n\n').trimEnd() + '\n';
 
 if (checkOnly) {
   const current = await readFile(outputPath, 'utf8').catch(() => '');

@@ -4,7 +4,7 @@
 
  * Do not hand-edit. Run: npm --prefix frontend/misskey-v12 run blazor:styles
 
- * Source-set SHA-256: b3299e3e88cefd2d677322765504fc328398b8f2ffb702ab702b29b4a92da6d0
+ * Source-set SHA-256: 564dd33918ac150a8fe38a9b89a2b122317aed30e0bab2af21eb982c5dfe676c
 
  */
 
@@ -3536,6 +3536,12 @@ hr {
   margin-right: 12px;
 }
 
+.muted {
+  padding: 8px;
+  text-align: center;
+  opacity: 0.7;
+}
+
 /* upstream: components/MkNotifications.vue#style-1 */
 .elsfgstc {
   background: var(--panel);
@@ -5645,6 +5651,16 @@ hr {
 }
 
 /* upstream: pages/note.vue#style-1 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.125s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
 .fcuexfpr {
   background: var(--bg);
 }
