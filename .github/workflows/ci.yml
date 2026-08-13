@@ -80,6 +80,8 @@ jobs:
         run: dotnet format ActivityPubServer.slnx --verify-no-changes --no-restore
       - name: Release build
         run: dotnet build ActivityPubServer.slnx --configuration Release --no-restore
+      - name: Install media test tools
+        run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends ffmpeg
       - name: Unit, integration, security, and migration tests
         run: dotnet test ActivityPubServer.slnx --configuration Release --no-build --logger "trx;LogFilePrefix=tests"
       - name: Restore Blazor browser-test dependencies
