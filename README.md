@@ -2,7 +2,7 @@
   <img src="frontend/misskey-v12/public/static-assets/splash.png" width="132" alt="mk-lite logo">
 </p>
 
-<h1 align="center">mk-lite</h1>
+<h1 align="center">mkdotnet</h1>
 
 <p align="center">
   PostgreSQLの耐久キューでActivityPubを運び、Misskey v12の画面をBlazorで提供する.NET製Fediverseサーバー
