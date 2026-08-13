@@ -3,6 +3,8 @@
 .idea/
 .vs/
 .vscode/
+!frontend/misskey-v12/.vscode/
+!frontend/misskey-v12/.vscode/settings.json
 .DS_Store
 Thumbs.db
 *.swp
