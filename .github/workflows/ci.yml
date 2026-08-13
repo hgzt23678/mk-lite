@@ -41,6 +41,10 @@ jobs:
       - name: Restore locked frontend dependencies
         working-directory: frontend/misskey-v12
         run: npm ci --ignore-scripts
+      - name: Fixed-version API inventory completeness
+        run: bash eng/api-inventory.sh check
+      - name: Generate transient frontend inventory
+        run: npm --prefix frontend/misskey-v12 run inventory
       - name: Frontend type, unit, build, vulnerability, and license gates
         run: |
           npm --prefix frontend/misskey-v12 run typecheck
@@ -49,8 +53,6 @@ jobs:
           npm --prefix frontend/misskey-v12 run build
           npm --prefix frontend/misskey-v12 audit --audit-level=high
           node eng/check-frontend-licenses.mjs
-      - name: Fixed-version API inventory completeness
-        run: bash eng/api-inventory.sh check
       - name: Dolphin backend contract inventory completeness
         run: node eng/generate-dolphin-contract.mjs --check
       - name: Misskey frontend inventory completeness

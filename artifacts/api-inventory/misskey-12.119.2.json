@@ -19778,7 +19778,7 @@
         }
       ],
       "implementation": "blocked",
-      "blockedReason": "No adapter route exists."
+      "blockedReason": "Route exists, but complete contract and persistence-side-effect evidence is missing."
     },
     {
       "method": [
@@ -19881,7 +19881,7 @@
         }
       ],
       "implementation": "blocked",
-      "blockedReason": "No adapter route exists."
+      "blockedReason": "Route exists, but complete contract and persistence-side-effect evidence is missing."
     },
     {
       "method": [
@@ -21715,7 +21715,7 @@
         }
       ],
       "implementation": "blocked",
-      "blockedReason": "No adapter route exists."
+      "blockedReason": "Route exists, but complete contract and persistence-side-effect evidence is missing."
     },
     {
       "method": [

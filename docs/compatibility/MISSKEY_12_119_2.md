@@ -296,8 +296,8 @@ Inventory: 321 routes; implemented 23, failed 0, blocked 298.
 | POST | `/api/username/available` | none | implemented |  |
 | POST | `/api/users` | none | blocked | No adapter route exists. |
 | POST | `/api/users/clips` | none | blocked | No adapter route exists. |
-| POST | `/api/users/followers` | none | blocked | No adapter route exists. |
-| POST | `/api/users/following` | none | blocked | No adapter route exists. |
+| POST | `/api/users/followers` | none | blocked | Route exists, but complete contract and persistence-side-effect evidence is missing. |
+| POST | `/api/users/following` | none | blocked | Route exists, but complete contract and persistence-side-effect evidence is missing. |
 | POST | `/api/users/gallery/posts` | none | blocked | No adapter route exists. |
 | POST | `/api/users/get-frequently-replied-users` | none | blocked | No adapter route exists. |
 | POST | `/api/users/groups/create` | Misskey token | blocked | No adapter route exists. |
@@ -325,7 +325,7 @@ Inventory: 321 routes; implemented 23, failed 0, blocked 298.
 | POST | `/api/users/recommendation` | Misskey token | blocked | No adapter route exists. |
 | POST | `/api/users/relation` | Misskey token | implemented |  |
 | POST | `/api/users/report-abuse` | Misskey token | blocked | No adapter route exists. |
-| POST | `/api/users/search` | none | blocked | No adapter route exists. |
+| POST | `/api/users/search` | none | blocked | Route exists, but complete contract and persistence-side-effect evidence is missing. |
 | POST | `/api/users/search-by-username-and-host` | none | blocked | Route exists, but complete contract and persistence-side-effect evidence is missing. |
 | POST | `/api/users/show` | none | blocked | Route exists, but complete contract and persistence-side-effect evidence is missing. |
 | POST | `/api/users/stats` | none | blocked | No adapter route exists. |
