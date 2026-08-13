@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 FROM mcr.microsoft.com/dotnet/sdk:10.0.302-noble@sha256:72dd743782f2ae7e5476fd64f6a460045e3998dc862218b80e6944cba79a01b0 AS build
 WORKDIR /source
-COPY .editorconfig Directory.Build.props Directory.Packages.props global.json ./
+COPY .editorconfig Directory.Build.props Directory.Packages.props global.json LICENSE NOTICE.md ./
 COPY src/ ./src/
 COPY frontend/ActivityPub.Misskey.Blazor/ ./frontend/ActivityPub.Misskey.Blazor/
 COPY frontend/misskey-v12/public/static-assets/ ./frontend/misskey-v12/public/static-assets/
@@ -21,6 +21,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build --chown=$APP_UID:$APP_UID /out/ ./
+COPY --from=build --chown=$APP_UID:$APP_UID /source/LICENSE /source/NOTICE.md ./
 ENV ASPNETCORE_HTTP_PORTS=8080 \
     DOTNET_EnableDiagnostics=0 \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \

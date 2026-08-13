@@ -2,6 +2,7 @@
   "name": "activitypub-misskey-blazor-e2e",
   "version": "1.0.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "scripts": {
     "test": "playwright test",
     "test:background": "playwright test background-opacity.spec.ts",

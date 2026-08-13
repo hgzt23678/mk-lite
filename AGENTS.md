@@ -18,7 +18,7 @@
 4. 日付の新しい検証文書とADR。
 5. `README.md`と古い引き継ぎ文書。
 
-`OPENCODE_HANDOFF_AP_IMPLEMENTATION.md`と2026-08-04以前の文書には、現在より古い移植率、テスト数、OIDC前提が含まれる。
+Git追跡対象外のローカル文書`OPENCODE_HANDOFF_AP_IMPLEMENTATION.md`が存在する場合と、2026-08-04以前の文書には、現在より古い移植率、テスト数、OIDC前提が含まれる。
 
 それらを現状の根拠として無条件に転記しないこと。
 

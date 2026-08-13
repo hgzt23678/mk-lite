@@ -1,6 +1,8 @@
-# Misskey v12 client port notice
+# Misskey v12 comparison source notice
 
-This directory contains a modified port of the Misskey web client.
+This directory contains a fixed, modified copy of the Misskey web client used
+as the visual and behavioral reference for the Blazor port and as input to the
+generated migration inventory. It is not the production frontend runtime.
 
 - Upstream project: Misskey
 - Upstream release: `12.119.2`
@@ -14,10 +16,9 @@ the URL configured as `Frontend:SourceUrl`. The URL must identify the exact
 revision containing this frontend, its build configuration, dependency lock
 file, backend adapters, and modifications.
 
-Modifications in this port include the ASP.NET Core runtime bootstrap, OIDC
-Authorization Code with PKCE integration, Bearer-token Misskey API adapter,
-idempotency headers, removal of the upstream service-worker server assumptions,
-same-origin media boundaries, and build-tool compatibility changes.
+Modifications in this copy include inventory instrumentation, parity fixtures,
+build-tool compatibility changes, generated-data checks, and the removal or
+isolation of assumptions that require the original Misskey server runtime.
 
 Third-party dependencies and bundled assets retain their own copyright and
 license terms. `eng/check-frontend-licenses.mjs` inventories the exact locked

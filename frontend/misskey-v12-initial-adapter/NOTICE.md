@@ -10,5 +10,6 @@ The deployed interface must configure `Frontend:SourceUrl` to the complete corre
 source for the exact modified version in service. The interface exposes that URL as
 「このクライアントのソース」. There is no warranty, to the extent permitted by law.
 
-The .NET backend is a separate work and keeps its own licensing terms. This notice is not
-legal advice; release owners must review distribution and network-use obligations.
+Other repository directories are covered by the root `LICENSE` unless a local license
+or third-party notice states otherwise. Release owners must review distribution and
+network-use obligations before deployment.

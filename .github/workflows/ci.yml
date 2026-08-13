@@ -60,6 +60,7 @@ jobs:
           npm --prefix frontend/misskey-v12 run blazor:emoji-data:check
           npm --prefix frontend/misskey-v12 run blazor:locales:check
           npm --prefix frontend/misskey-v12 run blazor:mfm:check
+          npm --prefix frontend/misskey-v12 run blazor:blurhash:check
           npm --prefix frontend/misskey-v12 run blazor:matter:check
           node eng/generate-blazor-themes.mjs --check
       - name: Restore locked dependencies

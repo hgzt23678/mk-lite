@@ -10,7 +10,7 @@ x-app-environment: &app-environment
   Authentication__Audience: activitypub-api
   Frontend__Enabled: "true"
   Frontend__ClientId: activitypub-web
-  Frontend__SourceUrl: https://github.com/example/activitypub-server
+  Frontend__SourceUrl: https://github.com/hgzt23678/mk-lite
   KeyManagement__Enabled: "true"
   VaultTransit__Address: http://vault:8200
   VaultTransit__Mount: transit
