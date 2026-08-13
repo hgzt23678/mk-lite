@@ -42,6 +42,63 @@ body {
     color: var(--fg);
 }
 
+/* MkNote's pinned v-size breakpoints are presentation-only. Keep them in the browser so a
+   resizing timeline does not send one ResizeObserver callback and render batch per note. */
+.sqadhkmv,
+.misskey-note-container {
+    container-name: misskey-note;
+    container-type: inline-size;
+}
+
+@container misskey-note (max-width: 500px) {
+    .tkcbzcuz {
+        font-size: 0.9em;
+    }
+
+    .tkcbzcuz > .article > .avatar {
+        width: 50px;
+        height: 50px;
+    }
+}
+
+@container misskey-note (max-width: 450px) {
+    .tkcbzcuz > .renote {
+        padding: 8px 16px 0 16px;
+    }
+
+    .tkcbzcuz > .info {
+        padding: 8px 16px 0 16px;
+    }
+
+    .tkcbzcuz[data-note-id] > .article {
+        padding: 14px 16px 9px;
+    }
+
+    .tkcbzcuz > .article > .avatar {
+        width: 46px;
+        height: 46px;
+        margin: 0 10px 8px 0;
+        top: calc(14px + var(--stickyTop, 0px));
+    }
+}
+
+@container misskey-note (max-width: 350px) {
+    .tkcbzcuz > .article > .main > .footer > .button:not(:last-child) {
+        margin-right: 18px;
+    }
+}
+
+@container misskey-note (max-width: 300px) {
+    .tkcbzcuz > .article > .avatar {
+        width: 44px;
+        height: 44px;
+    }
+
+    .tkcbzcuz > .article > .main > .footer > .button:not(:last-child) {
+        margin-right: 12px;
+    }
+}
+
 /* MkSignin.vue passes with-password-toggle to the pinned input primitive.  The Vue 3
    fall-through never implemented the control, so the Razor port completes that intended
    interaction without changing the surrounding MkInput DOM or exposing the value to a

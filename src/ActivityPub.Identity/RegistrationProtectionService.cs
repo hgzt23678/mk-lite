@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using ActivityPub.Application;
 using ActivityPub.Domain;
 using Microsoft.Extensions.Logging;
@@ -81,9 +82,13 @@ public sealed class RegistrationProtectionService(
             {
                 RegistrationCaptchaProvider.Hcaptcha => protection.HcaptchaResponse,
                 RegistrationCaptchaProvider.Recaptcha => protection.RecaptchaResponse,
+                RegistrationCaptchaProvider.Turnstile => protection.TurnstileResponse,
                 _ => null
             };
-            if (string.IsNullOrWhiteSpace(response) || response.Length > 8_192)
+            int maximumResponseLength = options.CaptchaProvider == RegistrationCaptchaProvider.Turnstile
+                ? 2_048
+                : 8_192;
+            if (string.IsNullOrWhiteSpace(response) || response.Length > maximumResponseLength)
             {
                 return new(RegistrationProtectionStatus.CaptchaInvalid, null);
             }
@@ -147,6 +152,7 @@ public sealed partial class RegistrationCaptchaVerifier(
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly Uri HcaptchaVerificationUri = new("https://api.hcaptcha.com/siteverify");
     private static readonly Uri RecaptchaVerificationUri = new("https://www.google.com/recaptcha/api/siteverify");
+    private static readonly Uri TurnstileVerificationUri = new("https://challenges.cloudflare.com/turnstile/v0/siteverify");
 
     public async Task<RegistrationCaptchaVerificationResult> VerifyAsync(
         RegistrationCaptchaProvider provider,
@@ -154,7 +160,9 @@ public sealed partial class RegistrationCaptchaVerifier(
         string? remoteIpAddress,
         CancellationToken cancellationToken)
     {
-        if (provider == RegistrationCaptchaProvider.None || string.IsNullOrWhiteSpace(response) || response.Length > 8_192)
+        int maximumResponseLength = provider == RegistrationCaptchaProvider.Turnstile ? 2_048 : 8_192;
+        if (provider == RegistrationCaptchaProvider.None || string.IsNullOrWhiteSpace(response) ||
+            response.Length > maximumResponseLength)
         {
             return RegistrationCaptchaVerificationResult.Invalid;
         }
@@ -180,6 +188,7 @@ public sealed partial class RegistrationCaptchaVerifier(
         {
             RegistrationCaptchaProvider.Hcaptcha => HcaptchaVerificationUri,
             RegistrationCaptchaProvider.Recaptcha => RecaptchaVerificationUri,
+            RegistrationCaptchaProvider.Turnstile => TurnstileVerificationUri,
             _ => throw new ArgumentOutOfRangeException(nameof(provider))
         };
         var fields = new Dictionary<string, string>
@@ -191,6 +200,10 @@ public sealed partial class RegistrationCaptchaVerifier(
         {
             fields["sitekey"] = options.CaptchaSiteKey;
         }
+        else if (provider == RegistrationCaptchaProvider.Turnstile)
+        {
+            fields["idempotency_key"] = Guid.NewGuid().ToString("D");
+        }
 
         if (System.Net.IPAddress.TryParse(remoteIpAddress, out System.Net.IPAddress? remoteAddress) &&
             !System.Net.IPAddress.IsLoopback(remoteAddress))
@@ -198,34 +211,63 @@ public sealed partial class RegistrationCaptchaVerifier(
             fields["remoteip"] = remoteAddress.ToString();
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
-        {
-            Content = new FormUrlEncodedContent(fields)
-        };
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(options.CaptchaVerificationTimeout);
         try
         {
-            using HttpResponseMessage result = await client.SendAsync(
-                request,
-                HttpCompletionOption.ResponseHeadersRead,
-                timeout.Token).ConfigureAwait(false);
-            if (result.StatusCode != HttpStatusCode.OK ||
-                result.Content.Headers.ContentLength is > 32_768)
+            int maximumAttempts = provider == RegistrationCaptchaProvider.Turnstile ? 2 : 1;
+            for (int attempt = 1; attempt <= maximumAttempts; attempt++)
             {
-                LogProviderFailure(logger, provider.ToString(), $"http-{(int)result.StatusCode}");
-                return RegistrationCaptchaVerificationResult.Unavailable;
+                using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                {
+                    Content = new FormUrlEncodedContent(fields)
+                };
+                HttpResponseMessage result;
+                try
+                {
+                    result = await client.SendAsync(
+                        request,
+                        HttpCompletionOption.ResponseHeadersRead,
+                        timeout.Token).ConfigureAwait(false);
+                }
+                catch (HttpRequestException) when (
+                    provider == RegistrationCaptchaProvider.Turnstile && attempt < maximumAttempts)
+                {
+                    continue;
+                }
+
+                using (result)
+                {
+                    if (result.StatusCode != HttpStatusCode.OK ||
+                        result.Content.Headers.ContentLength is > 32_768)
+                    {
+                        if (provider == RegistrationCaptchaProvider.Turnstile && attempt < maximumAttempts &&
+                            IsTransientTurnstileStatus(result.StatusCode))
+                        {
+                            continue;
+                        }
+
+                        LogProviderFailure(logger, provider.ToString(), $"http-{(int)result.StatusCode}");
+                        return RegistrationCaptchaVerificationResult.Unavailable;
+                    }
+
+                    CaptchaResponse? payload = await ReadBoundedResponseAsync(result.Content, timeout.Token).ConfigureAwait(false);
+                    bool hostnameMatches = string.IsNullOrWhiteSpace(options.CaptchaExpectedHostname) ||
+                        string.Equals(payload?.Hostname, options.CaptchaExpectedHostname, StringComparison.OrdinalIgnoreCase);
+                    bool siteKeyMatches = provider != RegistrationCaptchaProvider.Hcaptcha ||
+                        string.IsNullOrWhiteSpace(payload?.SiteKey) ||
+                        string.Equals(payload.SiteKey, options.CaptchaSiteKey, StringComparison.Ordinal);
+                    bool actionMatches = provider != RegistrationCaptchaProvider.Turnstile ||
+                        string.Equals(payload?.Action, options.CaptchaExpectedAction, StringComparison.Ordinal);
+                    bool cdataMatches = provider != RegistrationCaptchaProvider.Turnstile ||
+                        string.Equals(payload?.Cdata, options.CaptchaExpectedCdata, StringComparison.Ordinal);
+                    return payload?.Success == true && hostnameMatches && siteKeyMatches && actionMatches && cdataMatches
+                        ? RegistrationCaptchaVerificationResult.Valid
+                        : RegistrationCaptchaVerificationResult.Invalid;
+                }
             }
 
-            CaptchaResponse? payload = await ReadBoundedResponseAsync(result.Content, timeout.Token).ConfigureAwait(false);
-            bool hostnameMatches = string.IsNullOrWhiteSpace(options.CaptchaExpectedHostname) ||
-                string.Equals(payload?.Hostname, options.CaptchaExpectedHostname, StringComparison.OrdinalIgnoreCase);
-            bool siteKeyMatches = provider != RegistrationCaptchaProvider.Hcaptcha ||
-                string.IsNullOrWhiteSpace(payload?.SiteKey) ||
-                string.Equals(payload.SiteKey, options.CaptchaSiteKey, StringComparison.Ordinal);
-            return payload?.Success == true && hostnameMatches && siteKeyMatches
-                ? RegistrationCaptchaVerificationResult.Valid
-                : RegistrationCaptchaVerificationResult.Invalid;
+            return RegistrationCaptchaVerificationResult.Unavailable;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -248,6 +290,10 @@ public sealed partial class RegistrationCaptchaVerifier(
         }
     }
 
+    private static bool IsTransientTurnstileStatus(HttpStatusCode statusCode) =>
+        statusCode is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests ||
+        (int)statusCode == 425 || (int)statusCode >= 500;
+
     private sealed class CaptchaResponse
     {
         public bool Success { get; init; }
@@ -255,6 +301,13 @@ public sealed partial class RegistrationCaptchaVerifier(
         public string? Hostname { get; init; }
 
         public string? SiteKey { get; init; }
+
+        public string? Action { get; init; }
+
+        public string? Cdata { get; init; }
+
+        [JsonPropertyName("error-codes")]
+        public string[]? ErrorCodes { get; init; }
     }
 
     private static async Task<string> ReadBoundedSecretAsync(string path, CancellationToken cancellationToken)

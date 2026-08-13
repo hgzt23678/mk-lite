@@ -9,15 +9,15 @@
 
 Misskey v12のDOM、CSS、画面挙動と、Dolphin基準のAPI・永続副作用・認可・連合を別々に検証する。画面だけを先に作らない。
 
-## 現在地（2026-08-12 UTC）
+## 現在地（2026-08-13 UTC）
 
 | 区分 | source数 | 扱い |
 |---|---:|---|
-| implemented | 329 | 実在するRazor target、Dolphin契約、永続副作用、認可、回帰証拠を持つsource |
+| implemented | 330 | 実在するRazor target、Dolphin契約、永続副作用、認可、回帰証拠を持つsource |
 | in-progress | 0 | 初期12件、Dolphin契約確認、現行契約で可能なsupported vertical sliceを完了 |
 | planned | 0 | 現在のworktreeで未分類の実装待ちはない |
 | blocked | 0 | 旧blocked 2件は明示的capability exclusionへ移し、危険なstubを追加していない |
-| excluded | 206 | Dolphinに完全契約がないsource。専用34件と残りの契約gapを明示的に記録 |
+| excluded | 205 | Dolphinに完全契約がないsource。専用34件と残りの契約gapを明示的に記録 |
 | unclassified | 0 | 新規source追加時以外は発生させない |
 
 生成mappingのsource分類を正本とする。API、Streaming、storage、DOMのみのsourceが重複していても、各sourceは一つのstatusだけを持つ。
@@ -25,9 +25,11 @@ Misskey v12のDOM、CSS、画面挙動と、Dolphin基準のAPI・永続副作�
 ### 今回の消化結果
 
 - 初期のin-progress 12 source：client bootstrap、directives、page-block、Nirax、note presentationのfocused sliceを実装し、Release／bUnit／Chromium evidenceを追加した。
-- planned source：Dolphinの完全契約が確認できるものは実装へ昇格し、残りは172件の `remaining-dolphin-contract-gaps` または既存34件の専用scope exclusionへ移した。plannedは0である。
+- planned source：Dolphinの完全契約が確認できるものは実装へ昇格し、残りは171件の `remaining-dolphin-contract-gaps` または既存34件の専用scope exclusionへ移した。plannedは0である。
 - blocked 2 source（AiChan／button）：CSPやAiScript sandboxを緩和せず、根拠付きscope exclusionへ移した。blockedは0である。
-- excluded：206 sourceすべてにAPI／Streaming evidence、Dolphin status、理由を生成し、placeholderや常時成功レスポンスは追加していない。
+- excluded：205 sourceすべてにAPI／Streaming evidence、Dolphin status、理由を生成し、placeholderや常時成功レスポンスは追加していない。
+
+`pages/welcome.setup.vue` は `Components/WelcomeSetup.razor` として、`meta.requireSetup`、初期管理者作成、管理者role、local actorと署名鍵、専用token、HttpOnly session Cookieへ接続した。通常のWelcome Entranceでは代用せず、同時実行時はPostgreSQLのidentity table lockで一件だけを確定し、完了後の再実行を拒否する。固定上流のDOM/CSSと不透明背景、初回送信listenerのSSR/hydration境界、作成後の認証済みtimeline遷移をChromiumで確認した。
 
 `pages/settings/theme.vue` は `Pages/SettingsTheme.razor` として、v12のテーマ切替DOM・アニメーション、20件の埋込みcatalog、`pizzax::base`のdarkMode、`miux:*Theme`の旧オブジェクト形状、検証済みThemeInteropをChromiumで確認した。Dolphinにないregistry・インストール・editor・wallpaper操作は capability=false と理由を表示し、成功を偽装しない。
 
@@ -108,7 +110,7 @@ mei23/dolphin 固定 checkout の endpoint metadata と現行 C# adapter route �
 
 `scripts/collect-page-vars.ts` は `Client/MisskeyPageVariableUtilities.cs` へ移植し、nested page blocksを文字列・数値・booleanへ変換する。`scripts/emojilist.ts` は既存の埋込み1,782件Unicode emoji catalogと9カテゴリ順を正本として再利用する。
 
-これをMisskey v12全体の移植完了とは扱わない。planned/blockedは0だが、excluded 206件はDolphinの未提供または不完全な契約により、画面stubを作らずcapability unavailableとして明示している。
+これをMisskey v12全体の移植完了とは扱わない。planned/blockedは0だが、excluded 205件はDolphinの未提供または不完全な契約により、画面stubを作らずcapability unavailableとして明示している。
 
 planned sourceを次の契約群へ分解し、Dolphinの挙動とC#実装をdifferential fixtureで固定する。
 

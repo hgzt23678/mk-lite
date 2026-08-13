@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Threading.Channels;
 using ActivityPub.Domain;
 using ActivityPub.Misskey.Blazor;
@@ -142,6 +143,50 @@ app.MapPost("/auth/credentials", () => Results.Json(
 app.MapPost("/api/signin", () => Results.Json(
     new { status = "two-factor-required", errorCode = "TWO_FACTOR_REQUIRED" },
     statusCode: StatusCodes.Status401Unauthorized));
+app.MapPost("/__test/initial-setup/{state}", (string state) =>
+{
+    if (state is not ("required" or "complete"))
+    {
+        return Results.BadRequest();
+    }
+
+    browserInstance.SetSetupRequired(state == "required");
+    return Results.NoContent();
+}).DisableAntiforgery();
+app.MapGet("/__test/initial-setup-state", () => Results.Json(new
+{
+    browserInstance.SetupRequired,
+    browserInstance.SetupCalls,
+    browserInstance.LastSetupUsername
+}));
+app.MapPost("/api/admin/accounts/create", async (HttpContext context) =>
+{
+    JsonElement body = await context.Request.ReadFromJsonAsync<JsonElement>();
+    string username = body.TryGetProperty("username", out JsonElement usernameValue)
+        ? usernameValue.GetString() ?? string.Empty
+        : string.Empty;
+    string password = body.TryGetProperty("password", out JsonElement passwordValue)
+        ? passwordValue.GetString() ?? string.Empty
+        : string.Empty;
+    if (!browserInstance.TryCompleteSetup(username, password))
+    {
+        return Results.Json(
+            new { error = new { code = "INITIAL_SETUP_FAILED" } },
+            statusCode: StatusCodes.Status400BadRequest);
+    }
+
+    Claim[] claims =
+    [
+        new(ClaimTypes.NameIdentifier, "browser-initial-admin"),
+        new(ClaimTypes.Name, username),
+        new("preferred_username", username),
+        new(ClaimTypes.Role, "activitypub-admin")
+    ];
+    await context.SignInAsync(
+        "browser-tests",
+        new ClaimsPrincipal(new ClaimsIdentity(claims, "browser-tests")));
+    return Results.Json(new { id = "browser-initial-admin", username, token = "browser-test-token" });
+}).DisableAntiforgery();
 app.MapGet("/__test/reaction-state", () => Results.Json(new
 {
     browserTimeline.CurrentNote.ViewerReaction,
@@ -201,7 +246,7 @@ app.MapPost("/__test/notification-stream/{variant}", (string variant) =>
 }).DisableAntiforgery();
 app.MapPost("/__test/registration-protection/{provider}", (string provider) =>
 {
-    if (provider is not ("none" or "hcaptcha" or "recaptcha"))
+    if (provider is not ("none" or "hcaptcha" or "recaptcha" or "turnstile"))
     {
         return Results.BadRequest(new { errorCode = "UNKNOWN_CAPTCHA_PROVIDER" });
     }
@@ -335,13 +380,45 @@ app.Run();
 internal sealed class BrowserTestInstancePresentationService : IInstancePresentationService
 {
     private string provider = "none";
+    private bool setupRequired;
+    private int setupCalls;
+    private string? lastSetupUsername;
 
     public void SetProtection(string value) => Volatile.Write(ref provider, value);
 
-    public Task<InstanceSummaryViewModel> GetAsync(CancellationToken cancellationToken) =>
-        Task.FromResult(CreateViewModel(Volatile.Read(ref provider)));
+    public bool SetupRequired => Volatile.Read(ref setupRequired);
 
-    private static InstanceSummaryViewModel CreateViewModel(string captchaProvider) => new(
+    public int SetupCalls => Volatile.Read(ref setupCalls);
+
+    public string? LastSetupUsername => Volatile.Read(ref lastSetupUsername);
+
+    public void SetSetupRequired(bool value)
+    {
+        Volatile.Write(ref setupRequired, value);
+        if (value)
+        {
+            Interlocked.Exchange(ref setupCalls, 0);
+            Volatile.Write(ref lastSetupUsername, null);
+        }
+    }
+
+    public bool TryCompleteSetup(string username, string password)
+    {
+        if (!SetupRequired || string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
+        {
+            return false;
+        }
+
+        Volatile.Write(ref lastSetupUsername, username);
+        Interlocked.Increment(ref setupCalls);
+        Volatile.Write(ref setupRequired, false);
+        return true;
+    }
+
+    public Task<InstanceSummaryViewModel> GetAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(CreateViewModel(Volatile.Read(ref provider), SetupRequired));
+
+    private static InstanceSummaryViewModel CreateViewModel(string captchaProvider, bool requireSetup) => new(
             "Browser test instance",
             "Opaque background regression host",
             "12.119.2-test",
@@ -356,8 +433,13 @@ internal sealed class BrowserTestInstancePresentationService : IInstancePresenta
             HcaptchaSiteKey: captchaProvider == "hcaptcha" ? "10000000-ffff-ffff-ffff-000000000001" : null,
             EnableRecaptcha: captchaProvider == "recaptcha",
             RecaptchaSiteKey: captchaProvider == "recaptcha" ? "test-recaptcha-site-key" : null,
+            EnableTurnstile: captchaProvider == "turnstile",
+            TurnstileSiteKey: captchaProvider == "turnstile" ? "1x00000000000000000000AA" : null,
+            TurnstileAction: captchaProvider == "turnstile" ? "signup" : null,
+            TurnstileCdata: captchaProvider == "turnstile" ? "activitypub_signup" : null,
             MaintainerName: "Browser Maintainer",
-            MaintainerEmail: "maintainer@example.test");
+            MaintainerEmail: "maintainer@example.test",
+            RequireSetup: requireSetup);
 
     public Task<IReadOnlyList<FederationInstanceViewModel>> ReadFederationInstancesAsync(
         CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<FederationInstanceViewModel>>(

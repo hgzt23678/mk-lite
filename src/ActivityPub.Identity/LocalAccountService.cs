@@ -54,6 +54,7 @@ public sealed partial class LocalAccountService(
     IRegistrationProtectionService registrationProtection,
     IAtomicLocalAccountRegistration atomicRegistration,
     IPasswordVerificationTimingEqualizer passwordTimingEqualizer,
+    RoleManager<LocalIdentityRole> roles,
     ILogger<LocalAccountService> logger) : ILocalAccountService
 {
     public async Task<LocalAccountLookup?> FindAsync(string username, CancellationToken cancellationToken)
@@ -152,6 +153,43 @@ public sealed partial class LocalAccountService(
             };
         }
 
+        return await RegisterAcceptedAsync(
+            username,
+            email,
+            password,
+            admission,
+            initialAdministrator: false,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<LocalAccountRegistrationResult> CreateInitialAdministratorAsync(
+        string username,
+        string password,
+        CancellationToken cancellationToken)
+    {
+        if (!options.Enabled)
+        {
+            return Failure(LocalAccountRegistrationStatus.RegistrationDisabled, "LOCAL_ACCOUNTS_DISABLED");
+        }
+
+        return await RegisterAcceptedAsync(
+            username,
+            email: null,
+            password,
+            new RegistrationProtectionResult(RegistrationProtectionStatus.Accepted, null),
+            initialAdministrator: true,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<LocalAccountRegistrationResult> RegisterAcceptedAsync(
+        string username,
+        string? email,
+        string password,
+        RegistrationProtectionResult admission,
+        bool initialAdministrator,
+        CancellationToken cancellationToken)
+    {
+
         bool invitationConsumed = false;
         async Task ReleaseInvitationIfNeededAsync()
         {
@@ -178,7 +216,7 @@ public sealed partial class LocalAccountService(
             return await RejectAsync(LocalAccountRegistrationStatus.InvalidUsername, "INVALID_USERNAME").ConfigureAwait(false);
         }
 
-        if (options.RequireConfirmedEmail && email is null)
+        if (!initialAdministrator && options.RequireConfirmedEmail && email is null)
         {
             return await RejectAsync(LocalAccountRegistrationStatus.InvalidEmail, "EMAIL_REQUIRED").ConfigureAwait(false);
         }
@@ -203,6 +241,13 @@ public sealed partial class LocalAccountService(
 
         DateTimeOffset now = clock.UtcNow;
         LocalIdentityUser user = LocalIdentityUser.Create(username, email, now);
+        if (initialAdministrator)
+        {
+            // The upstream first-run form intentionally has no email field. Mark this
+            // bootstrap account confirmed so a production instance that requires email for
+            // later registrations can still complete the immediate post-setup sign-in.
+            user.EmailConfirmed = true;
+        }
         var passwordErrors = new List<IdentityError>();
         foreach (IPasswordValidator<LocalIdentityUser> validator in users.PasswordValidators)
         {
@@ -278,6 +323,34 @@ public sealed partial class LocalAccountService(
             await ReleaseInvitationIfNeededAsync().ConfigureAwait(false);
             string[] safeCodes = created.Errors.Select(MapIdentityError).Distinct(StringComparer.Ordinal).ToArray();
             return new(MapRegistrationStatus(safeCodes), null, safeCodes);
+        }
+
+        if (initialAdministrator)
+        {
+            const string administratorRole = "activitypub-admin";
+            if (!await roles.RoleExistsAsync(administratorRole).ConfigureAwait(false))
+            {
+                IdentityResult roleCreated = await roles.CreateAsync(new LocalIdentityRole
+                {
+                    Name = administratorRole
+                }).ConfigureAwait(false);
+                if (!roleCreated.Succeeded)
+                {
+                    return Failure(
+                        LocalAccountRegistrationStatus.ProvisioningFailed,
+                        "ADMINISTRATOR_ROLE_PROVISIONING_FAILED",
+                        user);
+                }
+            }
+
+            IdentityResult roleAssigned = await users.AddToRoleAsync(user, administratorRole).ConfigureAwait(false);
+            if (!roleAssigned.Succeeded)
+            {
+                return Failure(
+                    LocalAccountRegistrationStatus.ProvisioningFailed,
+                    "ADMINISTRATOR_ROLE_ASSIGNMENT_FAILED",
+                    user);
+            }
         }
 
         user.BeginProvisioning(now);

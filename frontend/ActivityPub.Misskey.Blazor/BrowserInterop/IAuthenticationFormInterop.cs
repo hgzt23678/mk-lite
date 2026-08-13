@@ -18,6 +18,11 @@ public interface IAuthenticationFormInterop : IAsyncDisposable
         DotNetObjectReference<MkSignup> receiver,
         string usernameAvailabilityUrl,
         CancellationToken cancellationToken);
+
+    ValueTask<IJSObjectReference> AttachInitialSetupAsync(
+        ElementReference form,
+        DotNetObjectReference<WelcomeSetup> receiver,
+        CancellationToken cancellationToken);
 }
 
 public sealed class AuthenticationFormInterop(IJSRuntime jsRuntime) : IAuthenticationFormInterop
@@ -54,6 +59,19 @@ public sealed class AuthenticationFormInterop(IJSRuntime jsRuntime) : IAuthentic
             form,
             receiver,
             usernameAvailabilityUrl);
+    }
+
+    public async ValueTask<IJSObjectReference> AttachInitialSetupAsync(
+        ElementReference form,
+        DotNetObjectReference<WelcomeSetup> receiver,
+        CancellationToken cancellationToken)
+    {
+        IJSObjectReference imported = await GetModuleAsync(cancellationToken);
+        return await imported.InvokeAsync<IJSObjectReference>(
+            "attachInitialSetup",
+            cancellationToken,
+            form,
+            receiver);
     }
 
     private async ValueTask<IJSObjectReference> GetModuleAsync(CancellationToken cancellationToken) =>

@@ -21,6 +21,12 @@ else if (errorCode is not null)
 }
 else if (meta is not null)
 {
+    @if (meta.RequireSetup)
+    {
+        <WelcomeSetup />
+    }
+    else
+    {
     <div class="rsqzvsbo">
         <div class="top">
             <MkFeaturedPhotos CssClass="bg" />
@@ -71,6 +77,7 @@ else if (meta is not null)
             }
         </div>
     </div>
+    }
 }
 
 @code {
@@ -109,18 +116,21 @@ else if (meta is not null)
             return;
         }
 
-        try
+        if (!meta.RequireSetup)
         {
-            federationInstances = await InstanceService.ReadFederationInstancesAsync(CancellationToken.None);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            Logger.LogWarning(
-                "The welcome federation projection is unavailable. FailureType={FailureType}",
-                exception.GetType().Name);
-        }
+            try
+            {
+                federationInstances = await InstanceService.ReadFederationInstancesAsync(CancellationToken.None);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                Logger.LogWarning(
+                    "The welcome federation projection is unavailable. FailureType={FailureType}",
+                    exception.GetType().Name);
+            }
 
-        OpenAuthenticationDialogFromQuery();
+            OpenAuthenticationDialogFromQuery();
+        }
     }
 
     private void SignIn(MouseEventArgs args)

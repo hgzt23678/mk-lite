@@ -99,7 +99,9 @@ jobs:
       - name: NuGet vulnerability audit
         run: dotnet list ActivityPubServer.slnx package --vulnerable --include-transitive --no-restore
       - name: License policy
-        run: bash eng/check-licenses.sh | tee dependency-licenses.tsv
+        run: |
+          bash eng/check-licenses.sh | tee dependency-licenses.tsv
+          node eng/check-third-party-notices.mjs
       - name: Generate migration review script
         run: |
           dotnet ef migrations script --no-build --configuration Release \

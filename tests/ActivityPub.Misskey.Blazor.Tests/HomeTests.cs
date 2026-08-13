@@ -1,9 +1,11 @@
 using System.Globalization;
 using ActivityPub.Misskey.Blazor.BrowserInterop;
+using ActivityPub.Misskey.Blazor.Components;
 using ActivityPub.Misskey.Blazor.Localization;
 using ActivityPub.Misskey.Blazor.Overlays;
 using ActivityPub.Misskey.Blazor.Pages;
 using ActivityPub.Misskey.Blazor.Presentation;
+using AngleSharp.Dom;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
@@ -72,6 +74,33 @@ public sealed class HomeTests : BunitContext
         });
     }
 
+    [Fact]
+    public void RequireSetupRendersPinnedWelcomeSetupInsteadOfEntrance()
+    {
+        var instance = new SetupRequiredInstanceService();
+        Services.AddSingleton<IInstancePresentationService>(instance);
+        Services.AddSingleton<ITimelinePresentationService>(new EmptyTimelineService());
+        Services.AddScoped<IButtonRippleInterop, NoOpButtonRippleInterop>();
+        Services.AddScoped<IFormInputInterop, NoOpFormInputInterop>();
+        Services.AddScoped<IAuthenticationFormInterop, NoOpAuthenticationInterop>();
+        Services.AddScoped<IMisskeyOverlayService, MisskeyOverlayService>();
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        IRenderedComponent<Home> component = Render<Home>();
+
+        component.WaitForAssertion(() =>
+        {
+            IElement form = component.Find("form.mk-setup");
+            Assert.Equal("Welcome to Misskey!", form.QuerySelector(":scope > h1")?.TextContent);
+            Assert.NotNull(form.QuerySelector(":scope > div._formRoot > p"));
+            Assert.Equal("^[a-zA-Z0-9_]{1,20}$", form.QuerySelector("input[name=username]")?.GetAttribute("pattern"));
+            Assert.Equal("password", form.QuerySelector("input[name=password]")?.GetAttribute("type"));
+            Assert.NotNull(form.QuerySelector(":scope > div._formRoot > .bottom._formBlock [data-cy-admin-ok]"));
+            Assert.Empty(component.FindAll(".rsqzvsbo"));
+            Assert.Equal(0, instance.FederationReads);
+        });
+    }
+
     private sealed class SuccessfulInstanceService : IInstancePresentationService
     {
         public Task<InstanceSummaryViewModel> GetAsync(CancellationToken cancellationToken) => Task.FromResult(
@@ -103,6 +132,32 @@ public sealed class HomeTests : BunitContext
         public Task<IReadOnlyList<FederationInstanceViewModel>> ReadFederationInstancesAsync(
             CancellationToken cancellationToken) => throw new InvalidOperationException(
             "database-password must never reach the rendered response");
+    }
+
+    private sealed class SetupRequiredInstanceService : IInstancePresentationService
+    {
+        public int FederationReads { get; private set; }
+
+        public Task<InstanceSummaryViewModel> GetAsync(CancellationToken cancellationToken) => Task.FromResult(
+            new InstanceSummaryViewModel(
+                "Fresh instance",
+                "",
+                "12.119.2-server",
+                "/static-assets/favicon.png",
+                BackgroundImageUrl: null,
+                LogoImageUrl: null,
+                DisableRegistration: true,
+                EmailRequiredForSignup: true,
+                EnableEmail: true,
+                TosUrl: null,
+                RequireSetup: true));
+
+        public Task<IReadOnlyList<FederationInstanceViewModel>> ReadFederationInstancesAsync(
+            CancellationToken cancellationToken)
+        {
+            FederationReads++;
+            return Task.FromResult<IReadOnlyList<FederationInstanceViewModel>>([]);
+        }
     }
 
     private sealed class EmptyTimelineService : ITimelinePresentationService
@@ -139,6 +194,64 @@ public sealed class HomeTests : BunitContext
         public void Dispose()
         {
         }
+    }
+
+    private sealed class NoOpFormInputInterop : IFormInputInterop, IDisposable
+    {
+        public ValueTask<IJSObjectReference> AttachAsync(
+            ElementReference input,
+            ElementReference prefix,
+            ElementReference suffix,
+            bool autofocus,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IJSObjectReference>(new NoOpJsObject());
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class NoOpAuthenticationInterop : IAuthenticationFormInterop, IDisposable
+    {
+        public ValueTask<IJSObjectReference> AttachSignInAsync(
+            ElementReference form,
+            DotNetObjectReference<MkSignin> receiver,
+            string passkeyOptionsUrl,
+            string passkeyAssertionUrl,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public ValueTask<IJSObjectReference> AttachSignUpAsync(
+            ElementReference form,
+            DotNetObjectReference<MkSignup> receiver,
+            string usernameAvailabilityUrl,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public ValueTask<IJSObjectReference> AttachInitialSetupAsync(
+            ElementReference form,
+            DotNetObjectReference<WelcomeSetup> receiver,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IJSObjectReference>(new NoOpJsObject());
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class NoOpJsObject : IJSObjectReference
+    {
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
+            ValueTask.FromResult(default(TValue)!);
+
+        public ValueTask<TValue> InvokeAsync<TValue>(
+            string identifier,
+            CancellationToken cancellationToken,
+            object?[]? args) => ValueTask.FromResult(default(TValue)!);
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private sealed class NoOpMarqueeInterop : IMarqueeInterop, IDisposable
@@ -182,7 +295,14 @@ public sealed class HomeTests : BunitContext
                 ["login"] = "ログイン",
                 ["instanceInfo"] = "インスタンス情報",
                 ["aboutMisskey"] = "Misskeyについて",
-                ["help"] = "ヘルプ"
+                ["help"] = "ヘルプ",
+                ["intro"] = "Misskeyの初期設定を行います。",
+                ["username"] = "ユーザー名",
+                ["password"] = "パスワード",
+                ["processing"] = "処理中",
+                ["done"] = "完了",
+                ["somethingHappened"] = "問題が発生しました",
+                ["gotIt"] = "わかった"
             };
 
         public event EventHandler? LocaleChanged

@@ -95,6 +95,7 @@ else
     private bool more;
     private bool backed;
     private bool isBackTop;
+    private bool? browserAtTop;
     private bool error;
     private bool initialized;
     private bool hasRendered;
@@ -339,6 +340,7 @@ else
         try
         {
             await Browser.ScrollToTopAsync(root, lifetime.Token);
+            browserAtTop = true;
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
         {
@@ -369,7 +371,17 @@ else
     public Task NotifyAutoLoadAsync() => LoadMoreAsync();
 
     [JSInvokable]
-    public Task NotifyReachedTopAsync() => InvokeAsync(FlushQueueAsync);
+    public Task NotifyReachedTopAsync() => NotifyViewportStateAsync(true);
+
+    [JSInvokable]
+    public Task NotifyViewportStateAsync(bool atTop) => InvokeAsync(async () =>
+    {
+        browserAtTop = atTop;
+        if (atTop)
+        {
+            await FlushQueueAsync();
+        }
+    });
 
     private async Task InitializeAsync(bool clearItems)
     {
@@ -617,12 +629,13 @@ else
             return;
         }
 
-        bool isTop = isBackTop;
-        if (!isTop)
+        bool isTop = isBackTop || browserAtTop == true;
+        if (!isTop && browserAtTop is null)
         {
             try
             {
                 isTop = await Browser.IsTopVisibleAsync(root, lifetime.Token);
+                browserAtTop = isTop;
             }
             catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
             {
@@ -699,6 +712,7 @@ else
         IJSObjectReference current = browserAttachment;
         browserAttachment = null;
         attachmentAutoLoad = null;
+        browserAtTop = null;
         using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         try
         {

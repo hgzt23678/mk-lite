@@ -220,6 +220,39 @@ public interface IDeliveryRepository
     Task<TimeSpan?> GetOldestPendingAgeAsync(DateTimeOffset now, CancellationToken cancellationToken);
 }
 
+public interface IFederationQueueSignal
+{
+    bool IsEnabled { get; }
+
+    Task NotifyDeliveryAvailableAsync(CancellationToken cancellationToken);
+
+    Task WaitForDeliveryAsync(TimeSpan timeout, CancellationToken cancellationToken);
+
+    Task NotifyInboxAvailableAsync(CancellationToken cancellationToken);
+
+    Task WaitForInboxAsync(TimeSpan timeout, CancellationToken cancellationToken);
+}
+
+public interface IFederationQueueAdministration
+{
+    Task<FederationQueueStats> GetStatsAsync(DateTimeOffset now, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<FederationQueueJobSummary>> ListAsync(
+        WorkItemState? state,
+        bool? delayed,
+        string? remoteDomain,
+        DateTimeOffset? before,
+        int limit,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<FederationInboxJobSummary>> ListInboxAsync(
+        WorkItemState? state,
+        bool? delayed,
+        DateTimeOffset? before,
+        int limit,
+        CancellationToken cancellationToken);
+}
+
 public interface IRemoteDomainExecutionStore
 {
     Task<DomainLeaseToken?> TryAcquireAsync(string domain, string owner, Guid deliveryId, int maximumSlots, DateTimeOffset now, TimeSpan duration, CancellationToken cancellationToken);
@@ -601,6 +634,35 @@ public interface IMisskeyAuthenticationService
         CancellationToken cancellationToken);
 }
 
+public enum InitialAdministratorSetupStatus
+{
+    Created = 0,
+    AlreadyInitialized = 1,
+    Disabled = 2,
+    ValidationFailed = 3,
+    ProvisioningFailed = 4
+}
+
+public sealed record InitialAdministratorSetupResult(
+    InitialAdministratorSetupStatus Status,
+    Guid? UserId,
+    string? Username,
+    string? ActorIri,
+    IReadOnlyList<string> SafeErrorCodes);
+
+public interface IInitialSetupState
+{
+    Task<bool> IsRequiredAsync(CancellationToken cancellationToken);
+}
+
+public interface IInitialAdministratorSetupService
+{
+    Task<InitialAdministratorSetupResult> CreateAsync(
+        string username,
+        string password,
+        CancellationToken cancellationToken);
+}
+
 public sealed record StreamEventPage(
     IReadOnlyList<StreamEvent> Events,
     long? OldestAvailableCursor,
@@ -622,6 +684,39 @@ public interface IStreamEventNotifier
     Task PublishAsync(IReadOnlyList<long> cursors, CancellationToken cancellationToken);
 
     Task WaitAsync(TimeSpan timeout, CancellationToken cancellationToken);
+}
+
+public interface IClientProjectionCache
+{
+    bool IsEnabled { get; }
+
+    Task<IReadOnlyList<Guid>?> GetTimelineCandidatesAsync(
+        string timeline,
+        string? viewerActorIri,
+        Guid? beforeId,
+        int candidateLimit,
+        CancellationToken cancellationToken);
+
+    Task SetTimelineCandidatesAsync(
+        string timeline,
+        string? viewerActorIri,
+        Guid? beforeId,
+        int candidateLimit,
+        IReadOnlyList<Guid> objectIds,
+        CancellationToken cancellationToken);
+
+    Task<long?> GetUnreadNotificationCountAsync(
+        string recipientActorIri,
+        CancellationToken cancellationToken);
+
+    Task SetUnreadNotificationCountAsync(
+        string recipientActorIri,
+        long count,
+        CancellationToken cancellationToken);
+
+    Task InvalidateNotificationsAsync(
+        string recipientActorIri,
+        CancellationToken cancellationToken);
 }
 
 public interface IDurableStreamEventPump

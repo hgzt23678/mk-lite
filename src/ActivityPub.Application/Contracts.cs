@@ -110,6 +110,59 @@ public sealed record OperationalControlState(
     string? UpdatedBy,
     DateTimeOffset? UpdatedAt);
 
+public sealed record FederationQueueStats(
+    long ProcessedDeliveriesRecently,
+    long Waiting,
+    long Active,
+    long Delayed,
+    long Stalled,
+    long DeadLettered,
+    long Cancelled,
+    long ProcessedInboxItemsRecently,
+    long InboxWaiting,
+    long InboxActive,
+    long InboxDelayed,
+    long InboxStalled,
+    long InboxDeadLettered,
+    DateTimeOffset? OldestQueuedAt,
+    DateTimeOffset? NextAvailableAt,
+    bool RedisWakeupEnabled,
+    IReadOnlyList<FederationQueueDomainCount> DelayedByDomain,
+    IReadOnlyList<FederationQueueDomainCount> InboxDelayedByDomain);
+
+public sealed record FederationQueueDomainCount(string Domain, long Count);
+
+public sealed record FederationQueueJobSummary(
+    Guid Id,
+    Guid ActivityId,
+    string EndpointIri,
+    string RemoteDomain,
+    WorkItemState State,
+    DateTimeOffset AvailableAt,
+    string? LeaseOwner,
+    DateTimeOffset? LeaseExpiresAt,
+    int AttemptCount,
+    int? LastStatusCode,
+    string? LastErrorCode,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    DateTimeOffset? CompletedAt);
+
+public sealed record FederationInboxJobSummary(
+    Guid Id,
+    string ActivityIri,
+    string ActorIri,
+    string ActivityType,
+    WorkItemState State,
+    DateTimeOffset AvailableAt,
+    string? LeaseOwner,
+    DateTimeOffset? LeaseExpiresAt,
+    int AttemptCount,
+    string? LastErrorCode,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    DateTimeOffset? CompletedAt);
+
 public sealed record MediaUploadCommand(
     string OwnerActorIri,
     string OriginalFileName,

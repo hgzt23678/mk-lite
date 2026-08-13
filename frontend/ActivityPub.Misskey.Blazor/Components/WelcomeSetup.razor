@@ -1,0 +1,147 @@
+@implements IAsyncDisposable
+@inject IAuthenticationFormInterop AuthenticationInterop
+@inject IMisskeyLocalizer Localizer
+@inject IMisskeyOverlayService Overlays
+@inject MisskeyFrontendRuntimeConfiguration Runtime
+
+<form @ref="formElement"
+      class="mk-setup"
+      method="post"
+      action="/api/admin/accounts/create"
+      aria-busy="@submitting.ToString().ToLowerInvariant()">
+    <h1>Welcome to Misskey!</h1>
+    <div class="_formRoot">
+        <p>@Localizer.Translate("intro")</p>
+        <MkFormInput CssClassAdditional="_formBlock"
+                     Name="username"
+                     Type="text"
+                     Pattern="^[a-zA-Z0-9_]{1,20}$"
+                     Spellcheck="false"
+                     Required="true"
+                     ServerBound="false"
+                     data-cy-admin-username="true">
+            <Label>@Localizer.Translate("username")</Label>
+            <Prefix>@@</Prefix>
+            <Suffix>@@@Host</Suffix>
+        </MkFormInput>
+        <MkFormInput CssClassAdditional="_formBlock"
+                     Name="password"
+                     Type="password"
+                     ServerBound="false"
+                     data-cy-admin-password="true">
+            <Label>@Localizer.Translate("password")</Label>
+            <Prefix><i class="fas fa-lock"></i></Prefix>
+        </MkFormInput>
+        <div class="bottom _formBlock">
+            <MkButton Gradate="true"
+                      Type="submit"
+                      Disabled="submitting"
+                      data-cy-admin-ok="true">
+                @(submitting ? Localizer.Translate("processing") : Localizer.Translate("done"))
+                @if (submitting)
+                {
+                    <MkEllipsis />
+                }
+            </MkButton>
+        </div>
+    </div>
+</form>
+
+@code {
+    private readonly CancellationTokenSource lifetime = new();
+    private ElementReference formElement;
+    private DotNetObjectReference<WelcomeSetup>? receiver;
+    private IJSObjectReference? attachment;
+    private bool submitting;
+    private bool disposed;
+
+    private string Host => Runtime.PublicBaseUri?.IdnHost ?? string.Empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        receiver = DotNetObjectReference.Create(this);
+        try
+        {
+            IJSObjectReference created = await AuthenticationInterop.AttachInitialSetupAsync(
+                formElement,
+                receiver,
+                lifetime.Token);
+            if (disposed)
+            {
+                await DisposeAttachmentAsync(created);
+            }
+            else
+            {
+                attachment = created;
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    [JSInvokable]
+    public Task NotifyInitialSetupStarted()
+    {
+        submitting = true;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task NotifyInitialSetupSucceeded() => Task.CompletedTask;
+
+    [JSInvokable]
+    public Task NotifyInitialSetupFailure(string safeErrorCode)
+    {
+        submitting = false;
+        Overlays.ShowAlert(new MisskeyAlertOptions(
+            "error",
+            null,
+            Localizer.Translate("somethingHappened"),
+            Localizer.Translate("somethingHappened"),
+            Localizer.Translate("gotIt")));
+        return InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        disposed = true;
+        await lifetime.CancelAsync();
+        if (attachment is not null)
+        {
+            await DisposeAttachmentAsync(attachment);
+        }
+
+        receiver?.Dispose();
+        lifetime.Dispose();
+    }
+
+    private async ValueTask DisposeAttachmentAsync(IJSObjectReference handle)
+    {
+        using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try
+        {
+            await handle.InvokeVoidAsync("dispose", cleanup.Token);
+            await handle.DisposeAsync().AsTask().WaitAsync(cleanup.Token);
+        }
+        catch (OperationCanceledException) when (disposed)
+        {
+        }
+        catch (JSDisconnectedException) when (disposed)
+        {
+        }
+    }
+}

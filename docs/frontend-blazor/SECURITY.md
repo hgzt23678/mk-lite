@@ -45,13 +45,13 @@ password validatorの再評価、username・email一意制約、DB例外、proce
 
 tamper-evident audit ledgerへの追記はcommit後にbest-effortで行い、失敗時も招待row自身の発行・reservation・消費監査列を維持して安全なuser IDだけをerror logへ残す。
 
-CAPTCHAは`Hcaptcha`または`Recaptcha`を明示的に選び、site key、絶対pathのsecret file、期待hostname、1秒から30秒のtimeoutを設定する。
+CAPTCHAは`Hcaptcha`、`Recaptcha`、`Turnstile`のいずれかを明示的に選び、site key、絶対pathのsecret file、期待hostname、1秒から30秒のtimeoutを設定する。
 
 Productionでは期待hostnameと実在するsecret fileを必須とし、URL、port、空白を含むhostnameを起動時に拒否する。
 
-browser scriptは固定したhCaptchaまたはreCAPTCHA originからだけ読込み、選択したproviderのoriginだけをCSPへ追加する。
+browser scriptは固定したhCaptcha、reCAPTCHA、Turnstile originからだけ読込み、選択したproviderのoriginだけをCSPへ追加する。一時的なscript取得失敗は失敗済みPromiseとscript要素をcacheから除去し、登録dialogを閉じて再度開いた場合だけ安全に再取得できるようにする。
 
-server検証先はhCaptchaの`https://api.hcaptcha.com/siteverify`またはreCAPTCHAの`https://www.google.com/recaptcha/api/siteverify`へ固定し、設定から検証URLを差し替えられない。
+server検証先はhCaptchaの`https://api.hcaptcha.com/siteverify`、reCAPTCHAの`https://www.google.com/recaptcha/api/siteverify`、Turnstileの`https://challenges.cloudflare.com/turnstile/v0/siteverify`へ固定し、設定から検証URLを差し替えられない。
 
 serverはhCaptchaへsite keyも送信し、provider応答のhostnameと、応答にsite keyがある場合はその値を照合する。
 
@@ -59,7 +59,7 @@ secret fileは4 KiB、provider応答は展開後32 KiBへ制限し、timeout、�
 
 CAPTCHA responseはhidden form fieldだけに保持し、C#、SignalR、ログ、telemetryへ渡さず、失敗時とwidget破棄時に消去する。
 
-実hCaptcha・reCAPTCHA serviceとのlive検証は未実施であり、fixture試験だけからprovider実運用成功を宣言しない。
+実hCaptcha・reCAPTCHA・Turnstile serviceとのlive検証は未実施であり、fixture試験だけからprovider実運用成功を宣言しない。
 
 ## Browser policy
 

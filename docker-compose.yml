@@ -26,6 +26,8 @@ x-app-environment: &app-environment
   Http__TrustedProxies__0: 172.28.0.10
   AllowedHosts: localhost
   OTEL_EXPORTER_OTLP_ENDPOINT: http://otel:4317
+  Redis__ConnectionString: redis:6379
+  Streaming__Redis__ConnectionString: redis:6379
 
 x-app-base: &app-base
   image: ${ACTIVITYPUB_IMAGE:-activitypub-server:local}
@@ -62,6 +64,29 @@ x-app-base: &app-base
         memory: 256M
 
 services:
+  redis:
+    image: redis@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      activitypub:
+    read_only: true
+    tmpfs:
+      - /data:size=256m,mode=0700
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
   postgres:
     image: postgres:17-alpine
     environment:

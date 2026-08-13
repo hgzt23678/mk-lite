@@ -85,6 +85,10 @@ public static class MisskeyEndpoints
         admin.MapPost("/relays/add", AddRelayAsync);
         admin.MapPost("/relays/list", ListRelaysAsync);
         admin.MapPost("/relays/remove", RemoveRelayAsync);
+        admin.MapPost("/queue/stats", QueueStatsAsync);
+        admin.MapPost("/queue/jobs", QueueJobsAsync);
+        admin.MapPost("/queue/deliver-delayed", DeliverDelayedAsync);
+        admin.MapPost("/queue/inbox-delayed", InboxDelayedAsync);
         authenticated.MapPost("/drive", DriveUsageAsync).RequireAuthorization("misskey.read:drive");
         authenticated.MapPost("/drive/files", ListDriveFilesAsync).RequireAuthorization("misskey.read:drive");
         authenticated.MapPost("/drive/files/create", CreateDriveFileAsync)
@@ -98,6 +102,110 @@ public static class MisskeyEndpoints
         authenticated.MapPost("/drive/folders/delete", DeleteDriveFolderAsync).RequireAuthorization("misskey.write:drive");
         authenticated.MapPost("/drive/folders/update", UpdateDriveFolderAsync).RequireAuthorization("misskey.write:drive");
         return endpoints;
+    }
+
+    private static async Task<IResult> QueueStatsAsync(
+        IFederationQueueAdministration administration,
+        CancellationToken cancellationToken)
+    {
+        FederationQueueStats stats = await administration.GetStatsAsync(
+            DateTimeOffset.UtcNow,
+            cancellationToken).ConfigureAwait(false);
+        return Results.Json(new
+        {
+            deliver = new
+            {
+                activeSincePrevTick = stats.ProcessedDeliveriesRecently,
+                active = stats.Active,
+                waiting = stats.Waiting + stats.Stalled,
+                delayed = stats.Delayed,
+                failed = stats.DeadLettered
+            },
+            inbox = new
+            {
+                activeSincePrevTick = stats.ProcessedInboxItemsRecently,
+                active = stats.InboxActive,
+                waiting = stats.InboxWaiting + stats.InboxStalled,
+                delayed = stats.InboxDelayed,
+                failed = stats.InboxDeadLettered
+            }
+        });
+    }
+
+    private static async Task<IResult> DeliverDelayedAsync(
+        IFederationQueueAdministration administration,
+        CancellationToken cancellationToken)
+    {
+        FederationQueueStats stats = await administration.GetStatsAsync(
+            DateTimeOffset.UtcNow,
+            cancellationToken).ConfigureAwait(false);
+        return Results.Json(stats.DelayedByDomain.Select(item => new object[] { item.Domain, item.Count }));
+    }
+
+    private static async Task<IResult> InboxDelayedAsync(
+        IFederationQueueAdministration administration,
+        CancellationToken cancellationToken)
+    {
+        FederationQueueStats stats = await administration.GetStatsAsync(
+            DateTimeOffset.UtcNow,
+            cancellationToken).ConfigureAwait(false);
+        return Results.Json(stats.InboxDelayedByDomain.Select(item => new object[] { item.Domain, item.Count }));
+    }
+
+    private static async Task<IResult> QueueJobsAsync(
+        HttpContext context,
+        IFederationQueueAdministration administration,
+        WorkerOptions workerOptions,
+        CancellationToken cancellationToken)
+    {
+        JsonElement body = await ReadBodyAsync(context, cancellationToken).ConfigureAwait(false);
+        string? domain = String(body, "domain");
+        string? state = String(body, "state");
+        int limit = Integer(body, "limit", 50);
+        if (domain is not ("deliver" or "inbox") || state is not ("active" or "waiting" or "delayed") ||
+            limit is < 1 or > 200)
+        {
+            return InvalidRequest();
+        }
+
+        WorkItemState workItemState = state == "active" ? WorkItemState.Leased : WorkItemState.Pending;
+        bool? delayed = state == "active" ? null : state == "delayed";
+        if (domain == "deliver")
+        {
+            IReadOnlyList<FederationQueueJobSummary> jobs = await administration.ListAsync(
+                workItemState,
+                delayed,
+                null,
+                null,
+                limit,
+                cancellationToken).ConfigureAwait(false);
+            return Results.Json(jobs.Select(job => new
+            {
+                id = job.Id.ToString("N"),
+                data = new { to = job.EndpointIri, activityId = job.ActivityId.ToString("N") },
+                attempts = job.AttemptCount,
+                maxAttempts = workerOptions.MaximumDeliveryAttempts,
+                timestamp = job.CreatedAt.ToUnixTimeMilliseconds()
+            }));
+        }
+
+        IReadOnlyList<FederationInboxJobSummary> inboxJobs = await administration.ListInboxAsync(
+            workItemState,
+            delayed,
+            null,
+            limit,
+            cancellationToken).ConfigureAwait(false);
+        return Results.Json(inboxJobs.Select(job => new
+        {
+            id = job.Id.ToString("N"),
+            data = new
+            {
+                activity = new { id = job.ActivityIri, actor = job.ActorIri, type = job.ActivityType }
+            },
+            attempts = job.AttemptCount,
+            maxAttempts = workerOptions.MaximumInboxAttempts,
+            timestamp = job.CreatedAt.ToUnixTimeMilliseconds()
+        }));
     }
 
     private static async Task<IResult> AnnouncementsAsync(
@@ -426,7 +534,10 @@ public static class MisskeyEndpoints
         return Results.NoContent();
     }
 
-    private static IResult Meta(MisskeyMetadataService metadata) => Results.Json(metadata.GetMetadata());
+    private static async Task<IResult> Meta(
+        MisskeyMetadataService metadata,
+        CancellationToken cancellationToken) =>
+        Results.Json(await metadata.GetMetadataAsync(cancellationToken).ConfigureAwait(false));
 
     private static async Task<IResult> CreateRegistrationInvitationAsync(
         HttpContext context,

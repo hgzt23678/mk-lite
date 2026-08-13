@@ -7,7 +7,8 @@ public sealed record LocalRegistrationProtection(
     string? InvitationCode,
     string? HcaptchaResponse,
     string? RecaptchaResponse,
-    string? RemoteIpAddress = null);
+    string? RemoteIpAddress = null,
+    string? TurnstileResponse = null);
 
 public enum RegistrationProtectionStatus
 {

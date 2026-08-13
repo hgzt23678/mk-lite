@@ -119,6 +119,7 @@ public sealed class PaginationTests : BunitContext
         Assert.Equal(1, browser.ScrollToTopCalls);
 
         browser.TopVisible = false;
+        await component.Instance.NotifyViewportStateAsync(false);
         await component.Instance.PrependAsync(new("queued-remove"));
         await component.Instance.RemoveItemAsync(item => item.Id == "queued-remove");
         Assert.Empty(component.Instance.QueuedItems);
@@ -128,6 +129,7 @@ public sealed class PaginationTests : BunitContext
         await component.Instance.UpdateItemAsync("3", old => old with { Id = "3-updated" });
         await component.Instance.RemoveItemAsync(item => item.Id == "4");
         Assert.Equal(["3-updated", "5"], component.Instance.Items.Select(item => item.Id));
+        Assert.Equal(1, browser.TopVisibleCalls);
     }
 
     [Fact]
@@ -254,6 +256,7 @@ public sealed class PaginationTests : BunitContext
         public bool AutoLoadEnabled { get; private set; }
         public bool TopVisible { get; set; } = true;
         public bool BottomVisible { get; set; }
+        public int TopVisibleCalls { get; private set; }
         public int CaptureCalls { get; private set; }
         public int RestoreCalls { get; private set; }
         public int ScrollToTopCalls { get; private set; }
@@ -275,7 +278,11 @@ public sealed class PaginationTests : BunitContext
 
         public ValueTask<bool> IsTopVisibleAsync(
             ElementReference root,
-            CancellationToken cancellationToken) => ValueTask.FromResult(TopVisible);
+            CancellationToken cancellationToken)
+        {
+            TopVisibleCalls++;
+            return ValueTask.FromResult(TopVisible);
+        }
 
         public ValueTask<bool> IsBottomVisibleAsync(
             ElementReference root,

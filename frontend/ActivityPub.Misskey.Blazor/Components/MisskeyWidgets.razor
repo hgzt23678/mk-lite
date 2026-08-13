@@ -63,6 +63,10 @@
         {
             return;
         }
+        catch (JSDisconnectedException)
+        {
+            return;
+        }
 
         loaded = true;
         await InvokeAsync(StateHasChanged);

@@ -4,7 +4,8 @@ public enum RegistrationCaptchaProvider
 {
     None = 0,
     Hcaptcha = 1,
-    Recaptcha = 2
+    Recaptcha = 2,
+    Turnstile = 3
 }
 
 public sealed class RegistrationProtectionOptions
@@ -25,6 +26,10 @@ public sealed class RegistrationProtectionOptions
 
     public string CaptchaExpectedHostname { get; init; } = string.Empty;
 
+    public string CaptchaExpectedAction { get; init; } = "signup";
+
+    public string CaptchaExpectedCdata { get; init; } = "activitypub_signup";
+
     public TimeSpan CaptchaVerificationTimeout { get; init; } = TimeSpan.FromSeconds(10);
 
     public bool RegistrationAvailable(LocalAccountOptions accounts) =>
@@ -43,6 +48,11 @@ public sealed class RegistrationProtectionOptions
         if (InvitationRequired && !accounts.Enabled)
         {
             throw new InvalidOperationException("RegistrationProtection:InvitationRequired requires LocalAccounts:Enabled.");
+        }
+
+        if (!Enum.IsDefined(CaptchaProvider))
+        {
+            throw new InvalidOperationException("RegistrationProtection:CaptchaProvider is not supported.");
         }
 
         if (CaptchaProvider == RegistrationCaptchaProvider.None)
@@ -87,10 +97,21 @@ public sealed class RegistrationProtectionOptions
             throw new InvalidOperationException("RegistrationProtection:CaptchaSecretFile does not exist.");
         }
 
+        if (CaptchaProvider == RegistrationCaptchaProvider.Turnstile &&
+            (!IsTurnstileLabel(CaptchaExpectedAction, 32) || !IsTurnstileLabel(CaptchaExpectedCdata, 255)))
+        {
+            throw new InvalidOperationException(
+                "RegistrationProtection Turnstile action and cdata must be non-empty alphanumeric, underscore, or hyphen values within provider limits.");
+        }
+
         if (CaptchaVerificationTimeout < TimeSpan.FromSeconds(1) ||
             CaptchaVerificationTimeout > TimeSpan.FromSeconds(30))
         {
             throw new InvalidOperationException("RegistrationProtection:CaptchaVerificationTimeout is outside the supported range.");
         }
     }
+
+    private static bool IsTurnstileLabel(string value, int maximumLength) =>
+        !string.IsNullOrWhiteSpace(value) && value.Length <= maximumLength &&
+        value.All(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-');
 }

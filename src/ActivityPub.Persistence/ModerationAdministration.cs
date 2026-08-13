@@ -8,7 +8,8 @@ namespace ActivityPub.Persistence;
 
 internal sealed class ModerationAdministration(
     IDbContextFactory<FederationDbContext> contextFactory,
-    IClock clock) : IModerationAdministration
+    IClock clock,
+    IFederationQueueSignal queueSignal) : IModerationAdministration
 {
     private const long AuditAdvisoryLock = 4_165_550_803_371_912_001;
     private const string OutboundPauseControl = "outbound-delivery-pause";
@@ -196,6 +197,8 @@ internal sealed class ModerationAdministration(
 
         string activityIri;
         Guid workItemId;
+        bool deliveryWasRequeued = false;
+        bool inboxWasRequeued = false;
         if (string.Equals(deadLetter.SourceType, "delivery", StringComparison.Ordinal))
         {
             Delivery? delivery = await db.Deliveries.SingleOrDefaultAsync(x => x.Id == deadLetter.SourceId, cancellationToken).ConfigureAwait(false);
@@ -206,6 +209,7 @@ internal sealed class ModerationAdministration(
             }
 
             delivery.RequeueFromDeadLetter(now);
+            deliveryWasRequeued = true;
             activityIri = delivery.ActivityIri;
             workItemId = delivery.Id;
         }
@@ -219,6 +223,7 @@ internal sealed class ModerationAdministration(
             }
 
             inboxItem.RequeueInboxFromDeadLetter(now);
+            inboxWasRequeued = true;
             activityIri = inboxItem.ActivityIri;
             workItemId = inboxItem.Id;
         }
@@ -240,6 +245,16 @@ internal sealed class ModerationAdministration(
             cancellationToken).ConfigureAwait(false);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        if (deliveryWasRequeued)
+        {
+            await queueSignal.NotifyDeliveryAvailableAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (inboxWasRequeued)
+        {
+            await queueSignal.NotifyInboxAvailableAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         return true;
     }
 

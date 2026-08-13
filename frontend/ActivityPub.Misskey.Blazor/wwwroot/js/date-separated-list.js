@@ -92,17 +92,20 @@ export function attach(root) {
     element.classList.add('list-enter-active', 'list-enter-from');
     beginAnimation(element, 'list-enter-active', ['opacity', 'transform']);
   };
-  const move = (element, previous, current) => {
+  const prepareMove = (element, previous, current) => {
     const deltaX = previous.left - current.left;
     const deltaY = previous.top - current.top;
-    if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) return;
+    if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) return null;
 
     stopAnimation(element);
     const originalTransition = element.style.transition;
     const originalTransform = element.style.transform;
     element.style.transition = 'none';
     element.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
-    void element.offsetHeight;
+    return { element, originalTransition, originalTransform };
+  };
+  const startMove = move => {
+    const { element, originalTransition, originalTransform } = move;
     element.classList.add('list-move');
     element.style.transition = originalTransition;
     element.style.transform = originalTransform;
@@ -130,11 +133,21 @@ export function attach(root) {
       if (disposed || callbackGeneration !== generation) return;
       const current = children();
       const targets = new Map(current.map(element => [element, element.getBoundingClientRect()]));
+      const moves = [];
       for (const element of current) {
         const oldPosition = previous.get(element);
-        if (oldPosition) move(element, oldPosition, targets.get(element));
+        if (oldPosition) {
+          const move = prepareMove(element, oldPosition, targets.get(element));
+          if (move !== null) moves.push(move);
+        }
         else if (added.has(element)) enter(element);
       }
+
+      // Commit every inverse transform before reading layout once. Reading each child here
+      // turns a single list update into N forced layouts and stalls large timelines.
+      if (moves.length > 0) void root.offsetHeight;
+      for (const move of moves) startMove(move);
+
       positions.clear();
       for (const [element, position] of targets) positions.set(element, position);
       secondFrame = requestAnimationFrame(() => {

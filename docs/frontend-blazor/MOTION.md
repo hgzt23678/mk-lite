@@ -20,6 +20,7 @@ Motionのsource of truthはMisskey 12.119.2 commit `a5a74f4434b179cdb1f97af98bf2
 - `MkToast`は300msのopacity/translateY enter・leaveと4秒の表示期間を維持し、対象propertyを確認した完了eventと計算duration fallbackを使う。
 - `MkSparkle`は上流の500〜1000ms生成間隔、1000〜2000ms particle寿命、SMIL scale/rotate、ResizeObserverによる実寸座標を維持する。
 - `MkUpdated`はdesktopで200msのopacity/scale、narrow touchで200msのopacity/translate drawerを使用する。leaveの完了前には`closed`を発火せず、連続closeは一度だけ処理する。通常設定のtimingは変えず、reduced motionだけ0.001msへ短縮する。
+- `MkDateSeparatedList`は上流の700ms `list-enter`と`list-move`を維持する。FLIPは全旧座標と全新座標を先に読み、全inverse transformを書いた後にrootで1回だけlayoutを確定してからtransformを解除する。移動要素ごとの同期reflowは行わない。
 - `/about-misskey`は固定Matter.js 0.18.0を同一originから読み込み、上流と同じemoji body、境界、mouse constraint、step処理を使う。
 - Matter.jsのrunner、animation frame、interval、mouse event、world、engineはroute離脱時に破棄する。
 - `prefers-reduced-motion: reduce`では非本質motionを短縮するが、通常設定のtimingは変更しない。
@@ -36,4 +37,4 @@ Matter.js browser artifactは`tools/generate-matter-browser.mjs`がlockfileのve
 
 Tailnet試験はproduction CSPと`/app/` path baseの下でも同じ演出が開始することを確認した。
 
-未移植のTransition、TransitionGroup、FLIP、staggerは`planned`のままであり、全motion完了とは判定しない。
+`MkDateSeparatedList`のTransitionGroupとFLIPは実装済みだが、全画面のtransition、stagger、取消frame比較は未完了であり、全motion完了とは判定しない。

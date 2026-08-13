@@ -128,6 +128,8 @@ internal static class ConfigurationReader
             CaptchaSiteKey = section["CaptchaSiteKey"] ?? string.Empty,
             CaptchaSecretFile = section["CaptchaSecretFile"],
             CaptchaExpectedHostname = section["CaptchaExpectedHostname"] ?? string.Empty,
+            CaptchaExpectedAction = section["CaptchaExpectedAction"] ?? "signup",
+            CaptchaExpectedCdata = section["CaptchaExpectedCdata"] ?? "activitypub_signup",
             CaptchaVerificationTimeout = section.GetValue("CaptchaVerificationTimeout", TimeSpan.FromSeconds(10))
         };
     }
@@ -196,11 +198,14 @@ internal static class ConfigurationReader
         return new MediaOptions
         {
             Enabled = section.GetValue("Enabled", false),
+            Provider = section.GetValue("Provider", MediaObjectStoreProvider.S3Compatible),
             Bucket = section["Bucket"] ?? string.Empty,
             ServiceUrl = section["ServiceUrl"],
             Region = section["Region"] ?? "us-east-1",
             ForcePathStyle = section.GetValue("ForcePathStyle", true),
             UseServerSideEncryption = section.GetValue("UseServerSideEncryption", true),
+            CloudflareAccountId = section["CloudflareAccountId"],
+            CloudflareJurisdiction = section.GetValue("CloudflareJurisdiction", CloudflareR2Jurisdiction.Default),
             MaximumUploadBytes = section.GetValue("MaximumUploadBytes", 100L * 1024 * 1024),
             MaximumImageWidth = section.GetValue("MaximumImageWidth", 16_384),
             MaximumImageHeight = section.GetValue("MaximumImageHeight", 16_384),

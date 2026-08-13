@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
@@ -97,6 +98,32 @@ internal static class FrontendEndpoints
             .WithMetadata(new RequestSizeLimitAttribute(MaximumAuthenticationFormBytes))
             .RequireRateLimiting("misskey-signin");
 
+        if (localAccounts.Enabled)
+        {
+            endpoints.MapPost(
+                    "/api/admin/accounts/create",
+                    (HttpContext context,
+                        IInitialAdministratorSetupService setup,
+                        UserManager<LocalIdentityUser> users,
+                        ILocalAccountPrincipalFactory principalFactory,
+                        IMisskeyAuthenticationService misskeyAuthentication,
+                        MisskeyQueryService misskeyQuery,
+                        LocalAccountOptions accountOptions,
+                        CancellationToken cancellationToken) => CreateInitialAdministratorAsync(
+                            context,
+                            setup,
+                            users,
+                            principalFactory,
+                            misskeyAuthentication,
+                            misskeyQuery,
+                            accountOptions,
+                            options.PublicBaseUri,
+                            cancellationToken))
+                .WithMetadata(new IgnoreAntiforgeryTokenAttribute())
+                .WithMetadata(new RequestSizeLimitAttribute(MaximumAuthenticationFormBytes))
+                .RequireRateLimiting("initial-setup");
+        }
+
         endpoints.MapGet("/url", async (string url, string? lang, IUrlPreviewService previews, CancellationToken cancellationToken) =>
         {
             if (string.IsNullOrWhiteSpace(url) || url.Length > 2_048)
@@ -167,6 +194,7 @@ internal static class FrontendEndpoints
                             ILocalAccountService accounts,
                             ILocalAccountPrincipalFactory principalFactory,
                             IEmailConfirmationService emailConfirmation,
+                            IInitialSetupState initialSetup,
                             LocalAccountOptions accountOptions,
                             CancellationToken cancellationToken) => RegisterAsync(
                                 context,
@@ -174,6 +202,7 @@ internal static class FrontendEndpoints
                                 accounts,
                                 principalFactory,
                                 emailConfirmation,
+                                initialSetup,
                                 accountOptions,
                                 registrationProtection,
                                 options.PublicBaseUri,
@@ -186,6 +215,7 @@ internal static class FrontendEndpoints
                         (HttpContext context,
                             ILocalAccountService accounts,
                             IEmailConfirmationService emailConfirmation,
+                            IInitialSetupState initialSetup,
                             IMisskeyAuthenticationService misskeyAuthentication,
                             MisskeyQueryService misskeyQuery,
                             LocalAccountOptions accountOptions,
@@ -193,6 +223,7 @@ internal static class FrontendEndpoints
                                 context,
                                 accounts,
                                 emailConfirmation,
+                                initialSetup,
                                 misskeyAuthentication,
                                 misskeyQuery,
                                 accountOptions,
@@ -895,6 +926,7 @@ internal static class FrontendEndpoints
         ILocalAccountService accounts,
         ILocalAccountPrincipalFactory principalFactory,
         IEmailConfirmationService emailConfirmation,
+        IInitialSetupState initialSetup,
         LocalAccountOptions options,
         RegistrationProtectionOptions protection,
         Uri frontendPublicBaseUri,
@@ -903,6 +935,15 @@ internal static class FrontendEndpoints
         if (!protection.RegistrationAvailable(options))
         {
             return Results.NotFound();
+        }
+
+        if (await initialSetup.IsRequiredAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return WantsJson(context)
+                ? Results.Json(
+                    new { status = "failed", errorCode = "INITIAL_SETUP_REQUIRED" },
+                    statusCode: StatusCodes.Status409Conflict)
+                : Results.Redirect("/");
         }
 
         IFormCollection? form = await ReadBoundedFormAsync(context, antiforgery, cancellationToken).ConfigureAwait(false);
@@ -930,7 +971,8 @@ internal static class FrontendEndpoints
                     form["invitationCode"].ToString(),
                     form["hcaptcha-response"].ToString(),
                     form["g-recaptcha-response"].ToString(),
-                    context.Connection.RemoteIpAddress?.ToString()),
+                    context.Connection.RemoteIpAddress?.ToString(),
+                    form["cf-turnstile-response"].ToString()),
                 cancellationToken)
             .ConfigureAwait(false);
         if (result.Status == LocalAccountRegistrationStatus.Created && result.User is not null)
@@ -981,6 +1023,7 @@ internal static class FrontendEndpoints
         HttpContext context,
         ILocalAccountService accounts,
         IEmailConfirmationService emailConfirmation,
+        IInitialSetupState initialSetup,
         IMisskeyAuthenticationService misskeyAuthentication,
         MisskeyQueryService misskeyQuery,
         LocalAccountOptions options,
@@ -994,6 +1037,14 @@ internal static class FrontendEndpoints
             context.Request.ContentLength is > MaximumAuthenticationFormBytes)
         {
             return Results.BadRequest();
+        }
+
+        if (await initialSetup.IsRequiredAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return InitialSetupError(
+                StatusCodes.Status409Conflict,
+                "INITIAL_SETUP_REQUIRED",
+                "f6e22d10-fd44-47c8-bc17-45f01c8f0d21");
         }
 
         MisskeySignupRequest? request;
@@ -1022,7 +1073,8 @@ internal static class FrontendEndpoints
                 request.InvitationCode,
                 request.HcaptchaResponse,
                 request.RecaptchaResponse,
-                context.Connection.RemoteIpAddress?.ToString()),
+                context.Connection.RemoteIpAddress?.ToString(),
+                request.TurnstileResponse),
             cancellationToken).ConfigureAwait(false);
         if (result.Status != LocalAccountRegistrationStatus.Created || result.User is null)
         {
@@ -1054,6 +1106,109 @@ internal static class FrontendEndpoints
         return Results.Json(response);
     }
 
+    private static async Task<IResult> CreateInitialAdministratorAsync(
+        HttpContext context,
+        IInitialAdministratorSetupService setup,
+        UserManager<LocalIdentityUser> users,
+        ILocalAccountPrincipalFactory principalFactory,
+        IMisskeyAuthenticationService misskeyAuthentication,
+        MisskeyQueryService misskeyQuery,
+        LocalAccountOptions options,
+        Uri frontendPublicBaseUri,
+        CancellationToken cancellationToken)
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        if (!options.Enabled || !IsTrustedBrowserMutation(context.Request, frontendPublicBaseUri) ||
+            context.Request.ContentType is null ||
+            !context.Request.ContentType.StartsWith("application/json", StringComparison.OrdinalIgnoreCase) ||
+            context.Request.ContentLength is > MaximumAuthenticationFormBytes)
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        InitialAdministratorRequest? request;
+        try
+        {
+            request = await JsonSerializer.DeserializeAsync<InitialAdministratorRequest>(
+                context.Request.Body,
+                WebJsonOptions,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (JsonException)
+        {
+            return InitialSetupError(
+                StatusCodes.Status400BadRequest,
+                "INVALID_PARAM",
+                "3d81ceae-475f-4600-b2a8-2bc116157532");
+        }
+
+        if (request is null || string.IsNullOrWhiteSpace(request.Username) ||
+            request.Username.Length > 20 || request.Password is null || request.Password.Length > 1_024)
+        {
+            return InitialSetupError(
+                StatusCodes.Status400BadRequest,
+                "INVALID_PARAM",
+                "3d81ceae-475f-4600-b2a8-2bc116157532");
+        }
+
+        InitialAdministratorSetupResult result = await setup.CreateAsync(
+            request.Username,
+            request.Password,
+            cancellationToken).ConfigureAwait(false);
+        if (result.Status != InitialAdministratorSetupStatus.Created || result.UserId is not Guid userId ||
+            string.IsNullOrWhiteSpace(result.Username))
+        {
+            string code = result.SafeErrorCodes.Count > 0
+                ? result.SafeErrorCodes[0]
+                : "INITIAL_SETUP_FAILED";
+            int status = result.Status == InitialAdministratorSetupStatus.AlreadyInitialized
+                ? StatusCodes.Status403Forbidden
+                : StatusCodes.Status400BadRequest;
+            return InitialSetupError(status, code, "0b5f5c5b-766b-4df5-96f1-01572e720b30");
+        }
+
+        LocalIdentityUser user = await users.FindByIdAsync(userId.ToString()).ConfigureAwait(false)
+            ?? throw new InvalidOperationException("The initialized administrator identity could not be loaded.");
+        MisskeyIssuedToken issued = await misskeyAuthentication.IssueDirectAsync(
+            result.Username,
+            "Misskey v12 initial setup",
+            "Native token issued when the initial administrator was created.",
+            iconUri: null,
+            MisskeyPermissions.All,
+            cancellationToken).ConfigureAwait(false);
+        object? account = await misskeyQuery.FindMeAsync(result.Username, cancellationToken).ConfigureAwait(false);
+        JsonObject response = JsonSerializer.SerializeToNode(account, WebJsonOptions)?.AsObject()
+            ?? throw new InvalidOperationException("The initialized administrator could not be projected.");
+        response["token"] = issued.Token;
+
+        ClaimsPrincipal principal = await principalFactory.CreateAsync(user).ConfigureAwait(false);
+        await context.SignInAsync(
+            OAuthAuthorizationServerExtensions.ExternalSessionScheme,
+            principal,
+            new AuthenticationProperties
+            {
+                AllowRefresh = false,
+                IsPersistent = false,
+                ExpiresUtc = DateTimeOffset.UtcNow.Add(options.SessionLifetime),
+                RedirectUri = null
+            }).ConfigureAwait(false);
+        return Results.Json(response);
+    }
+
+    private static IResult InitialSetupError(int statusCode, string code, string id) =>
+        Results.Json(
+            new
+            {
+                error = new
+                {
+                    message = "Initial administrator setup could not be completed.",
+                    code,
+                    id,
+                    kind = "client"
+                }
+            },
+            statusCode: statusCode);
+
     private sealed class MisskeySignupRequest
     {
         public string? Username { get; init; }
@@ -1069,6 +1224,16 @@ internal static class FrontendEndpoints
 
         [JsonPropertyName("g-recaptcha-response")]
         public string? RecaptchaResponse { get; init; }
+
+        [JsonPropertyName("cf-turnstile-response")]
+        public string? TurnstileResponse { get; init; }
+    }
+
+    private sealed class InitialAdministratorRequest
+    {
+        public string? Username { get; init; }
+
+        public string? Password { get; init; }
     }
 
     private static async Task<IFormCollection?> ReadBoundedFormAsync(
@@ -1359,6 +1524,7 @@ internal static class FrontendEndpoints
                 {
                     RegistrationCaptchaProvider.Hcaptcha => " https://hcaptcha.com https://*.hcaptcha.com",
                     RegistrationCaptchaProvider.Recaptcha => " https://www.google.com/recaptcha/",
+                    RegistrationCaptchaProvider.Turnstile => " https://challenges.cloudflare.com",
                     _ => string.Empty
                 };
                 string captchaScript = registrationProtection.CaptchaProvider switch
@@ -1366,6 +1532,7 @@ internal static class FrontendEndpoints
                     RegistrationCaptchaProvider.Hcaptcha => " https://hcaptcha.com https://*.hcaptcha.com",
                     RegistrationCaptchaProvider.Recaptcha =>
                         " https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/",
+                    RegistrationCaptchaProvider.Turnstile => " https://challenges.cloudflare.com",
                     _ => string.Empty
                 };
                 string captchaFrame = registrationProtection.CaptchaProvider switch
@@ -1374,6 +1541,8 @@ internal static class FrontendEndpoints
                         "frame-src https://hcaptcha.com https://*.hcaptcha.com; ",
                     RegistrationCaptchaProvider.Recaptcha =>
                         "frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/; ",
+                    RegistrationCaptchaProvider.Turnstile =>
+                        "frame-src https://challenges.cloudflare.com; ",
                     _ => string.Empty
                 };
                 string captchaStyle = registrationProtection.CaptchaProvider == RegistrationCaptchaProvider.Hcaptcha

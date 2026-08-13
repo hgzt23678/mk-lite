@@ -32,6 +32,7 @@ public sealed class ActivityPubApiFixture : WebApplicationFactory<Program>, IAsy
         .WithDatabase("activitypub_api_tests")
         .WithUsername("activitypub")
         .WithPassword("test-only-password")
+        .WithTmpfsMount("/var/lib/postgresql/data")
         .Build();
 
     public Guid PrivateObjectId { get; private set; }

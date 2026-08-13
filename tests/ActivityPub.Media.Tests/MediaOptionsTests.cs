@@ -44,4 +44,59 @@ public sealed class MediaOptionsTests
 
         Assert.Throws<InvalidOperationException>(() => options.Validate(isProduction: false));
     }
+
+    [Fact]
+    public void CloudflareR2ResolvesTheOfficialAccountEndpoint()
+    {
+        var options = new MediaOptions
+        {
+            Enabled = true,
+            Provider = MediaObjectStoreProvider.CloudflareR2,
+            Bucket = "activitypub-media",
+            Region = "auto",
+            ForcePathStyle = true,
+            CloudflareAccountId = "0123456789abcdef0123456789abcdef",
+            CloudflareJurisdiction = CloudflareR2Jurisdiction.Eu
+        };
+
+        options.Validate(isProduction: true);
+
+        Assert.Equal(
+            "https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com/",
+            options.ResolveServiceUri().AbsoluteUri);
+    }
+
+    [Theory]
+    [InlineData("not-an-account-id")]
+    [InlineData("0123456789abcdef0123456789abcdeg")]
+    [InlineData("")]
+    public void CloudflareR2RejectsInvalidAccountIds(string accountId)
+    {
+        var options = new MediaOptions
+        {
+            Enabled = true,
+            Provider = MediaObjectStoreProvider.CloudflareR2,
+            Bucket = "activitypub-media",
+            Region = "auto",
+            CloudflareAccountId = accountId
+        };
+
+        Assert.Throws<InvalidOperationException>(() => options.Validate(isProduction: false));
+    }
+
+    [Fact]
+    public void CloudflareR2RejectsAnOperatorSuppliedEndpoint()
+    {
+        var options = new MediaOptions
+        {
+            Enabled = true,
+            Provider = MediaObjectStoreProvider.CloudflareR2,
+            Bucket = "activitypub-media",
+            ServiceUrl = "https://attacker.example",
+            Region = "auto",
+            CloudflareAccountId = "0123456789abcdef0123456789abcdef"
+        };
+
+        Assert.Throws<InvalidOperationException>(() => options.Validate(isProduction: true));
+    }
 }

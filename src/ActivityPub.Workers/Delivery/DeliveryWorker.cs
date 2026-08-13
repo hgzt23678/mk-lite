@@ -10,6 +10,7 @@ namespace ActivityPub.Workers.Delivery;
 public sealed class DeliveryWorker(
     IServiceScopeFactory scopeFactory,
     WorkerOptions options,
+    IFederationQueueSignal queueSignal,
     ILogger<DeliveryWorker> logger) : BackgroundService
 {
     private static readonly Action<ILogger, Exception?> PollFailed = LoggerMessage.Define(
@@ -44,7 +45,7 @@ public sealed class DeliveryWorker(
                 }
                 else
                 {
-                    await Task.Delay(options.PollInterval, stoppingToken).ConfigureAwait(false);
+                    await queueSignal.WaitForDeliveryAsync(options.PollInterval, stoppingToken).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

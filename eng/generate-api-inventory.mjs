@@ -239,6 +239,7 @@ function normalizePath(value) {
 
 function classifyAggregate(name) {
   if (name === 'email-address/available' || name === 'username/available') return 'Account';
+  if (name === 'admin/accounts/create') return 'LocalIdentityUser, LocalIdentityRole, LocalActor, ActorKey, MisskeyAccessToken';
   if (name === 'admin/invite') return 'LocalRegistrationInvitation and AuditEvent';
   const group = name.split('/')[0];
   const mappings = {
@@ -251,6 +252,7 @@ function classifyAggregate(name) {
 }
 
 function activityPubEffect(name) {
+  if (name === 'admin/accounts/create') return 'provisions the initial local Person actor and signing key; no outbound Activity';
   if (name === 'notes/create') return 'Create, Announce for renote, or quote Create';
   if (name === 'notes/delete') return 'Delete';
   if (name === 'notes/reactions/create') return 'Like with _misskey_reaction or EmojiReact';
@@ -265,6 +267,10 @@ function activityPubEffect(name) {
 }
 
 const verifiedMisskeyTests = new Map([
+  ['admin/accounts/create', [
+    'PublicEndpointTests.InitialAdministratorCreationIsUnavailableAfterSetup',
+    'InitialAdministratorSetupIntegrationTests.ConcurrentFirstRunCreatesExactlyOneSignedInAdministrator'
+  ]],
   ['admin/invite', ['PublicEndpointTests.AdminInviteEndpointIssuesOnlyThePlaintextResponseAndPersistsItsHash']],
   ['email-address/available', ['PublicEndpointTests.EmailAvailabilityReflectsIdentityValidationAndPersistedUniquenessWithoutCaching']],
   ['federation/instances', ['PublicEndpointTests.MisskeyFederationInstancesProjectsDurableRemoteState']],
@@ -315,7 +321,16 @@ const verifiedMisskeyTests = new Map([
     'RelationshipCompatibilityTests.MisskeyFollowAndMastodonUnfollowShareOneRelationAndExactFederationActivities',
     'RelationshipCompatibilityTests.MastodonMuteAndMisskeyUnmuteSharePersistentRelationshipState'
   ]],
-  ['username/available', ['PublicEndpointTests.EmailAvailabilityReflectsIdentityValidationAndPersistedUniquenessWithoutCaching']]
+  ['username/available', ['PublicEndpointTests.EmailAvailabilityReflectsIdentityValidationAndPersistedUniquenessWithoutCaching']],
+  ['admin/queue/deliver-delayed', [
+    'QueueManagementCompatibilityTests.QueueStatsAndJobsRequireAdministratorAndExposeNoPayloadOrSignature'
+  ]],
+  ['admin/queue/inbox-delayed', [
+    'QueueManagementCompatibilityTests.QueueStatsAndJobsRequireAdministratorAndExposeNoPayloadOrSignature'
+  ]],
+  ['admin/queue/stats', [
+    'QueueManagementCompatibilityTests.QueueStatsAndJobsRequireAdministratorAndExposeNoPayloadOrSignature'
+  ]]
 ]);
 
 const verifiedMastodonTests = new Map([
@@ -418,7 +433,12 @@ const partiallyImplementedMisskeyEndpoints = new Map([
   ['admin/invite', 'A durable, audited 130-bit invitation is implemented and tested, but the hardened 26-character code intentionally differs from Misskey 12.119.2\'s 8-character code, so exact differential compatibility remains blocked.'],
   ['federation/instances', 'The public projection, durable Misskey IDs, welcome-client query, host filter, and validation are tested, but all filter/sort combinations and a fixed Misskey 12.119.2 differential fixture remain blocked.'],
   ['meta', 'Core server identity and capability-disable fields are available, but persisted ads, custom emoji, themes, policies, and the complete 12.119.2 response contract remain blocked.'],
-  ['i/notifications', 'Durable dual-API projection, filtering, read state, and untilId handling exist, but fixed-server differential fixtures and complete pagination edge cases remain blocked.']
+  ['i/notifications', 'Durable dual-API projection, filtering, read state, and untilId handling exist, but fixed-server differential fixtures and complete pagination edge cases remain blocked.'],
+  ['admin/queue/stats', 'The fixed Dolphin UI deliver/inbox fields are PostgreSQL-backed and tested. The absent db and objectStorage queues are not represented by fabricated zero values, so the full 12.119.2 response remains blocked.']
+]);
+
+const excludedMisskeyEndpoints = new Map([
+  ['admin/queue/clear', 'Destructive Bull queue clearing is incompatible with the PostgreSQL audit and recovery contract; use pause, domain cancel, and per-dead-letter replay.']
 ]);
 
 function parseMisskeyInventory(callGraph) {
@@ -438,11 +458,13 @@ function parseMisskeyInventory(callGraph) {
     const meta = exportedConstant(file, 'meta') ?? {};
     const paramDef = exportedConstant(file, 'paramDef') ?? {};
     const methods = meta.requireFile ? ['POST'] : meta.allowGet ? ['GET', 'POST'] : ['POST'];
-    const routePresent = methods.some(method => currentRoutes.has(`${method} /api/${name}`));
+    const routePresent = methods.some(method =>
+      currentRoutes.has(`${method} /api/${name}`) || frontendRoutes.has(`${method} /api/${name}`));
     const tests = verifiedMisskeyTests.get(name) ?? [];
     const knownFalseSuccess = name === 'get-online-users-count' && routePresent;
     const partialReason = partiallyImplementedMisskeyEndpoints.get(name);
-    const implemented = routePresent && tests.length > 0 && !knownFalseSuccess && !partialReason;
+    const excludedReason = excludedMisskeyEndpoints.get(name);
+    const implemented = routePresent && tests.length > 0 && !knownFalseSuccess && !partialReason && !excludedReason;
     endpoints.push({
       method: methods,
       path: `/api/${name}`,
@@ -462,11 +484,11 @@ function parseMisskeyInventory(callGraph) {
       realClientTest: 'not-run',
       differentialTest: 'not-run',
       clientUsages: clientUsage.get(name) ?? [],
-      implementation: implemented ? 'implemented' : knownFalseSuccess ? 'failed' : 'blocked',
-      blockedReason: implemented ? null : knownFalseSuccess
+      implementation: implemented ? 'implemented' : excludedReason ? 'excluded' : knownFalseSuccess ? 'failed' : 'blocked',
+      blockedReason: implemented ? null : excludedReason ?? (knownFalseSuccess
         ? 'Route returns a fixed zero and is not backed by presence state.'
         : partialReason ??
-          (routePresent ? 'Route exists, but complete contract and persistence-side-effect evidence is missing.' : 'No adapter route exists.')
+          (routePresent ? 'Route exists, but complete contract and persistence-side-effect evidence is missing.' : 'No adapter route exists.'))
     });
   }
   for (const auxiliary of [

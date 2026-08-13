@@ -27,6 +27,12 @@
     public string SiteKey { get; set; } = string.Empty;
 
     [Parameter]
+    public string? Action { get; set; }
+
+    [Parameter]
+    public string? Cdata { get; set; }
+
+    [Parameter]
     public EventCallback<bool> ResponseChanged { get; set; }
 
     [Parameter(CaptureUnmatchedValues = true)]
@@ -36,6 +42,7 @@
     {
         "hcaptcha" => "hcaptcha-response",
         "recaptcha" => "g-recaptcha-response",
+        "turnstile" => "cf-turnstile-response",
         _ => string.Empty
     };
 
@@ -46,7 +53,7 @@
             return;
         }
 
-        if (Provider is not ("hcaptcha" or "recaptcha") || string.IsNullOrWhiteSpace(SiteKey))
+        if (Provider is not ("hcaptcha" or "recaptcha" or "turnstile") || string.IsNullOrWhiteSpace(SiteKey))
         {
             throw new InvalidOperationException("A configured captcha provider and site key are required.");
         }
@@ -60,6 +67,8 @@
                 receiver,
                 Provider,
                 SiteKey,
+                Action,
+                Cdata,
                 darkMode,
                 lifetime.Token);
         }

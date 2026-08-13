@@ -31,12 +31,14 @@ public sealed class DeliveryWorkerLeaseHeartbeatTests
         services.AddSingleton<IPrivateKeyStore, FixturePrivateKeyStore>();
         services.AddSingleton<IOutboundTransport>(transport);
         services.AddSingleton<IWorkerHeartbeatStore, FixtureWorkerHeartbeatStore>();
+        services.AddSingleton<IFederationQueueSignal, PollingQueueSignal>();
         services.AddSingleton<IFederationInstrumentation>(NullFederationInstrumentation.Instance);
         services.AddSingleton<DeliveryPolicy>();
         await using ServiceProvider provider = services.BuildServiceProvider();
         var worker = new DeliveryWorker(
             provider.GetRequiredService<IServiceScopeFactory>(),
             options,
+            provider.GetRequiredService<IFederationQueueSignal>(),
             provider.GetRequiredService<ILogger<DeliveryWorker>>());
 
         await worker.StartAsync(CancellationToken.None);
@@ -73,12 +75,14 @@ public sealed class DeliveryWorkerLeaseHeartbeatTests
         services.AddSingleton<IPrivateKeyStore, FixturePrivateKeyStore>();
         services.AddSingleton<IOutboundTransport>(transport);
         services.AddSingleton<IWorkerHeartbeatStore, FixtureWorkerHeartbeatStore>();
+        services.AddSingleton<IFederationQueueSignal, PollingQueueSignal>();
         services.AddSingleton<IFederationInstrumentation>(NullFederationInstrumentation.Instance);
         services.AddSingleton<DeliveryPolicy>();
         await using ServiceProvider provider = services.BuildServiceProvider();
         var worker = new DeliveryWorker(
             provider.GetRequiredService<IServiceScopeFactory>(),
             options,
+            provider.GetRequiredService<IFederationQueueSignal>(),
             provider.GetRequiredService<ILogger<DeliveryWorker>>());
 
         await worker.StartAsync(CancellationToken.None);
@@ -187,6 +191,21 @@ public sealed class DeliveryWorkerLeaseHeartbeatTests
         public Task<long> CountPendingAsync(CancellationToken cancellationToken) => Task.FromResult(0L);
         public Task<TimeSpan?> GetOldestPendingAgeAsync(DateTimeOffset now, CancellationToken cancellationToken) =>
             Task.FromResult<TimeSpan?>(null);
+    }
+
+    private sealed class PollingQueueSignal : IFederationQueueSignal
+    {
+        public bool IsEnabled => false;
+
+        public Task NotifyDeliveryAvailableAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task WaitForDeliveryAsync(TimeSpan timeout, CancellationToken cancellationToken) =>
+            Task.Delay(timeout, cancellationToken);
+
+        public Task NotifyInboxAvailableAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task WaitForInboxAsync(TimeSpan timeout, CancellationToken cancellationToken) =>
+            Task.Delay(timeout, cancellationToken);
     }
 
     private sealed class RecordingDomainExecutionStore : IRemoteDomainExecutionStore

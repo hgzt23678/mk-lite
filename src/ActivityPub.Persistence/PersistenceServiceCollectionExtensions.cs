@@ -69,6 +69,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IWorkerHeartbeatStore, WorkerHeartbeatStore>();
         services.AddScoped<IAuditLog, PostgreSqlAuditLog>();
         services.AddScoped<IModerationAdministration, ModerationAdministration>();
+        services.AddScoped<IFederationQueueAdministration, FederationQueueAdministration>();
         services.AddScoped<IMediaRepository, MediaRepository>();
         services.AddScoped<IRemoteMediaCacheRepository, RemoteMediaCacheRepository>();
         services.AddScoped<IRemoteActorMediaCacheRepository, RemoteActorMediaCacheRepository>();
@@ -79,11 +80,31 @@ public static class PersistenceServiceCollectionExtensions
         services.AddScoped<IRemoteInstanceQueryService, RemoteInstanceQueryService>();
         services.AddScoped<IClientApiCommandService, ClientApiCommandService>();
         services.AddScoped<IMisskeyAuthenticationService, MisskeyAuthenticationService>();
+        services.AddScoped<IInitialSetupState, InitialSetupState>();
+        services.AddScoped<IInitialAdministratorSetupService, InitialAdministratorSetupService>();
         services.AddScoped<IStreamEventStore, StreamEventStore>();
         services.AddScoped<IDurableStreamEventPump, DurableStreamEventPump>();
+        services.AddSingleton<RedisAccelerationService>(provider =>
+        {
+            string? redisConnection = configuration["Redis:ConnectionString"] ??
+                configuration["Streaming:Redis:ConnectionString"];
+            return new RedisAccelerationService(
+                redisConnection,
+                configuration["Redis:KeyPrefix"],
+                configuration["Redis:DeliveryQueueChannel"],
+                configuration["Redis:InboxQueueChannel"],
+                configuration.GetValue("Redis:TimelineCacheTtl", TimeSpan.FromSeconds(3)),
+                configuration.GetValue("Redis:NotificationCountTtl", TimeSpan.FromSeconds(10)),
+                provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<RedisAccelerationService>>());
+        });
+        services.AddSingleton<IFederationQueueSignal>(provider =>
+            provider.GetRequiredService<RedisAccelerationService>());
+        services.AddSingleton<IClientProjectionCache>(provider =>
+            provider.GetRequiredService<RedisAccelerationService>());
         services.AddSingleton<IStreamEventNotifier>(provider =>
         {
-            string? redisConnection = configuration["Streaming:Redis:ConnectionString"];
+            string? redisConnection = configuration["Redis:ConnectionString"] ??
+                configuration["Streaming:Redis:ConnectionString"];
             return string.IsNullOrWhiteSpace(redisConnection)
                 ? new NullStreamEventNotifier()
                 : new RedisStreamEventNotifier(redisConnection, configuration["Streaming:Redis:Channel"]);

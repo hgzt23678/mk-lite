@@ -20,8 +20,20 @@ ApplicationはOTLPでtrace/metricを送る。ComposeのcollectorはPrometheus en
 | `activitypub.ssrf.rejected` | Safe HTTPによる拒否 | なし |
 | `activitypub.rate_limited` | rate limiter拒否 | policy |
 | `activitypub.worker.active_leases` | active lease | worker type |
+| `activitypub.redis.cache_hits/misses` | timeline候補ID・未読通知count cache | `cache` |
+| `activitypub.redis.failures` | Redis処理失敗（DB fallback継続） | `failure.type` |
+| `activitypub.redis.wakeups` | delivery/inbox worker wake-up送信 | `queue` |
 
 Npgsql、ASP.NET Core、HttpClient、.NET runtime metricsもexportする。traceにはActivity ID、Delivery ID、remote domainを相関値として使うが、投稿本文、DM、token、cookie、署名全体、秘密鍵、blind recipientを属性にしない。
+
+## Queue管理とRedis
+
+- `GET /admin/federation/queue/stats`はwaiting、active lease、delayed retry、lease切れstalled、Dead Letter、cancelled、最古job、次回実行時刻、delay上位domainを返す。
+- `GET /admin/federation/queue/jobs?state=Pending&remoteDomain=example.org&limit=50`はpayloadや署名を含めず、job ID、Activity ID、endpoint、lease、attempt、status/error codeだけを返す。Inboxは`/admin/federation/queue/inbox-jobs`で分離する。
+- Dolphin互換管理client向けには`POST /api/admin/queue/stats`、`jobs`、`deliver-delayed`、`inbox-delayed`を提供する。Bullの`clear`は監査・復旧履歴を破壊するため実装しない。
+- emergency pause、domain停止、Dead Letter replayは既存の`/admin/operations`と`/admin/dead-letters`を使う。queue全消去endpointは提供しない。
+- `Redis:ConnectionString`が設定されるとdelivery/stream wake-up、timeline候補ID、未読通知数を高速化する。Redisを停止またはflushしてもPostgreSQL polling/queryへ戻る。Redis障害そのものをready失敗条件にはしない。
+- timeline cache hitでもPostgreSQLからrowを再取得し、visibility、follow、mute、block、Silenceを再評価する。Redisへ本文、DM、token、Cookie、署名を保存しない。
 
 ## 初期alert条件
 
@@ -35,5 +47,6 @@ Npgsql、ASP.NET Core、HttpClient、.NET runtime metricsもexportする。trace
 - required Worker heartbeat欠落、active leaseの突然の0化または飽和
 - key cache miss率80%超、SSRF拒否またはrate limitのbaseline比5倍
 - Npgsql pool待ち/timeout、DB error、disk/WAL容量、S3/Vault/ClamAV error
+- Redis errorの継続と同時にDB query latencyまたはpoll負荷が上昇した場合。Redis単独停止は配送消失alertではなくdegraded alertとする
 
 アラートにはrunbook URL、環境、release、相関IDを含める。domain labelは高cardinalityなので保持期間と集約規則を設定する。

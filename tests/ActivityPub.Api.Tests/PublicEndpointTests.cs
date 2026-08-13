@@ -96,6 +96,7 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
         using JsonDocument meta = await JsonDocument.ParseAsync(await metaResponse.Content.ReadAsStreamAsync());
         Assert.Equal("12.119.2-activitypub-dotnet", meta.RootElement.GetProperty("version").GetString());
         Assert.True(meta.RootElement.GetProperty("enableServiceWorker").GetBoolean());
+        Assert.False(meta.RootElement.GetProperty("requireSetup").GetBoolean());
 
         using HttpResponseMessage statsResponse = await client.PostAsJsonAsync("/api/stats", new { }, CancellationToken.None);
         using JsonDocument stats = await JsonDocument.ParseAsync(await statsResponse.Content.ReadAsStreamAsync());
@@ -120,6 +121,28 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
         Assert.Equal(HttpStatusCode.OK, reactionsResponse.StatusCode);
         using JsonDocument reactions = await JsonDocument.ParseAsync(await reactionsResponse.Content.ReadAsStreamAsync());
         Assert.Equal(":party@silenced.example:", Assert.Single(reactions.RootElement.EnumerateArray()).GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task InitialAdministratorCreationIsUnavailableAfterSetup()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/accounts/create")
+        {
+            Content = JsonContent.Create(new
+            {
+                username = "second_admin",
+                password = "test-only-password"
+            })
+        };
+        request.Headers.Add("Origin", "https://client.local.example");
+
+        using HttpResponseMessage response = await client.SendAsync(request, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        using JsonDocument error = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+        Assert.Equal(
+            "INITIAL_SETUP_ALREADY_COMPLETED",
+            error.RootElement.GetProperty("error").GetProperty("code").GetString());
     }
 
     [Fact]
@@ -358,6 +381,7 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
     [Theory]
     [InlineData("Hcaptcha")]
     [InlineData("Recaptcha")]
+    [InlineData("Turnstile")]
     public async Task CaptchaFrontendCspUsesOnlyTheOfficialProviderOrigins(string provider)
     {
         using Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> captchaFactory = fixture.WithWebHostBuilder(builder =>
@@ -390,12 +414,21 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
             Assert.Contains("https://hcaptcha.com https://*.hcaptcha.com; style-src 'self' https://hcaptcha.com https://*.hcaptcha.com; style-src-elem 'self' https://hcaptcha.com https://*.hcaptcha.com", policy, StringComparison.Ordinal);
             Assert.DoesNotContain("google.com/recaptcha", policy, StringComparison.Ordinal);
         }
-        else
+        else if (string.Equals(provider, "Recaptcha", StringComparison.Ordinal))
         {
             Assert.Contains("connect-src 'self' https://client.local.example https://www.google.com/recaptcha/", policy, StringComparison.Ordinal);
             Assert.Contains("frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/", policy, StringComparison.Ordinal);
             Assert.Contains("https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/", policy, StringComparison.Ordinal);
             Assert.DoesNotContain("recaptcha.net", policy, StringComparison.Ordinal);
+            Assert.DoesNotContain("hcaptcha.com", policy, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.Contains("connect-src 'self' https://client.local.example https://challenges.cloudflare.com", policy, StringComparison.Ordinal);
+            Assert.Contains("frame-src https://challenges.cloudflare.com", policy, StringComparison.Ordinal);
+            Assert.Contains("script-src 'self' 'nonce-", policy, StringComparison.Ordinal);
+            Assert.Contains("https://challenges.cloudflare.com; style-src 'self'", policy, StringComparison.Ordinal);
+            Assert.DoesNotContain("google.com/recaptcha", policy, StringComparison.Ordinal);
             Assert.DoesNotContain("hcaptcha.com", policy, StringComparison.Ordinal);
         }
     }
@@ -699,6 +732,51 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
             endpoint.Metadata.GetMetadata<IRequestSizeLimitMetadata>());
 
         Assert.Equal(16_384, requestLimit.MaxRequestBodySize);
+    }
+
+    [Fact]
+    public async Task MisskeySignupPassesTheCanonicalTurnstileFieldToServerVerification()
+    {
+        var verifier = new RecordingCaptchaVerifier();
+        using Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> turnstileFactory =
+            fixture.WithWebHostBuilder(builder =>
+            {
+                builder.UseSetting("KeyManagement:Enabled", "true");
+                builder.UseSetting("VaultTransit:Address", "http://127.0.0.1:8200");
+                builder.UseSetting("VaultTransit:TokenFile", "/run/secrets/test-vault-token");
+                builder.UseSetting("LocalAccounts:RegistrationEnabled", "true");
+                builder.UseSetting("RegistrationProtection:CaptchaProvider", "Turnstile");
+                builder.UseSetting("RegistrationProtection:CaptchaSiteKey", "fixture-site-key");
+                builder.UseSetting("RegistrationProtection:CaptchaSecretFile", "/run/secrets/test-turnstile-secret");
+                builder.UseSetting("RegistrationProtection:CaptchaExpectedHostname", "client.local.example");
+                builder.UseSetting("RegistrationProtection:CaptchaExpectedAction", "signup");
+                builder.UseSetting("RegistrationProtection:CaptchaExpectedCdata", "activitypub_signup");
+                builder.ConfigureTestServices(services =>
+                {
+                    services.RemoveAll<IRegistrationCaptchaVerifier>();
+                    services.AddSingleton<IRegistrationCaptchaVerifier>(verifier);
+                });
+            });
+        using HttpClient turnstileClient = turnstileFactory.CreateClient(
+            new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+            {
+                BaseAddress = new Uri("https://local.example"),
+                AllowAutoRedirect = false
+            });
+
+        using HttpResponseMessage response = await turnstileClient.PostAsJsonAsync(
+            "/api/signup",
+            new Dictionary<string, object?>
+            {
+                ["username"] = "turnstile" + Guid.NewGuid().ToString("N")[..10],
+                ["password"] = "test-only-password-long-enough",
+                ["cf-turnstile-response"] = "canonical-turnstile-token"
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(1, verifier.Calls);
+        Assert.Equal(RegistrationCaptchaProvider.Turnstile, verifier.Provider);
+        Assert.Equal("canonical-turnstile-token", verifier.Response);
     }
 
     [Theory]
@@ -1426,5 +1504,26 @@ public sealed class PublicEndpointTests(ActivityPubApiFixture fixture)
         IExternalEntityIdService externalIds = scope.ServiceProvider.GetRequiredService<IExternalEntityIdService>();
         return await externalIds.ResolveAsync(dialect, entityType, externalId, CancellationToken.None)
             ?? throw new InvalidOperationException("The response contained an unresolvable external identifier.");
+    }
+
+    private sealed class RecordingCaptchaVerifier : IRegistrationCaptchaVerifier
+    {
+        public int Calls { get; private set; }
+
+        public RegistrationCaptchaProvider Provider { get; private set; }
+
+        public string? Response { get; private set; }
+
+        public Task<RegistrationCaptchaVerificationResult> VerifyAsync(
+            RegistrationCaptchaProvider provider,
+            string response,
+            string? remoteIpAddress,
+            CancellationToken cancellationToken)
+        {
+            Calls++;
+            Provider = provider;
+            Response = response;
+            return Task.FromResult(RegistrationCaptchaVerificationResult.Invalid);
+        }
     }
 }

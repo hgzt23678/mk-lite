@@ -17,6 +17,9 @@
     }
 
     <MkStickyContainer class="contents">
+        @* Misskey 12.119.2 universal.vue places only XStatusBars in this slot.
+           Instance identity belongs to the sidebar menu; do not add an instance-name or
+           domain banner above the authenticated page content. *@
         <Header><div class="_statusbars_1bps6_1"></div></Header>
         <ChildContent>
             <main style="@MainStyle" @oncontextmenu:stopPropagation="true">

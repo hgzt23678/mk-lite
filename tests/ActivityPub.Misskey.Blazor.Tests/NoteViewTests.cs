@@ -73,7 +73,7 @@ public sealed class NoteViewTests : BunitContext
         Assert.Equal(4, footer.QuerySelectorAll(":scope > .button").Length);
         Assert.NotNull(footer.QuerySelector(":scope > .button > .fa-reply-all"));
         Assert.Null(footer.QuerySelector(":scope > .button.reacted"));
-        Assert.True(services.Size.Observations >= 3);
+        Assert.Equal(2, services.Size.Observations);
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public sealed class NoteViewTests : BunitContext
     }
 
     [Fact]
-    public async Task PreservesExpansionAcrossStreamUpdatesAndAppliesSizeDeleteAndDisposalState()
+    public async Task PreservesExpansionAcrossStreamUpdatesAndAppliesDeleteAndDisposalState()
     {
         TestServices services = Configure();
         NoteViewModel note = Note("note-id", new string('x', 501), Alice());
@@ -131,15 +131,9 @@ public sealed class NoteViewTests : BunitContext
         component.Render(parameters => parameters.Add(value => value.Note, note with { ReactionsCount = 8 }));
         Assert.DoesNotContain("collapsed", component.Find(".content").ClassList);
 
-        await component.Instance.UpdateElementSize(299, 1280);
-        component.WaitForAssertion(() =>
-        {
-            IElement root = component.Find(".tkcbzcuz");
-            Assert.Contains("max-width_500px", root.ClassList);
-            Assert.Contains("max-width_450px", root.ClassList);
-            Assert.Contains("max-width_350px", root.ClassList);
-            Assert.Contains("max-width_300px", root.ClassList);
-        });
+        Assert.DoesNotContain(
+            component.Find(".tkcbzcuz").ClassList,
+            value => value.StartsWith("max-width_", StringComparison.Ordinal));
 
         component.Render(parameters => parameters.Add(value => value.Note, note with
         {
@@ -150,7 +144,7 @@ public sealed class NoteViewTests : BunitContext
         Assert.Null(deleted.GetAttribute("tabindex"));
 
         await component.Instance.DisposeAsync();
-        Assert.True(services.Size.LastToken.IsCancellationRequested);
+        Assert.Equal(0, services.Size.Observations);
         Assert.Equal(1, services.NoteBehavior.Handle.DisposeInvocations);
         Assert.Equal(1, services.NoteBehavior.Handle.DisposeCalls);
     }

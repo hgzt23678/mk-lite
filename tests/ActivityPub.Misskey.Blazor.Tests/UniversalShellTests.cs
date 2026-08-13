@@ -6,6 +6,7 @@ using ActivityPub.Misskey.Blazor.Localization;
 using ActivityPub.Misskey.Blazor.Overlays;
 using ActivityPub.Misskey.Blazor.Presentation;
 using ActivityPub.Misskey.Blazor.State;
+using AngleSharp.Dom;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
@@ -41,7 +42,10 @@ public sealed class UniversalShellTests : BunitContext
         component.WaitForAssertion(() =>
         {
             Assert.NotNull(component.Find(".dkgtipfy > .sidebar.mvcprjjd"));
-            Assert.NotNull(component.Find(".dkgtipfy > .contents > div:first-child > ._statusbars_1bps6_1"));
+            IElement universalHeader = component.Find(".dkgtipfy > .contents > div:first-child");
+            Assert.NotNull(universalHeader.QuerySelector(":scope > ._statusbars_1bps6_1"));
+            Assert.Equal(string.Empty, universalHeader.TextContent.Trim());
+            Assert.DoesNotContain("Production instance", universalHeader.TextContent, StringComparison.Ordinal);
             Assert.Equal("page", component.Find(".dkgtipfy > .contents main > div").TextContent);
             Assert.NotNull(component.Find(".dkgtipfy > .widgets > .efzpzdvf"));
         });

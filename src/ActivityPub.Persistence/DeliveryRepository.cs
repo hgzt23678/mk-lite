@@ -8,7 +8,9 @@ namespace ActivityPub.Persistence;
 
 internal sealed class DeliveryRepository(
     IDbContextFactory<FederationDbContext> contextFactory,
-    IStreamEventNotifier streamEventNotifier) : IDeliveryRepository
+    IStreamEventNotifier streamEventNotifier,
+    IFederationQueueSignal queueSignal,
+    IClientProjectionCache projectionCache) : IDeliveryRepository
 {
     public async Task<OutboundCommitResult> CommitOutboundAsync(OutboundCommit commit, CancellationToken cancellationToken)
     {
@@ -218,6 +220,19 @@ internal sealed class DeliveryRepository(
         if (committedCursors.Length > 0)
         {
             await streamEventNotifier.PublishAsync(committedCursors, cancellationToken).ConfigureAwait(false);
+        }
+
+        foreach (string recipientActorIri in notifications
+                     .Select(item => item.RecipientActorIri)
+                     .Distinct(StringComparer.Ordinal))
+        {
+            await projectionCache.InvalidateNotificationsAsync(recipientActorIri, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (commit.Deliveries.Count > 0)
+        {
+            await queueSignal.NotifyDeliveryAvailableAsync(cancellationToken).ConfigureAwait(false);
         }
 
         return new(false, null);
@@ -484,6 +499,7 @@ internal sealed class DeliveryRepository(
         db.Deliveries.AddRange(deliveries);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        await queueSignal.NotifyDeliveryAvailableAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<ClientIdempotencyRecord?> FindClientIdempotencyAsync(
@@ -772,6 +788,7 @@ internal sealed class DeliveryRepository(
         deadLetter.MarkReplayed(operatorId, now);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        await queueSignal.NotifyDeliveryAvailableAsync(cancellationToken).ConfigureAwait(false);
         return true;
     }
 

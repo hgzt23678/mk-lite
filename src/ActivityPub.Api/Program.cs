@@ -126,7 +126,9 @@ builder.Services.AddSingleton(new MisskeyRegistrationPolicy(
     OpenRegistration: localAccountOptions.RegistrationEnabled,
     InvitationRequired: registrationProtectionOptions.InvitationRequired,
     CaptchaProvider: registrationProtectionOptions.CaptchaProvider.ToString(),
-    CaptchaSiteKey: registrationProtectionOptions.CaptchaSiteKey));
+    CaptchaSiteKey: registrationProtectionOptions.CaptchaSiteKey,
+    TurnstileAction: registrationProtectionOptions.CaptchaExpectedAction,
+    TurnstileCdata: registrationProtectionOptions.CaptchaExpectedCdata));
 builder.Services.AddSingleton(streamingOptions);
 builder.Services.AddSingleton(new StreamingRuntimeIdentity($"{Environment.MachineName}:{Environment.ProcessId}:{Guid.NewGuid():N}"));
 builder.Services.AddActivityPubPersistence(builder.Configuration, localAccountOptions.Enabled);
@@ -163,7 +165,7 @@ builder.Services.AddScoped<MisskeyQueryService>();
 builder.Services.AddScoped<MisskeyCommandService>();
 builder.Services.AddScoped<MisskeyAnnouncementService>();
 builder.Services.AddScoped<IRelayCommandService, RelayService>();
-builder.Services.AddSingleton<MisskeyMetadataService>();
+builder.Services.AddScoped<MisskeyMetadataService>();
 builder.Services.AddActivityPubModeration(spamOptions);
 builder.Services.AddActivityPubWorkers(workerOptions);
 builder.Services.AddActivityPubOperations(workerOptions, typeof(Program).Assembly.GetName().Version?.ToString() ?? "1.0.0");
@@ -226,6 +228,15 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0,
             AutoReplenishment = true
         }));
+    options.AddPolicy("initial-setup", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 3,
+            Window = TimeSpan.FromHours(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
     options.AddPolicy("password-reset-request", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions
@@ -251,19 +262,18 @@ var forwarded = new ForwardedHeadersOptions
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
     ForwardLimit = 1
 };
-foreach (string value in builder.Configuration.GetSection("Http:TrustedProxies").Get<string[]>() ?? [])
+TrustedProxySet trustedProxies = TrustedProxySet.Read(builder.Configuration);
+trustedProxies.ApplyTo(forwarded);
+bool cloudflareProxyEnabled = builder.Configuration.GetValue("Http:Cloudflare:Enabled", false);
+if (cloudflareProxyEnabled)
 {
-    if (!IPAddress.TryParse(value, out IPAddress? address))
-    {
-        throw new InvalidOperationException($"Trusted proxy '{value}' is not an IP address.");
-    }
-
-    forwarded.KnownProxies.Add(address);
+    forwarded.ForwardedForHeaderName = CloudflareConnectingIpGuard.HeaderName;
 }
 
-if (isProduction && forwarded.KnownProxies.Count == 0)
+if ((isProduction || cloudflareProxyEnabled) && trustedProxies.Count == 0)
 {
-    throw new InvalidOperationException("Http:TrustedProxies must explicitly identify the TLS-terminating proxy in Production.");
+    throw new InvalidOperationException(
+        "Http:TrustedProxies or Http:TrustedProxyNetworks must explicitly identify the TLS-terminating proxy.");
 }
 
 string[] allowedRequestHosts = hostFrontend &&
@@ -304,6 +314,12 @@ if (args is ["create-local-actor", .. var actorArguments])
 }
 
 app.UseExceptionHandler(exceptionApp => exceptionApp.Run(ExceptionResponse.WriteAsync));
+if (cloudflareProxyEnabled)
+{
+    // Validate the direct peer before ForwardedHeaders replaces RemoteIpAddress. This
+    // prevents a direct-origin caller from granting itself a spoofed CF-Connecting-IP.
+    app.UseMiddleware<CloudflareConnectingIpGuard>(trustedProxies);
+}
 app.UseForwardedHeaders(forwarded);
 app.UseHostFiltering();
 app.UseMiddleware<StreamingTokenRedactionMiddleware>();

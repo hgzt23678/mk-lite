@@ -367,6 +367,44 @@ public sealed class AuthenticationUiTests : BunitContext
     }
 
     [Fact]
+    public async Task SignUpProjectsTurnstileAtThePinnedUpstreamCaptchaPosition()
+    {
+        var captcha = new RecordingCaptchaInterop();
+        var browser = new NoOpBrowserInterop();
+        Services.AddSingleton<IAuthenticationFormInterop>(new RecordingAuthenticationInterop());
+        Services.AddSingleton<ICaptchaInterop>(captcha);
+        Services.AddSingleton<IFormInputInterop>(browser);
+        Services.AddSingleton<IButtonRippleInterop>(browser);
+        Services.AddSingleton<IPizzaxDeviceState>(new FixedDeviceState());
+        Services.AddSingleton<IMisskeyOverlayService>(new MisskeyOverlayService());
+        Services.AddSingleton<IMisskeyLocalizer>(new AuthenticationLocalizer());
+        Services.AddSingleton<IInstancePresentationService>(new TurnstileRegistrationInstanceService());
+        Services.AddSingleton(new MisskeyFrontendRuntimeConfiguration(
+            MisskeyFrontendRuntimeConfiguration.PortVersion,
+            null,
+            new Uri("https://social.example"),
+            LocalAccountsEnabled: true));
+
+        IRenderedComponent<MkSignup> component = Render<MkSignup>();
+        component.WaitForAssertion(() => Assert.True(captcha.Attached));
+
+        Assert.Equal("turnstile", captcha.Provider);
+        Assert.Equal("turnstile-site-key", captcha.SiteKey);
+        Assert.Equal("signup", captcha.Action);
+        Assert.Equal("activitypub_signup", captcha.Cdata);
+        Assert.Equal("cf-turnstile-response", component.Find("input[data-captcha-response]").GetAttribute("name"));
+        Assert.True(component.Find("button[data-cy-signup-submit]").HasAttribute("disabled"));
+
+        IRenderedComponent<MkCaptcha> captchaComponent = component.FindComponent<MkCaptcha>();
+        await captchaComponent.InvokeAsync(() => captchaComponent.Instance.NotifyResponseChanged(true));
+        component.WaitForAssertion(() =>
+            Assert.False(component.Find("button[data-cy-signup-submit]").HasAttribute("disabled")));
+        await component.InvokeAsync(() => component.Instance.NotifyRegistrationFailure("INVALID_CAPTCHA"));
+        component.WaitForAssertion(() =>
+            Assert.True(component.Find("button[data-cy-signup-submit]").HasAttribute("disabled")));
+    }
+
+    [Fact]
     public void SignUpDialogPassesActualStringParametersWithoutInventingAnInitialFailure()
     {
         var authentication = new RecordingAuthenticationInterop();
@@ -526,6 +564,12 @@ public sealed class AuthenticationUiTests : BunitContext
             UsernameAvailabilityUrl = usernameAvailabilityUrl;
             return ValueTask.FromResult<IJSObjectReference>(new NoOpJsObject());
         }
+
+        public ValueTask<IJSObjectReference> AttachInitialSetupAsync(
+            ElementReference form,
+            DotNetObjectReference<WelcomeSetup> receiver,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IJSObjectReference>(new NoOpJsObject());
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
@@ -711,6 +755,28 @@ public sealed class AuthenticationUiTests : BunitContext
             Task.FromResult<IReadOnlyList<FederationInstanceViewModel>>([]);
     }
 
+    private sealed class TurnstileRegistrationInstanceService : IInstancePresentationService
+    {
+        public Task<InstanceSummaryViewModel> GetAsync(CancellationToken cancellationToken) => Task.FromResult(new InstanceSummaryViewModel(
+            "social.example",
+            "Test instance",
+            "12.119.2",
+            "/static-assets/favicon.png",
+            BackgroundImageUrl: null,
+            LogoImageUrl: null,
+            DisableRegistration: true,
+            EmailRequiredForSignup: false,
+            EnableEmail: false,
+            TosUrl: null,
+            EnableTurnstile: true,
+            TurnstileSiteKey: "turnstile-site-key",
+            TurnstileAction: "signup",
+            TurnstileCdata: "activitypub_signup"));
+
+        public Task<IReadOnlyList<FederationInstanceViewModel>> ReadFederationInstancesAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<FederationInstanceViewModel>>([]);
+    }
+
     private sealed class RecordingCaptchaInterop : ICaptchaInterop
     {
         public bool Attached { get; private set; }
@@ -719,17 +785,25 @@ public sealed class AuthenticationUiTests : BunitContext
 
         public string? SiteKey { get; private set; }
 
+        public string? Action { get; private set; }
+
+        public string? Cdata { get; private set; }
+
         public ValueTask<IJSObjectReference> AttachAsync(
             ElementReference root,
             DotNetObjectReference<MkCaptcha> receiver,
             string provider,
             string siteKey,
+            string? action,
+            string? cdata,
             bool darkMode,
             CancellationToken cancellationToken)
         {
             Attached = true;
             Provider = provider;
             SiteKey = siteKey;
+            Action = action;
+            Cdata = cdata;
             return ValueTask.FromResult<IJSObjectReference>(new NoOpJsObject());
         }
 

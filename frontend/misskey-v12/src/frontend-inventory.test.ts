@@ -122,7 +122,10 @@ describe('Misskey v12 frontend inventory', () => {
         const explicitlyPartial = partiallyImplementedExcludedEndpoints.has(evidence.endpoint);
         return evidence.endpoint &&
           (evidence.upstreamContractPath || evidence.apiInventoryImplementation === 'unlisted-client-call') &&
-          (evidence.apiInventoryImplementation === 'blocked' || evidence.apiInventoryImplementation === 'unlisted-client-call' || explicitlyPartial) &&
+          (evidence.apiInventoryImplementation === 'blocked' ||
+            evidence.apiInventoryImplementation === 'excluded' ||
+            evidence.apiInventoryImplementation === 'unlisted-client-call' ||
+            explicitlyPartial) &&
           (evidence.apiInventoryBlockedReason || explicitlyPartial) &&
           evidence.backendSourcePath.startsWith('src/ActivityPub.MisskeyApi/') &&
           (evidence.backendImplemented === false || explicitlyPartial);
@@ -160,10 +163,10 @@ describe('Misskey v12 frontend inventory', () => {
     expect(mapping.inProgressCount).toBe(0);
     expect(mapping.plannedCount).toBe(0);
     expect(mapping.blockedCount).toBe(0);
-    expect(mapping.excludedCount).toBe(206);
+    expect(mapping.excludedCount).toBe(205);
     expect(features.size).toBe(9);
     const remaining = features.get('remaining-dolphin-contract-gaps');
-    expect(remaining?.sourcePaths).toHaveLength(172);
+    expect(remaining?.sourcePaths).toHaveLength(171);
     expect(remaining?.reason).toContain('Dolphin contracts');
     expect(drive?.sourcePaths).toHaveLength(12);
     expect(drive?.routePatterns).toEqual([
@@ -305,7 +308,7 @@ describe('Misskey v12 frontend inventory', () => {
     expect(signUp?.upstreamContract?.styles.flatMap(style => style.selectors)).toContain('.qlvuhzng .captcha');
     expect(signUp?.knownGaps).toEqual(expect.arrayContaining([
       'disposable, MX, and SMTP email rejection reasons remain unavailable because those registration policies are not configured',
-      'external live hCaptcha and reCAPTCHA services were not contacted',
+      'external live hCaptcha, reCAPTCHA, and Turnstile services were not contacted',
       'live SMTP delivery and three-browser email-confirmation completion are not verified',
       'real actor provisioning and ActivityPub side effects are not covered by the browser parity test',
     ]));

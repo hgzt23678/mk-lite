@@ -8,3 +8,4 @@
 - [ADR 0006: server-rendered interactive Blazor frontend](0006-server-rendered-interactive-blazor-frontend.md)
 - [ADR 0007: Browser JavaScript interop boundary](0007-browser-javascript-interop-boundary.md)
 - [ADR 0008: Misskey認証UIとOIDC境界](0008-misskey-authentication-ui-and-oidc.md)
+- [ADR 0009: PostgreSQL queue and optional Redis acceleration](0009-postgresql-queue-and-redis-acceleration.md)

@@ -466,3 +466,67 @@ export function attachSignUp(form, receiver, usernameAvailabilityUrl) {
     },
   };
 }
+
+export function attachInitialSetup(form, receiver) {
+  let disposed = false;
+
+  const onSubmit = async event => {
+    event.preventDefault();
+    if (disposed || form.dataset.submitting === 'true') return;
+    if (!form.reportValidity()) return;
+
+    const fields = new FormData(form);
+    form.dataset.submitting = 'true';
+    await receiver.invokeMethodAsync('NotifyInitialSetupStarted');
+    try {
+      const response = await fetch(form.action, {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        redirect: 'error',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-ActivityPub-Frontend': '1',
+        },
+        body: JSON.stringify({
+          username: String(fields.get('username') ?? ''),
+          password: String(fields.get('password') ?? ''),
+        }),
+      });
+      const contentType = response.headers.get('content-type') ?? '';
+      const payload = contentType.toLowerCase().startsWith('application/json')
+        ? await response.json()
+        : null;
+      if (response.ok && typeof payload?.token === 'string') {
+        form.reset();
+        await receiver.invokeMethodAsync('NotifyInitialSetupSucceeded');
+        window.location.assign('/');
+        return;
+      }
+
+      form.dataset.submitting = 'false';
+      await receiver.invokeMethodAsync(
+        'NotifyInitialSetupFailure',
+        typeof payload?.error?.code === 'string' ? payload.error.code : 'INITIAL_SETUP_FAILED');
+    } catch {
+      form.dataset.submitting = 'false';
+      if (!disposed) await receiver.invokeMethodAsync('NotifyInitialSetupFailure', 'INITIAL_SETUP_FAILED');
+    }
+  };
+
+  form.addEventListener('submit', onSubmit);
+  // Static SSR can expose the form before the Interactive Server circuit has
+  // attached its browser boundary. Publish readiness only after the listener
+  // is installed so automation and assistive integrations do not race the
+  // first submission.
+  form.dataset.setupReady = 'true';
+  return {
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      delete form.dataset.setupReady;
+      form.removeEventListener('submit', onSubmit);
+    },
+  };
+}

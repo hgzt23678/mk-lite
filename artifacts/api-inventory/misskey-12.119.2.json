@@ -206,9 +206,12 @@
       "pagination": [],
       "rateLimit": null,
       "viewerDependentFields": false,
-      "persistedAggregate": "ModerationAction",
-      "activityPubSideEffect": "none or projection-only",
-      "automatedTests": [],
+      "persistedAggregate": "LocalIdentityUser, LocalIdentityRole, LocalActor, ActorKey, MisskeyAccessToken",
+      "activityPubSideEffect": "provisions the initial local Person actor and signing key; no outbound Activity",
+      "automatedTests": [
+        "PublicEndpointTests.InitialAdministratorCreationIsUnavailableAfterSetup",
+        "InitialAdministratorSetupIntegrationTests.ConcurrentFirstRunCreatesExactlyOneSignedInAdministrator"
+      ],
       "realClientTest": "not-run",
       "differentialTest": "not-run",
       "clientUsages": [
@@ -225,8 +228,8 @@
           "runtimeConditional": false
         }
       ],
-      "implementation": "blocked",
-      "blockedReason": "No adapter route exists."
+      "implementation": "implemented",
+      "blockedReason": null
     },
     {
       "method": [
@@ -3065,8 +3068,8 @@
           "runtimeConditional": false
         }
       ],
-      "implementation": "blocked",
-      "blockedReason": "No adapter route exists."
+      "implementation": "excluded",
+      "blockedReason": "Destructive Bull queue clearing is incompatible with the PostgreSQL audit and recovery contract; use pause, domain cancel, and per-dead-letter replay."
     },
     {
       "method": [
@@ -3114,7 +3117,9 @@
       "viewerDependentFields": true,
       "persistedAggregate": "ModerationAction",
       "activityPubSideEffect": "none or projection-only",
-      "automatedTests": [],
+      "automatedTests": [
+        "QueueManagementCompatibilityTests.QueueStatsAndJobsRequireAdministratorAndExposeNoPayloadOrSignature"
+      ],
       "realClientTest": "not-run",
       "differentialTest": "not-run",
       "clientUsages": [
@@ -3131,8 +3136,8 @@
           "runtimeConditional": false
         }
       ],
-      "implementation": "blocked",
-      "blockedReason": "No adapter route exists."
+      "implementation": "implemented",
+      "blockedReason": null
     },
     {
       "method": [
@@ -3180,7 +3185,9 @@
       "viewerDependentFields": true,
       "persistedAggregate": "ModerationAction",
       "activityPubSideEffect": "none or projection-only",
-      "automatedTests": [],
+      "automatedTests": [
+        "QueueManagementCompatibilityTests.QueueStatsAndJobsRequireAdministratorAndExposeNoPayloadOrSignature"
+      ],
       "realClientTest": "not-run",
       "differentialTest": "not-run",
       "clientUsages": [
@@ -3191,8 +3198,8 @@
           "runtimeConditional": false
         }
       ],
-      "implementation": "blocked",
-      "blockedReason": "No adapter route exists."
+      "implementation": "implemented",
+      "blockedReason": null
     },
     {
       "method": [
@@ -3241,12 +3248,14 @@
       "viewerDependentFields": true,
       "persistedAggregate": "ModerationAction",
       "activityPubSideEffect": "none or projection-only",
-      "automatedTests": [],
+      "automatedTests": [
+        "QueueManagementCompatibilityTests.QueueStatsAndJobsRequireAdministratorAndExposeNoPayloadOrSignature"
+      ],
       "realClientTest": "not-run",
       "differentialTest": "not-run",
       "clientUsages": [],
       "implementation": "blocked",
-      "blockedReason": "No adapter route exists."
+      "blockedReason": "The fixed Dolphin UI deliver/inbox fields are PostgreSQL-backed and tested. The absent db and objectStorage queues are not represented by fabricated zero values, so the full 12.119.2 response remains blocked."
     },
     {
       "method": [

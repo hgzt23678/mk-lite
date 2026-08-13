@@ -34,6 +34,62 @@ public sealed class DurableQueueIntegrationTests(PostgreSqlFixture fixture)
     }
 
     [Fact]
+    public async Task FederationQueueAdministrationListsSafeJobMetadataAndCurrentCounts()
+    {
+        string domain = $"queue-admin-{Guid.NewGuid():N}.example";
+        Guid activityId = await InsertOutboundToDomainAsync(domain);
+        await using AsyncServiceScope scope = fixture.Services.CreateAsyncScope();
+        IDbContextFactory<FederationDbContext> contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<FederationDbContext>>();
+        DateTimeOffset inboxCreatedAt = DateTimeOffset.UtcNow;
+        string inboxDomain = $"inbox-delay-{Guid.NewGuid():N}.example";
+        InboxItem delayedInbox = InboxItem.Accept(
+            $"https://{inboxDomain}/activities/1",
+            $"https://{inboxDomain}/users/alice",
+            "Create",
+            "{}"u8.ToArray(),
+            SignatureProfile.LegacyCavage,
+            $"https://{inboxDomain}/users/alice#main-key",
+            inboxCreatedAt,
+            inboxCreatedAt);
+        delayedInbox.AcquireLease("queue-admin-test", inboxCreatedAt, TimeSpan.FromMinutes(1));
+        delayedInbox.ScheduleRetry(
+            "queue-admin-test",
+            inboxCreatedAt,
+            inboxCreatedAt.AddHours(1),
+            "fixture-delay",
+            "fixture delay");
+        await using (FederationDbContext db = await contextFactory.CreateDbContextAsync())
+        {
+            db.InboxItems.Add(delayedInbox);
+            await db.SaveChangesAsync();
+        }
+
+        IFederationQueueAdministration administration = scope.ServiceProvider
+            .GetRequiredService<IFederationQueueAdministration>();
+
+        IReadOnlyList<FederationQueueJobSummary> jobs = await administration.ListAsync(
+            WorkItemState.Pending,
+            null,
+            domain,
+            null,
+            10,
+            CancellationToken.None);
+        FederationQueueJobSummary job = Assert.Single(jobs, item => item.ActivityId == activityId);
+        Assert.Equal(domain, job.RemoteDomain);
+        Assert.Equal(0, job.AttemptCount);
+        Assert.Null(job.LeaseOwner);
+
+        FederationQueueStats stats = await administration.GetStatsAsync(
+            DateTimeOffset.UtcNow,
+            CancellationToken.None);
+        Assert.True(stats.Waiting + stats.Delayed + stats.Active + stats.Stalled > 0);
+        Assert.False(stats.RedisWakeupEnabled);
+        Assert.Contains(stats.InboxDelayedByDomain, item =>
+            item.Domain == inboxDomain && item.Count >= 1);
+    }
+
+    [Fact]
     public async Task ExpiredDeliveryLeaseIsRecoveredAfterWorkerCrash()
     {
         Guid activityId = await InsertOutboundAsync(1);

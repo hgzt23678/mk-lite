@@ -92,6 +92,8 @@ export function attach(root, receiver, enableAutoLoad) {
   let disposed = false;
   let observedTarget = null;
   let topNotificationPending = false;
+  let reportedTop = null;
+  let pendingTop = isTopVisible(root);
   const intersectionObserver = enableAutoLoad
     ? new IntersectionObserver(entries => {
       if (!disposed && entries.some(entry => entry.isIntersecting)) {
@@ -108,19 +110,38 @@ export function attach(root, receiver, enableAutoLoad) {
     observedTarget = next;
     if (observedTarget instanceof HTMLElement) intersectionObserver.observe(observedTarget);
   };
-  const mutationObserver = new MutationObserver(findAutoLoadTarget);
+  const mutationObserver = new MutationObserver(() => {
+    findAutoLoadTarget();
+    pendingTop = isTopVisible(root);
+    publishTopState();
+  });
   mutationObserver.observe(root, { childList: true, subtree: true });
   findAutoLoadTarget();
 
-  const state = scrollState(root);
-  const onScroll = () => {
-    if (disposed || topNotificationPending || !document.body.contains(root) || !isTopVisible(root)) return;
+  const publishTopState = () => {
+    if (disposed || topNotificationPending || pendingTop === reportedTop || !document.body.contains(root)) return;
+    const value = pendingTop;
     topNotificationPending = true;
-    receiver.invokeMethodAsync('NotifyReachedTopAsync')
+    receiver.invokeMethodAsync('NotifyViewportStateAsync', value)
       .catch(() => {})
-      .finally(() => { topNotificationPending = false; });
+      .finally(() => {
+        reportedTop = value;
+        topNotificationPending = false;
+        publishTopState();
+      });
   };
-  state.container.addEventListener('scroll', onScroll, { passive: true });
+  const onScroll = event => {
+    if (disposed || !document.body.contains(root)) return;
+    if (event.target instanceof Element && !event.target.contains(root)) return;
+    pendingTop = isTopVisible(root);
+    publishTopState();
+  };
+  // The nearest scroll container can change when a shell or deck column switches layout.
+  // Capture element scroll events at the document instead of pinning the listener to the
+  // container that happened to exist during attachment.
+  document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+  window.addEventListener('scroll', onScroll, { passive: true });
+  publishTopState();
 
   return {
     dispose() {
@@ -128,7 +149,8 @@ export function attach(root, receiver, enableAutoLoad) {
       disposed = true;
       intersectionObserver?.disconnect();
       mutationObserver.disconnect();
-      state.container.removeEventListener('scroll', onScroll);
+      document.removeEventListener('scroll', onScroll, { capture: true });
+      window.removeEventListener('scroll', onScroll);
     },
   };
 }

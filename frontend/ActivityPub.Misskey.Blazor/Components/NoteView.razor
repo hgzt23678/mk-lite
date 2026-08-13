@@ -1,5 +1,4 @@
 @implements IAsyncDisposable
-@inject IElementSizeInterop ElementSize
 @inject INoteViewInterop Browser
 @inject IAuthenticatedActorContext ActorContext
 @inject ITimelinePresentationService Timeline
@@ -133,11 +132,9 @@
     private ElementReference menuButton;
     private MkRenoteButton? renoteButton;
     private DotNetObjectReference<NoteView>? receiver;
-    private IJSObjectReference? sizeObservation;
     private IJSObjectReference? behaviorAttachment;
     private NoteViewModel? parameterReference;
     private NoteViewModel renderedNote = null!;
-    private double width = double.PositiveInfinity;
     private bool showContent;
     private bool collapsed;
     private bool disposed;
@@ -173,10 +170,6 @@
     {
         "tkcbzcuz",
         IsRenote ? "renote" : null,
-        width <= 500 ? "max-width_500px" : null,
-        width <= 450 ? "max-width_450px" : null,
-        width <= 350 ? "max-width_350px" : null,
-        width <= 300 ? "max-width_300px" : null,
         CssClass,
         ReadAdditional("class")
     }.Where(value => !string.IsNullOrWhiteSpace(value)));
@@ -249,7 +242,6 @@
         receiver = DotNetObjectReference.Create(this);
         try
         {
-            sizeObservation = await ElementSize.ObserveAsync(root, receiver, lifetime.Token).ConfigureAwait(false);
             behaviorAttachment = await Browser.AttachAsync(root, receiver, lifetime.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
@@ -258,19 +250,6 @@
         catch (JSDisconnectedException)
         {
         }
-    }
-
-    [JSInvokable]
-    public Task UpdateElementSize(double nextWidth, int viewportWidth)
-    {
-        _ = viewportWidth;
-        if (disposed || Math.Abs(width - nextWidth) < .5)
-        {
-            return Task.CompletedTask;
-        }
-
-        width = nextWidth;
-        return InvokeAsync(StateHasChanged);
     }
 
     [JSInvokable]
@@ -494,7 +473,6 @@
 
         disposed = true;
         await lifetime.CancelAsync();
-        await DisposeHandleAsync(sizeObservation);
         await DisposeHandleAsync(behaviorAttachment);
         receiver?.Dispose();
         lifetime.Dispose();

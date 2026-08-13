@@ -11,6 +11,8 @@ internal sealed class InboxRepository(
     IDbContextFactory<FederationDbContext> contextFactory,
     IDomainPolicyService policyService,
     IStreamEventNotifier streamEventNotifier,
+    IFederationQueueSignal queueSignal,
+    IClientProjectionCache projectionCache,
     ILogger<InboxRepository> logger) : IInboxRepository
 {
     private const string PublicAudience = "https://www.w3.org/ns/activitystreams#Public";
@@ -140,6 +142,7 @@ internal sealed class InboxRepository(
         {
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            await queueSignal.NotifyInboxAvailableAsync(cancellationToken).ConfigureAwait(false);
             return new(InboxAcceptanceStatus.Accepted, item.Id, null);
         }
         catch (DbUpdateException exception)
@@ -582,6 +585,19 @@ internal sealed class InboxRepository(
         if (committedCursors.Length > 0)
         {
             await streamEventNotifier.PublishAsync(committedCursors, cancellationToken).ConfigureAwait(false);
+        }
+
+        foreach (string recipientActorIri in notifications
+                     .Select(notification => notification.RecipientActorIri)
+                     .Distinct(StringComparer.Ordinal))
+        {
+            await projectionCache.InvalidateNotificationsAsync(recipientActorIri, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (effects.OutboundResponse?.Deliveries.Count > 0)
+        {
+            await queueSignal.NotifyDeliveryAvailableAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 

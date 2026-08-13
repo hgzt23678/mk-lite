@@ -1,6 +1,6 @@
 # 検証記録
 
-基礎検証の記録は 2026-08-04 UTC である。認証sliceとinventoryの追補は 2026-08-12 UTC に実施した。
+基礎検証の記録は 2026-08-04 UTC である。認証sliceとinventoryの追補は 2026-08-12 UTC、PostgreSQL queue管理・Redis高速化・Cloudflare対応は2026-08-13 UTCに検証した。
 
 判定基準は、frontendをMisskey v12.119.2、backendを`mei23/dolphin`として分離する。ユーザー確認済みの`.cache/meidolphin`（commit `3ce200269f814547dc7dfc6b246abadf8a9c00ed`）をbackend differential evidenceの固定参照とする。
 
@@ -10,8 +10,10 @@
 | --- | --- | --- |
 | locked restore | 成功 | 全 project の `packages.lock.json` を locked mode で復元 |
 | Release build | 成功 | analyzer と nullable を含め、警告 0、error 0 |
-| .NET 自動テスト | 成功 | 現行Release全体で901 passed、0 failed、0 skipped。Domain 60、Federation 61、Media 33、Misskey Blazor 536、Moderation 2、API 132、Property 3、Persistence 74 |
-| API inventory | 一部実装 | Mastodon 4.6.2は331経路中23 implemented／308 blocked。Misskey 12.119.2は321 endpoint中23 implemented／298 blocked。frontend ASTは静的262、streaming 14、動的14、未分類静的呼出し0 |
+| .NET 自動テスト | 成功 | 現行Release全体で956 passed、0 failed、0 skipped。Domain 60、Federation 61、Media 41、Misskey Blazor 537、Moderation 2、API 161、Property 3、Persistence 91 |
+| API inventory | 一部実装 | Mastodon 4.6.2は331経路中23 implemented／308 blocked。Misskey 12.119.2は321 endpoint中25 implemented／295 blocked／1 excluded。frontend ASTは静的262、streaming 14、動的14、未分類静的呼出し0 |
+| PostgreSQL queue／Redis acceleration | 成功 | outbound／Inboxのstats・safe job listing、Dolphin管理API projection、Redis Pub/Sub wake-up、timeline候補ID、未読通知count、Redis未設定・接続不能時のDB fallback、cached private candidateのvisibility再検証をPostgreSQL 17／Redis 7 Testcontainersで確認 |
+| Cloudflare Turnstile／R2／Proxy | 自動試験成功、live未試験 | Turnstileのhostname／action／cdata／idempotent retry／fail-closed、v12 signup DOM、R2 endpoint／upload契約、`CF-Connecting-IP`のtrusted peer／spoof防止をfixtureとChromiumで確認。実Turnstileおよび実R2 credentialによるlive通信は未実施 |
 | fediverse-pasture composition | 成功 | compose commit `fecd3977`、Mastodon `v4.6.2`、Misskey `2026.6.0`、Pleroma `v2.10.0`を固定。internal `172.29.0.0/24`、実Fediverse向けrouteなし、API/Workerの完全一致host allow-listを確認 |
 | fediverse-pasture実instance相互運用 | 一部成功、一部失敗 | 双方向Discovery/Follow/Accept、公開Create、Announce、Mastodon Like/Undo、Misskey reaction変更/Undo、Pleroma EmojiReact/Undo、mediaを実測。全三値表は`artifacts/interop/pasture/20260803T061125Z/interop-matrix.md` |
 | remote media実測 | 成功 | Mastodon画像を.NETへ配送し、初回proxy後にS3-backed cache 1件、2回目も同じmedia ID/SHA-256。peer Delete後はcache rowが残っても404 |
@@ -82,7 +84,7 @@ Local fault injection の `result.json` は次の判定を記録した。
 - 異なる旧 image と新 image を使った schema 互換 rolling deployment。同一 digest の orchestration smoke のみ通過済み
 - SharpFuzz harness の長時間 AFL++ campaign
 - Misskey v12 Blazor移植の生成mappingは535 source中`implemented` 329、`in-progress` 0、`blocked` 0、`planned` 0、`excluded` 206、`unclassified` 0。登録・ログイン、runtime utility、supported vertical sliceを証拠付きで検証したが、excluded source、全route、全CSS、Vue lifecycle相当、全motion、実browser authenticator／OIDC E2Eとvisual regressionは未完了。比較用Vue oracleのproduction buildを移植証拠とは扱わない
-- Mastodon APIは308経路、Misskey 12.119.2 APIは298 endpointがblockedであり、Mastodon／Misskey完全互換を宣言しない
+- Mastodon APIは308経路、Misskey 12.119.2 APIは295 endpointがblocked、1 endpointがexcludedであり、Mastodon／Misskey完全互換を宣言しない
 - Mastodon実client、移植済みMisskey frontendのbrowser E2E、固定版Mastodon 4.6.2／Misskey 12.119.2とのAPI differential test
 - 上流12.119.2 clientに元からある106件のTODO/FIXME markerの機能別triage。新規adapter/backendに未処理TODOはないが、上流markerを削除しただけで完成扱いにはしない
 

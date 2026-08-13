@@ -9,6 +9,7 @@ namespace ActivityPub.Workers.Inbox;
 public sealed class InboxWorker(
     IServiceScopeFactory scopeFactory,
     WorkerOptions options,
+    IFederationQueueSignal queueSignal,
     ILogger<InboxWorker> logger) : BackgroundService
 {
     private static readonly Action<ILogger, Exception?> PollFailed = LoggerMessage.Define(
@@ -56,7 +57,7 @@ public sealed class InboxWorker(
 
                 if (items.Count == 0)
                 {
-                    await Task.Delay(options.PollInterval, stoppingToken).ConfigureAwait(false);
+                    await queueSignal.WaitForInboxAsync(options.PollInterval, stoppingToken).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

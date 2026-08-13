@@ -50,6 +50,7 @@ Tailnet公開URLは`https://exekey-net.tail319568.ts.net:9443/app/`である。
 - `I $[jelly ❤] #Misskey`を初期値にした実`MkPostForm`と、単一の永続create副作用。
 - PostgreSQLのremote actor、object、follow、delivery、domain policy、circuit stateから投影する`federation/instances` welcome query。
 - Universal shell、navbar、widgets、timeline header。
+- 認証済みUniversalの最上段は固定版`ui/universal.vue`どおりstatus bar専用slotだけとし、インスタンス名／ドメインのidentity barを挿入しない。Chromiumで未設定status barが空かつ高さ0、後続のタイムライン`MkPageHeader`が残ることを確認する。Visitor shellはこの検証対象から分離する。
 - Home、Local、Hybrid、Global timelineの切替。
 - `MkNote`相当の本文、CW、media、poll、renote、visibility。
 - `MkVisibility.vue`の二つのspan、home、followers、specified、localOnlyのiconとCSS Modules class、および`MkUsersTooltip.vue`の最大10ユーザー、avatar、name、超過件数。
@@ -101,6 +102,9 @@ Tailnet公開URLは`https://exekey-net.tail319568.ts.net:9443/app/`である。
 - Interactive ServerのJS attachment前に新しいdialogをEscapeで閉じる際、明示された実Razor close操作だけを起動し、背面dialogへ入力を漏らさないpending-overlay境界。
 - dialogとbuttonの破棄時に、そのcomponent自身のlifetime cancellationだけを正常終了として扱う境界。
 - 全35個の遅延ES module importを同じ文書base URI解決とpage lifecycle境界へ集約し、WebKitが破棄中のdocumentで返すimport失敗だけを`JSDisconnectedException`へ変換する。通常のnetwork、CSP、構文、module評価失敗は元の`JSException`として維持する。
+- `MkDateSeparatedList`のFLIPで全要素の新座標を読み終えてからinverse transformを書き、子要素の同期layout readを0回、rootのlayout確定を1回に限定する境界。日付partは既存ID＋時刻を再利用し、prepend時は新規項目だけをbrowserへ問い合わせる。
+- `NoteView`の500、450、350、300px状態をCSS container queryで投影し、各NoteのResizeObserverからInteractive Serverへrender callbackを送らない境界。
+- Paginationのtop状態をbrowser側でscroll containerの変更を含めて追跡し、状態変化時だけServerへ通知する境界。away-from-topの各stream Noteごとに同期JS queryを行わない。
 
 旧来の簡易`NoteComposer`と、そのための自作timeline/note CSSは本番sourceから除去した。
 
@@ -173,6 +177,10 @@ Tailnet公開環境では、Chromium、Firefox、WebKitの3件が別実行で成
 
 この実行はinvitation-firstの表示、hCaptchaとreCAPTCHAのupstream DOM順序、公式script origin、初期fail-closed、callback後の送信許可、API payload、失敗後のwidget resetと再送不可、上流と同じerror alert、focus、acknowledgementを照合した。
 
+2026-08-13 UTCの登録操作回帰では、`auth-ui-parity.spec.ts`と`signup-dialog-parity.spec.ts`のChromium 10件が成功した。Turnstile scriptの初回取得を故障注入し、dialogを閉じて再度開いた際の再取得、widget生成、token callback、modal背景のalpha 255、TestHostの未処理例外0件を確認した。修正前は再表示後もwidgetが0件のままになることを同じ試験で再現した。
+
+同日の初回インストール回帰では、固定版`welcome.vue`と`welcome.setup.vue`を正本として、`meta.requireSetup=true`時だけ通常Entranceの代わりに`mk-setup`を描画することを確認した。`HomeTests`はDOM分岐と不要なfederation query抑止を、`InitialAdministratorSetupIntegrationTests`は実PostgreSQL上の同時2要求から管理者・local actor・署名鍵が一組だけ確定することを、`PublicEndpointTests`は完了後の`/api/admin/accounts/create`拒否を検証した。`welcome-setup-parity.spec.ts`のChromium 1件は上流DOM/CSS、panelとaccent headingのalpha 255、Interactive Server listener確立後の実JSON送信、session Cookieによる認証済みtimeline遷移を確認した。
+
 招待入力は26文字上限と26文字payloadを照合する。server側は130 bit code、SHA-256保存、単回消費を試験し、migration試験は実PostgreSQLでhash長、期限、reservation、消費状態の4制約違反を拒否する。
 
 provider callbackとserver応答はfixtureであり、外部live providerのavailabilityまたはproduction keyを検証した結果ではない。
@@ -208,6 +216,10 @@ Visibility専用の追加実行では、`visibility-tooltip-parity.spec.ts`のCh
 2026-08-12 UTCに追加した `supported-soak.spec.ts` はChromiumで12反復×10 supported route（`/about`、federation tab、local timeline、notifications、profile settings、API settings、admin relays、user profile、unsupported user clips/followers）を独立起動で実行し、1件が成功した。各遷移でUniversal/Visitor shellの不透明背景、console/page error、HTTP 4xx/5xx、TestHostの未処理回路例外とtransport failureを確認した。supported画面を先行実行した統合コマンドでは、前テストの切断回路が遅延して記録したKestrel `ApplicationNeverCompleted` がsoak開始直前に診断へ混入したため、統合64件と独立soak 1件を別証跡に分離している。
 
 その後の現行コード再検証では、About、settings/admin、follow、note、user profile、背景opacityのChromium合計66件に加え、settings theme/general/privacy と followers/following のfresh-publish 4件が成功し、`supported-soak.spec.ts`も独立起動で再度1件成功した。User profileの`/@alice`、`/@alice/clips`、`/@alice/followers`を含む遷移でconsole/page/HTTP/回路診断を確認した。
+
+2026-08-13 UTCのtimeline motion性能回帰では、focused component test 24件とChromiumの`date-separated-list-parity.spec.ts`、`note-view-parity.spec.ts`、`pagination-parity.spec.ts`、`timeline-parity.spec.ts`が成功した。FLIPのlayout read回数、container queryの各breakpoint計算値、日付の差分取得、scroll-away時のqueueとtop復帰を確認した。これは局所回帰の結果であり、Vueとの包括的なFPS、INP、memory、長時間soak比較ではない。
+
+同じChromium specを連続実行した際、前画面の`MisskeyWidgets`がInteractive Server circuit切断後にdevice storageを読む競合を再現した。`JSDisconnectedException`をcomponent lifecycleの終了として扱う局所修正後、`WidgetsTests` 4件と、再現順序を維持した`date-separated-list-parity.spec.ts`→`note-view-parity.spec.ts` 2件が成功し、TestHostの未処理circuit診断は0件になった。
 
 Localization専用の追加実行では、`localization-parity.spec.ts`のChromium、Firefox、WebKit各2件、合計6件が成功した。
 

@@ -22,6 +22,7 @@ services:
       Federation__DevelopmentAllowedHosts__2: pleroma
       OAuth__Enabled: "true"
       Streaming__Redis__ConnectionString: ${ACTIVITYPUB_PASTURE_REDIS:+redis://redis:6379}
+      Redis__ConnectionString: ${ACTIVITYPUB_PASTURE_REDIS:+redis://redis:6379}
       LocalAccounts__Enabled: "true"
       LocalAccounts__RegistrationEnabled: "true"
       AllowedHosts: activitypub
@@ -45,6 +46,7 @@ services:
       Federation__DevelopmentAllowedHosts__2: pleroma
       OAuth__Enabled: "true"
       Streaming__Redis__ConnectionString: ${ACTIVITYPUB_PASTURE_REDIS:+redis://redis:6379}
+      Redis__ConnectionString: ${ACTIVITYPUB_PASTURE_REDIS:+redis://redis:6379}
       LocalAccounts__Enabled: "true"
       LocalAccounts__RegistrationEnabled: "true"
       AllowedHosts: activitypub

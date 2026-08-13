@@ -19,6 +19,16 @@ internal sealed class S3MediaObjectStore(IAmazonS3 client, MediaOptions options)
             content.Position = 0;
         }
 
+        PutObjectRequest request = CreatePutObjectRequest(key, content, mediaType, options);
+        await client.PutObjectAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static PutObjectRequest CreatePutObjectRequest(
+        string key,
+        Stream content,
+        string mediaType,
+        MediaOptions options)
+    {
         var request = new PutObjectRequest
         {
             BucketName = options.Bucket,
@@ -26,10 +36,18 @@ internal sealed class S3MediaObjectStore(IAmazonS3 client, MediaOptions options)
             InputStream = content,
             ContentType = mediaType,
             AutoCloseStream = false,
-            ServerSideEncryptionMethod = options.UseServerSideEncryption ? ServerSideEncryptionMethod.AES256 : null
+            // R2 encrypts every object at rest, but rejects this generic S3 SSE header.
+            ServerSideEncryptionMethod = options.Provider == MediaObjectStoreProvider.S3Compatible &&
+                options.UseServerSideEncryption
+                    ? ServerSideEncryptionMethod.AES256
+                    : null,
+            // Cloudflare's AWS SDK for .NET guidance requires unsigned HTTPS payloads and
+            // disables the default SDK checksum that R2 does not implement.
+            DisablePayloadSigning = options.Provider == MediaObjectStoreProvider.CloudflareR2,
+            DisableDefaultChecksumValidation = options.Provider == MediaObjectStoreProvider.CloudflareR2
         };
         request.Headers.CacheControl = "private, no-store";
-        await client.PutObjectAsync(request, cancellationToken).ConfigureAwait(false);
+        return request;
     }
 
     public async Task<Stream> OpenReadAsync(string key, CancellationToken cancellationToken)

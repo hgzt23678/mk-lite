@@ -12,11 +12,11 @@ public sealed class InstancePresentationService(
     MisskeyMetadataService metadata,
     MisskeyQueryService query) : IInstancePresentationService
 {
-    public Task<InstanceSummaryViewModel> GetAsync(CancellationToken cancellationToken)
+    public async Task<InstanceSummaryViewModel> GetAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        MisskeyInstanceMetadata value = metadata.GetMetadata();
-        return Task.FromResult(new InstanceSummaryViewModel(
+        MisskeyInstanceMetadata value = await metadata.GetMetadataAsync(cancellationToken).ConfigureAwait(false);
+        return new InstanceSummaryViewModel(
             value.Name,
             value.Description,
             value.Version,
@@ -31,8 +31,13 @@ public sealed class InstancePresentationService(
             value.HcaptchaSiteKey,
             value.EnableRecaptcha,
             value.RecaptchaSiteKey,
+            value.EnableTurnstile,
+            value.TurnstileSiteKey,
+            value.TurnstileAction,
+            value.TurnstileCdata,
             value.MaintainerName,
-            value.MaintainerEmail));
+            value.MaintainerEmail,
+            value.RequireSetup);
     }
 
     public async Task<IReadOnlyList<FederationInstanceViewModel>> ReadFederationInstancesAsync(
@@ -86,8 +91,13 @@ public sealed record InstanceSummaryViewModel(
     string? HcaptchaSiteKey = null,
     bool EnableRecaptcha = false,
     string? RecaptchaSiteKey = null,
+    bool EnableTurnstile = false,
+    string? TurnstileSiteKey = null,
+    string? TurnstileAction = null,
+    string? TurnstileCdata = null,
     string? MaintainerName = null,
-    string? MaintainerEmail = null);
+    string? MaintainerEmail = null,
+    bool RequireSetup = false);
 
 public sealed record FederationInstanceViewModel(
     string Id,

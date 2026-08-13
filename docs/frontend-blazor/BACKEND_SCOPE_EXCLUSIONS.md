@@ -10,7 +10,7 @@ This document narrows the Misskey 12.119.2 frontend migration to functionality s
 
 1. The contract exists in the pinned `artifacts/api-inventory/misskey-12.119.2.json` inventory.
 2. `artifacts/api-inventory/misskey-client-callgraph.json` ties every declared contract to a real excluded source and source line. The declared evidence must exactly cover the static API and streaming calls made by that feature, and unresolved dynamic calls are rejected.
-3. The generator extracts the actual `MapGet`/`MapPost`/`MapPut`/`MapPatch`/`MapDelete` routes from `src/ActivityPub.MisskeyApi/MisskeyEndpoints.cs` and the accepted channel names from `MisskeyStreamingEndpoints.cs`. Any matching implementation makes the exclusion invalid.
+3. The generator extracts the actual `MapGet`/`MapPost`/`MapPut`/`MapPatch`/`MapDelete` routes from `src/ActivityPub.MisskeyApi/MisskeyEndpoints.cs` and the accepted channel names from `MisskeyStreamingEndpoints.cs`. Any matching implementation makes the exclusion invalid unless the same endpoint is an explicitly declared, tested subfeature of an otherwise excluded mixed screen (for example initial account creation within the still-excluded full admin user-management page).
 4. Sources without a direct call, such as the `/my/drive` wrapper and Drive dialogs, must be connected through the parsed internal import graph to a source with direct call evidence.
 5. Every exclusion has a non-empty reason and endpoint evidence. A route name, directory name, or API-inventory `blocked` label alone is not evidence.
 

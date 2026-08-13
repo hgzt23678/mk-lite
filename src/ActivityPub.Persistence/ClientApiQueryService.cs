@@ -5,7 +5,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ActivityPub.Persistence;
 
-public sealed class ClientApiQueryService(IDbContextFactory<FederationDbContext> contextFactory) : IClientApiQueryService
+public sealed class ClientApiQueryService(
+    IDbContextFactory<FederationDbContext> contextFactory,
+    IClientProjectionCache projectionCache) : IClientApiQueryService
 {
     private static readonly IReadOnlyList<ClientCustomEmojiView> EmptyEmojis = [];
     private static readonly IReadOnlyList<ClientProfileFieldView> EmptyFields = [];
@@ -600,10 +602,35 @@ public sealed class ClientApiQueryService(IDbContextFactory<FederationDbContext>
             query = query.Where(x => x.PublishedAt < before.Value);
         }
 
-        List<FederatedObject> candidates = await query.OrderByDescending(x => x.PublishedAt).ThenByDescending(x => x.Id)
-            .Take(safeLimit * 4 + 1)
-            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        int candidateLimit = safeLimit * 4 + 1;
+        IReadOnlyList<Guid>? cachedIds = await projectionCache.GetTimelineCandidatesAsync(
+            localOnly ? "public-local" : "public-global",
+            null,
+            beforeId,
+            candidateLimit,
+            cancellationToken).ConfigureAwait(false);
+        List<FederatedObject> candidates;
+        if (cachedIds is null)
+        {
+            candidates = await query.OrderByDescending(x => x.PublishedAt).ThenByDescending(x => x.Id)
+                .Take(candidateLimit)
+                .ToListAsync(cancellationToken).ConfigureAwait(false);
+            await projectionCache.SetTimelineCandidatesAsync(
+                localOnly ? "public-local" : "public-global",
+                null,
+                beforeId,
+                candidateLimit,
+                candidates.Select(item => item.Id).ToArray(),
+                cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            candidates = await LoadCandidatesAsync(db, cachedIds, cancellationToken).ConfigureAwait(false);
+        }
+
         candidates = candidates.Where(x =>
+                !x.IsDeleted && x.Visibility == Visibility.Public &&
+                (before is null || x.PublishedAt < before.Value) &&
                 (!localOnly || localActors.Contains(x.OwnerIri)) &&
                 !MatchesDomainPolicy(x.OwnerIri, silenced) &&
                 !administrativelyMuted.Contains(x.OwnerIri, StringComparer.Ordinal))
@@ -714,9 +741,36 @@ public sealed class ClientApiQueryService(IDbContextFactory<FederationDbContext>
             query = query.Where(x => x.PublishedAt < before.Value);
         }
 
-        List<FederatedObject> candidates = await query.OrderByDescending(x => x.PublishedAt).ThenByDescending(x => x.Id)
-            .Take(safeLimit * 3 + 1)
-            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        int candidateLimit = safeLimit * 3 + 1;
+        IReadOnlyList<Guid>? cachedIds = await projectionCache.GetTimelineCandidatesAsync(
+            "home",
+            viewerActorIri,
+            beforeId,
+            candidateLimit,
+            cancellationToken).ConfigureAwait(false);
+        List<FederatedObject> candidates;
+        if (cachedIds is null)
+        {
+            candidates = await query.OrderByDescending(x => x.PublishedAt).ThenByDescending(x => x.Id)
+                .Take(candidateLimit)
+                .ToListAsync(cancellationToken).ConfigureAwait(false);
+            await projectionCache.SetTimelineCandidatesAsync(
+                "home",
+                viewerActorIri,
+                beforeId,
+                candidateLimit,
+                candidates.Select(item => item.Id).ToArray(),
+                cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            candidates = await LoadCandidatesAsync(db, cachedIds, cancellationToken).ConfigureAwait(false);
+        }
+
+        candidates = candidates.Where(item =>
+                !item.IsDeleted && owners.Contains(item.OwnerIri, StringComparer.Ordinal) &&
+                (before is null || item.PublishedAt < before.Value))
+            .ToList();
         List<ClientPostView> statuses = [];
         foreach (FederatedObject item in candidates)
         {
@@ -744,6 +798,24 @@ public sealed class ClientApiQueryService(IDbContextFactory<FederationDbContext>
     private static int ValidateLimit(int limit) => limit is >= 1 and <= 40
         ? limit
         : throw new ArgumentOutOfRangeException(nameof(limit), "Mastodon page limit must be between 1 and 40.");
+
+    private static async Task<List<FederatedObject>> LoadCandidatesAsync(
+        FederationDbContext db,
+        IReadOnlyList<Guid> ids,
+        CancellationToken cancellationToken)
+    {
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        Guid[] distinctIds = ids.Distinct().ToArray();
+        FederatedObject[] rows = await db.Objects
+            .Where(item => distinctIds.Contains(item.Id))
+            .ToArrayAsync(cancellationToken).ConfigureAwait(false);
+        Dictionary<Guid, FederatedObject> byId = rows.ToDictionary(item => item.Id);
+        return ids.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
+    }
 
     private static bool MatchesDomainPolicy(string actorIri, IEnumerable<DomainPolicy> policies)
     {

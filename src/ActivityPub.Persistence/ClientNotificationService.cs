@@ -6,7 +6,8 @@ namespace ActivityPub.Persistence;
 
 public sealed class ClientNotificationService(
     IDbContextFactory<FederationDbContext> contextFactory,
-    IClientApiQueryService clientQuery) : IClientNotificationService
+    IClientApiQueryService clientQuery,
+    IClientProjectionCache projectionCache) : IClientNotificationService
 {
     public async Task<ClientPage<ClientNotificationView>> ReadAsync(
         string recipientActorIri,
@@ -94,6 +95,11 @@ public sealed class ClientNotificationService(
             }
 
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            if (rows.Count > 0)
+            {
+                await projectionCache.InvalidateNotificationsAsync(recipientActorIri, cancellationToken)
+                    .ConfigureAwait(false);
+            }
         }
 
         var result = new List<ClientNotificationView>(rows.Count);
@@ -156,15 +162,24 @@ public sealed class ClientNotificationService(
         }
 
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await projectionCache.InvalidateNotificationsAsync(recipientActorIri, cancellationToken)
+            .ConfigureAwait(false);
         return true;
     }
 
     public async Task<int> MarkAllReadAsync(string recipientActorIri, DateTimeOffset now, CancellationToken cancellationToken)
     {
         await using FederationDbContext db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        return await db.UserNotifications.Where(x =>
+        int changed = await db.UserNotifications.Where(x =>
                 x.RecipientActorIri == recipientActorIri && x.ReadAt == null && x.DismissedAt == null)
             .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.ReadAt, now), cancellationToken).ConfigureAwait(false);
+        if (changed > 0)
+        {
+            await projectionCache.InvalidateNotificationsAsync(recipientActorIri, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return changed;
     }
 
     public async Task<bool> DismissAsync(string recipientActorIri, Guid id, DateTimeOffset now, CancellationToken cancellationToken)
@@ -181,22 +196,38 @@ public sealed class ClientNotificationService(
 
         row.Dismiss(recipientActorIri, now);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await projectionCache.InvalidateNotificationsAsync(recipientActorIri, cancellationToken)
+            .ConfigureAwait(false);
         return true;
     }
 
     public async Task<int> ClearAsync(string recipientActorIri, DateTimeOffset now, CancellationToken cancellationToken)
     {
         await using FederationDbContext db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        return await db.UserNotifications.Where(x => x.RecipientActorIri == recipientActorIri && x.DismissedAt == null)
+        int changed = await db.UserNotifications.Where(x => x.RecipientActorIri == recipientActorIri && x.DismissedAt == null)
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(x => x.ReadAt, x => x.ReadAt ?? now)
                 .SetProperty(x => x.DismissedAt, now), cancellationToken).ConfigureAwait(false);
+        if (changed > 0)
+        {
+            await projectionCache.InvalidateNotificationsAsync(recipientActorIri, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return changed;
     }
 
     public async Task<long> CountUnreadAsync(string recipientActorIri, CancellationToken cancellationToken)
     {
+        long? cached = await projectionCache.GetUnreadNotificationCountAsync(recipientActorIri, cancellationToken)
+            .ConfigureAwait(false);
+        if (cached is not null)
+        {
+            return cached.Value;
+        }
+
         await using FederationDbContext db = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-        return await db.UserNotifications.LongCountAsync(x =>
+        long count = await db.UserNotifications.LongCountAsync(x =>
             x.RecipientActorIri == recipientActorIri && x.ReadAt == null && x.DismissedAt == null &&
             !db.UserMutes.Any(mute =>
                 mute.OwnerActorIri == recipientActorIri && mute.TargetActorIri == x.SourceActorIri &&
@@ -211,6 +242,9 @@ public sealed class ClientNotificationService(
                  block.OwnerActorIri == x.SourceActorIri && block.TargetActorIri == recipientActorIri) &&
                 block.State == FederatedRelationState.Active),
             cancellationToken).ConfigureAwait(false);
+        await projectionCache.SetUnreadNotificationCountAsync(recipientActorIri, count, cancellationToken)
+            .ConfigureAwait(false);
+        return count;
     }
 
     private static async Task<bool> IsSourceSuppressedAsync(

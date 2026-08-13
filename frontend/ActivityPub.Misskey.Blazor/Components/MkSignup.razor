@@ -121,6 +121,15 @@
                        SiteKey="@meta.RecaptchaSiteKey"
                        ResponseChanged="SetRecaptchaResponse" />
         }
+        @if (meta.EnableTurnstile && !string.IsNullOrWhiteSpace(meta.TurnstileSiteKey))
+        {
+            <MkCaptcha class="_formBlock captcha"
+                       Provider="turnstile"
+                       SiteKey="@meta.TurnstileSiteKey"
+                       Action="@meta.TurnstileAction"
+                       Cdata="@meta.TurnstileCdata"
+                       ResponseChanged="SetTurnstileResponse" />
+        }
         <MkButton CssClassAdditional="_formBlock"
                   Type="submit"
                   Disabled="@ShouldDisableSubmitting"
@@ -147,6 +156,7 @@
     private bool submitting;
     private bool hasHcaptchaResponse;
     private bool hasRecaptchaResponse;
+    private bool hasTurnstileResponse;
     private bool disposed;
 
     [Parameter]
@@ -175,6 +185,7 @@
         HasTermsOfService && !tosAgreement ||
         meta?.EnableHcaptcha == true && !hasHcaptchaResponse ||
         meta?.EnableRecaptcha == true && !hasRecaptchaResponse ||
+        meta?.EnableTurnstile == true && !hasTurnstileResponse ||
         string.Equals(passwordRetypeState, "not-match", StringComparison.Ordinal);
 
     private RenderFragment? UsernameCaption => usernameState switch
@@ -321,6 +332,7 @@
         submitting = false;
         hasHcaptchaResponse = false;
         hasRecaptchaResponse = false;
+        hasTurnstileResponse = false;
         ShowRegistrationFailure();
         await InvokeAsync(StateHasChanged);
     }
@@ -391,6 +403,12 @@
     private Task SetRecaptchaResponse(bool value)
     {
         hasRecaptchaResponse = value;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task SetTurnstileResponse(bool value)
+    {
+        hasTurnstileResponse = value;
         return InvokeAsync(StateHasChanged);
     }
 

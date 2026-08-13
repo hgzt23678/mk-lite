@@ -219,6 +219,122 @@ test('invite-only hCaptcha signup preserves MkCaptcha DOM, callback, payload, an
   await page.request.post('/__test/registration-protection/none');
 });
 
+test('invite-only Turnstile signup preserves upstream captcha position and Cloudflare bindings', async ({ page }) => {
+  await page.request.post('/__test/registration-protection/turnstile');
+  await page.route('https://challenges.cloudflare.com/turnstile/**', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: `globalThis.turnstile = {
+        render: (container, options) => {
+          const marker = document.createElement('div');
+          marker.dataset.testTurnstile = 'rendered';
+          marker.dataset.action = options.action;
+          marker.dataset.cdata = options.cData;
+          marker.dataset.responseField = String(options['response-field']);
+          container.appendChild(marker);
+          setTimeout(() => options.callback('browser-turnstile-token'), 0);
+          return 'turnstile-widget-1';
+        },
+        reset: () => {},
+        remove: () => {}
+      };`,
+    });
+  });
+  let registrationRequests = 0;
+  await page.route('**/auth/register', async route => {
+    registrationRequests += 1;
+    const request = route.request();
+    expect(multipartField(request, 'cf-turnstile-response')).toBe('browser-turnstile-token');
+    expect(request.postData()).not.toContain('provider-secret');
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await route.fulfill({
+      status: 400,
+      contentType: 'application/json',
+      body: JSON.stringify({ status: 'failed', errorCode: 'INVALID_CAPTCHA' }),
+    });
+  });
+
+  await page.locator('[data-cy-signup]').click();
+  const form = page.locator('body > .qzhlnise.dialog form.qlvuhzng');
+  const widget = form.locator('[data-test-turnstile="rendered"]');
+  await expect(widget).toHaveCount(1);
+  await expect(widget).toHaveAttribute('data-action', 'signup');
+  await expect(widget).toHaveAttribute('data-cdata', 'activitypub_signup');
+  await expect(widget).toHaveAttribute('data-response-field', 'false');
+  await expect(form.locator('input[name="cf-turnstile-response"]')).toHaveCount(1);
+  await expect(form.locator('input[name="cf-turnstile-response"]')).toHaveValue('browser-turnstile-token');
+  const orderedNames = await form.locator('input').evaluateAll(inputs =>
+    inputs.map(input => input.getAttribute('name')));
+  expect(orderedNames.indexOf('retypedPassword')).toBeLessThan(orderedNames.indexOf('cf-turnstile-response'));
+
+  await form.locator('input[name="invitationCode"]').fill('23456789ABCDEFGHJKLMNPQRST');
+  await form.locator('input[name="username"]').fill('available_user');
+  await form.locator('input[name="email"]').fill('available@example.test');
+  await form.locator('input[name="password"]').fill('strong-enough-password');
+  await form.locator('input[name="retypedPassword"]').fill('strong-enough-password');
+  await agreeToTerms(form);
+  await expect(form.locator('[data-cy-signup-submit]')).toBeEnabled();
+  await form.locator('[data-cy-signup-submit]').click();
+  await expect(page.locator('body > .qzhlnise.dialog[role="alertdialog"] .mk-dialog > .body'))
+    .toHaveText('問題が発生しました');
+  await expect(form.locator('input[name="cf-turnstile-response"]')).toHaveValue('');
+  await expect(form.locator('[data-cy-signup-submit]')).toBeDisabled();
+  expect(registrationRequests).toBe(1);
+  await page.request.post('/__test/registration-protection/none');
+});
+
+test('signup retries a transient Turnstile script failure after the dialog is reopened', async ({ page }) => {
+  await page.request.post('/__test/reset-diagnostics');
+  await page.request.post('/__test/registration-protection/turnstile');
+  let scriptRequests = 0;
+  await page.route('https://challenges.cloudflare.com/turnstile/**', async route => {
+    scriptRequests += 1;
+    if (scriptRequests === 1) {
+      await route.abort('failed');
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/javascript',
+      body: `globalThis.turnstile = {
+        render: (container, options) => {
+          const marker = document.createElement('div');
+          marker.dataset.testTurnstileRetry = 'rendered';
+          container.appendChild(marker);
+          setTimeout(() => options.callback('retry-turnstile-token'), 0);
+          return 'turnstile-widget-retry';
+        },
+        reset: () => {},
+        remove: () => {}
+      };`,
+    });
+  });
+
+  await page.locator('[data-cy-signup]').click();
+  let modal = page.locator('body > .qzhlnise.dialog');
+  let form = modal.locator('form.qlvuhzng');
+  await expect(form.locator('[data-test-turnstile-retry]')).toHaveCount(0);
+  await expect(form.locator('[data-captcha-container]').locator('xpath=preceding-sibling::span[1]')).toContainText(/waiting/i);
+  await modal.locator(':scope > .content > .ebkgoccj > .header > button[aria-label="閉じる"]').click();
+  await expect(modal).toHaveCount(0);
+
+  await page.locator('[data-cy-signup]').click();
+  modal = page.locator('body > .qzhlnise.dialog');
+  form = modal.locator('form.qlvuhzng');
+  await expect(form.locator('[data-test-turnstile-retry="rendered"]')).toHaveCount(1);
+  await expect(form.locator('input[name="cf-turnstile-response"]')).toHaveValue('retry-turnstile-token');
+  expect(await canvasAlpha(modal.locator(':scope > .content > .ebkgoccj > .body'))).toBe(255);
+  expect(scriptRequests).toBe(2);
+  const diagnostics = await (await page.request.get('/__test/diagnostics')).json() as {
+    unhandledExceptions: unknown[];
+  };
+  expect(diagnostics.unhandledExceptions).toEqual([]);
+
+  await page.request.post('/__test/registration-protection/none');
+});
+
 test('invite-only reCAPTCHA signup uses the official script, fails closed, submits, and resets', async ({ page }) => {
   await page.request.post('/__test/registration-protection/recaptcha');
   await page.route('https://www.google.com/recaptcha/**', async route => {

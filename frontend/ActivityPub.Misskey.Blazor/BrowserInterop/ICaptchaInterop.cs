@@ -10,6 +10,8 @@ public interface ICaptchaInterop : IAsyncDisposable
         DotNetObjectReference<Components.MkCaptcha> receiver,
         string provider,
         string siteKey,
+        string? action,
+        string? cdata,
         bool darkMode,
         CancellationToken cancellationToken);
 }
@@ -23,6 +25,8 @@ public sealed class CaptchaInterop(IJSRuntime jsRuntime) : ICaptchaInterop
         DotNetObjectReference<Components.MkCaptcha> receiver,
         string provider,
         string siteKey,
+        string? action,
+        string? cdata,
         bool darkMode,
         CancellationToken cancellationToken)
     {
@@ -37,6 +41,8 @@ public sealed class CaptchaInterop(IJSRuntime jsRuntime) : ICaptchaInterop
             receiver,
             provider,
             siteKey,
+            action,
+            cdata,
             darkMode);
     }
 

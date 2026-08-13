@@ -2,13 +2,13 @@
 @rendermode InteractiveServer
 
 <main data-contract="note-view-slice">
-    <section data-contract="note-view-host" style="width: 720px;">
+    <section class="misskey-note-container" data-contract="note-view-host" style="width: 720px;">
         <NoteView Note="note"
                   Pinned="true"
                   class="contract-note"
                   data-fallthrough="note-view" />
     </section>
-    <section data-contract="renote-host" style="width: 420px;">
+    <section class="misskey-note-container" data-contract="renote-host" style="width: 420px;">
         <NoteView Note="renote"
                   class="contract-renote" />
     </section>

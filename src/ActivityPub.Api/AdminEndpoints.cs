@@ -23,6 +23,9 @@ internal static class AdminEndpoints
         admin.MapGet("/operations/outbound-delivery", GetOutboundControlAsync);
         admin.MapPut("/operations/outbound-delivery", SetOutboundControlAsync);
         admin.MapPost("/operations/domains/{domain}/cancel-deliveries", CancelDomainDeliveriesAsync);
+        admin.MapGet("/federation/queue/stats", GetFederationQueueStatsAsync);
+        admin.MapGet("/federation/queue/jobs", ListFederationQueueJobsAsync);
+        admin.MapGet("/federation/queue/inbox-jobs", ListFederationInboxJobsAsync);
         admin.MapGet("/legal-holds", ListLegalHoldsAsync);
         admin.MapPost("/legal-holds", PlaceLegalHoldAsync);
         admin.MapDelete("/legal-holds/{id:guid}", ReleaseLegalHoldAsync);
@@ -149,6 +152,59 @@ internal static class AdminEndpoints
             OperatorId(context.User),
             cancellationToken).ConfigureAwait(false);
         return Results.Ok(new { cancelled });
+    }
+
+    private static async Task<IResult> GetFederationQueueStatsAsync(
+        IFederationQueueAdministration administration,
+        CancellationToken cancellationToken) =>
+        Results.Ok(await administration.GetStatsAsync(DateTimeOffset.UtcNow, cancellationToken).ConfigureAwait(false));
+
+    private static async Task<IResult> ListFederationQueueJobsAsync(
+        WorkItemState? state,
+        bool? delayed,
+        string? remoteDomain,
+        DateTimeOffset? before,
+        int? limit,
+        IFederationQueueAdministration administration,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Results.Ok(await administration.ListAsync(
+                state,
+                delayed,
+                remoteDomain,
+                before,
+                limit ?? 50,
+                cancellationToken).ConfigureAwait(false));
+        }
+        catch (ArgumentException exception)
+        {
+            return Results.BadRequest(new { error = exception.Message });
+        }
+    }
+
+    private static async Task<IResult> ListFederationInboxJobsAsync(
+        WorkItemState? state,
+        bool? delayed,
+        DateTimeOffset? before,
+        int? limit,
+        IFederationQueueAdministration administration,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return Results.Ok(await administration.ListInboxAsync(
+                state,
+                delayed,
+                before,
+                limit ?? 50,
+                cancellationToken).ConfigureAwait(false));
+        }
+        catch (ArgumentException exception)
+        {
+            return Results.BadRequest(new { error = exception.Message });
+        }
     }
 
     private static string OperatorId(ClaimsPrincipal user) =>

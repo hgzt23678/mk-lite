@@ -7,6 +7,10 @@ const providers = {
     variable: 'grecaptcha',
     source: 'https://www.google.com/recaptcha/api.js?render=explicit',
   },
+  turnstile: {
+    variable: 'turnstile',
+    source: 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit',
+  },
 };
 
 const scriptLoads = new Map();
@@ -18,14 +22,22 @@ function loadProvider(provider) {
   const existing = scriptLoads.get(provider);
   if (existing) return existing;
 
+  let script = document.getElementById(provider);
   const promise = new Promise((resolve, reject) => {
-    let script = document.getElementById(provider);
+    const cleanup = () => {
+      script?.removeEventListener('load', loaded);
+      script?.removeEventListener('error', failed);
+    };
     const loaded = () => {
+      cleanup();
       const api = globalThis[definition.variable];
       if (api?.render) resolve(api);
       else reject(new Error('CAPTCHA_API_MISSING'));
     };
-    const failed = () => reject(new Error('CAPTCHA_SCRIPT_FAILED'));
+    const failed = () => {
+      cleanup();
+      reject(new Error('CAPTCHA_SCRIPT_FAILED'));
+    };
     if (!script) {
       script = document.createElement('script');
       script.async = true;
@@ -35,12 +47,19 @@ function loadProvider(provider) {
     script.addEventListener('load', loaded, { once: true });
     script.addEventListener('error', failed, { once: true });
     if (!script.isConnected) document.head.appendChild(script);
+  }).catch(error => {
+    // A failed script element never emits load/error again. Do not retain either it or its
+    // rejected promise, otherwise closing and reopening signup cannot recover without a full
+    // page reload after a transient CDN/network failure.
+    scriptLoads.delete(provider);
+    if (!globalThis[definition.variable]?.render) script?.remove();
+    throw error;
   });
   scriptLoads.set(provider, promise);
   return promise;
 }
 
-export async function attachCaptcha(root, receiver, provider, siteKey, darkMode) {
+export async function attachCaptcha(root, receiver, provider, siteKey, action, cdata, darkMode) {
   if (!(root instanceof HTMLElement) || !providers[provider] || typeof siteKey !== 'string' || !siteKey) {
     throw new Error('CAPTCHA_CONFIGURATION_INVALID');
   }
@@ -74,13 +93,23 @@ export async function attachCaptcha(root, receiver, provider, siteKey, darkMode)
     api = await loadProvider(provider);
     if (disposed) return { reset() {}, dispose() {} };
     await receiver.invokeMethodAsync('NotifyAvailable');
-    widgetId = api.render(container, {
+    const renderOptions = {
       sitekey: siteKey,
       theme: darkMode ? 'dark' : 'light',
       callback: response => void setResponse(response),
       'expired-callback': () => void setResponse(null),
       'error-callback': () => void setResponse(null),
-    });
+    };
+    if (provider === 'turnstile') {
+      renderOptions.action = action;
+      renderOptions.cData = cdata;
+      // Keep the pinned MkCaptcha hidden input as the single form field. Turnstile otherwise
+      // creates another cf-turnstile-response input and ASP.NET joins both values.
+      renderOptions['response-field'] = false;
+      renderOptions['timeout-callback'] = () => void setResponse(null);
+      renderOptions['unsupported-callback'] = () => void setResponse(null);
+    }
+    widgetId = api.render(container, renderOptions);
   } catch {
     await setResponse(null);
   }

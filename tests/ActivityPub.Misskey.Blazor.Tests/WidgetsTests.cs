@@ -8,6 +8,7 @@ using ActivityPub.Misskey.Blazor.State;
 using Bunit;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.JSInterop;
 
 namespace ActivityPub.Misskey.Blazor.Tests;
 
@@ -59,6 +60,18 @@ public sealed class WidgetsTests : BunitContext
         await component.InvokeAsync(() =>
             widgets.Parameters.Get(value => value.UpdateWidget).InvokeAsync(new MisskeyWidgetUpdate("calendar", data)));
         Assert.True(state.LastWritten.Single(widget => widget.Id == "calendar").Data["transparent"].GetBoolean());
+    }
+
+    [Fact]
+    public void UniversalWidgetsIgnoresStorageReadWhenTheCircuitDisconnectsDuringHydration()
+    {
+        Services.AddSingleton<IPizzaxDeviceState>(new DisconnectingDeviceState());
+        Services.AddSingleton<IMisskeyLocalizer>(new WidgetLocalizer());
+        ComponentFactories.AddStub<MkWidgets>();
+
+        using IRenderedComponent<MisskeyWidgets> component = Render<MisskeyWidgets>();
+
+        Assert.Empty(component.FindComponents<Bunit.TestDoubles.Stub<MkWidgets>>());
     }
 
     [Fact]
@@ -190,6 +203,20 @@ public sealed class WidgetsTests : BunitContext
             LastWritten = Assert.IsAssignableFrom<IReadOnlyList<MisskeyWidgetModel>>(value);
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class DisconnectingDeviceState : IPizzaxDeviceState
+    {
+        public ValueTask<T> ReadAsync<T>(
+            string propertyName,
+            T fallback,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromException<T>(new JSDisconnectedException("Test circuit disconnected."));
+
+        public ValueTask WriteAsync<T>(
+            string propertyName,
+            T value,
+            CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
     }
 
     private sealed class NoOpWidgetsInterop : IWidgetsInterop

@@ -196,6 +196,7 @@ public sealed class LocalIdentityIntegrationTests(PostgreSqlFixture fixture)
             registrationProtection,
             scope.ServiceProvider.GetRequiredService<IAtomicLocalAccountRegistration>(),
             scope.ServiceProvider.GetRequiredService<IPasswordVerificationTimingEqualizer>(),
+            scope.ServiceProvider.GetRequiredService<RoleManager<LocalIdentityRole>>(),
             scope.ServiceProvider.GetRequiredService<ILogger<LocalAccountService>>());
         string username = UniqueUsername("protected");
         RegistrationInvitationIssueResult issued = await issuer.IssueAsync("admin:protected-test", CancellationToken.None);
@@ -385,6 +386,137 @@ public sealed class LocalIdentityIntegrationTests(PostgreSqlFixture fixture)
         {
             File.Delete(secretPath);
         }
+    }
+
+    [Fact]
+    public async Task TurnstileVerificationBindsHostnameActionCdataRemoteIpAndHandlesProviderFailures()
+    {
+        string secretPath = Path.Combine(Path.GetTempPath(), $"turnstile-{Guid.NewGuid():N}.secret");
+        const string secret = "turnstile-secret-do-not-log";
+        const string responseToken = "turnstile-token-do-not-log";
+        await File.WriteAllTextAsync(secretPath, secret);
+        try
+        {
+            var logger = new CapturingLogger<RegistrationCaptchaVerifier>();
+            var handler = new CaptchaHandler(
+                HttpStatusCode.OK,
+                "{\"success\":true,\"hostname\":\"identity-tests.example\",\"action\":\"signup\",\"cdata\":\"activitypub_signup\"}");
+            var options = new RegistrationProtectionOptions
+            {
+                CaptchaProvider = RegistrationCaptchaProvider.Turnstile,
+                CaptchaSiteKey = "site-key",
+                CaptchaSecretFile = secretPath,
+                CaptchaExpectedHostname = "identity-tests.example",
+                CaptchaExpectedAction = "signup",
+                CaptchaExpectedCdata = "activitypub_signup",
+                CaptchaVerificationTimeout = TimeSpan.FromSeconds(2)
+            };
+            var verifier = new RegistrationCaptchaVerifier(new HttpClient(handler), options, logger);
+
+            Assert.Equal(
+                RegistrationCaptchaVerificationResult.Valid,
+                await verifier.VerifyAsync(
+                    RegistrationCaptchaProvider.Turnstile,
+                    responseToken,
+                    "203.0.113.7",
+                    CancellationToken.None));
+            Assert.Equal(new Uri("https://challenges.cloudflare.com/turnstile/v0/siteverify"), handler.RequestUri);
+            Assert.Contains("remoteip=203.0.113.7", handler.RequestBody, StringComparison.Ordinal);
+            Assert.True(TryReadFormField(handler.RequestBody, "idempotency_key", out string? idempotencyKey));
+            Assert.True(Guid.TryParse(idempotencyKey, out _));
+
+            handler.ResponseBody =
+                "{\"success\":true,\"hostname\":\"other.example\",\"action\":\"signup\",\"cdata\":\"activitypub_signup\"}";
+            Assert.Equal(RegistrationCaptchaVerificationResult.Invalid, await verifier.VerifyAsync(
+                RegistrationCaptchaProvider.Turnstile, responseToken, "203.0.113.7", CancellationToken.None));
+
+            handler.ResponseBody =
+                "{\"success\":true,\"hostname\":\"identity-tests.example\",\"action\":\"login\",\"cdata\":\"activitypub_signup\"}";
+            Assert.Equal(RegistrationCaptchaVerificationResult.Invalid, await verifier.VerifyAsync(
+                RegistrationCaptchaProvider.Turnstile, responseToken, "203.0.113.7", CancellationToken.None));
+
+            handler.ResponseBody =
+                "{\"success\":true,\"hostname\":\"identity-tests.example\",\"action\":\"signup\",\"cdata\":\"wrong\"}";
+            Assert.Equal(RegistrationCaptchaVerificationResult.Invalid, await verifier.VerifyAsync(
+                RegistrationCaptchaProvider.Turnstile, responseToken, "203.0.113.7", CancellationToken.None));
+
+            handler.ResponseBody = "{\"success\":false,\"error-codes\":[\"timeout-or-duplicate\"]}";
+            Assert.Equal(RegistrationCaptchaVerificationResult.Invalid, await verifier.VerifyAsync(
+                RegistrationCaptchaProvider.Turnstile, responseToken, "203.0.113.7", CancellationToken.None));
+
+            handler.StatusCode = HttpStatusCode.ServiceUnavailable;
+            Assert.Equal(RegistrationCaptchaVerificationResult.Unavailable, await verifier.VerifyAsync(
+                RegistrationCaptchaProvider.Turnstile, responseToken, "203.0.113.7", CancellationToken.None));
+
+            handler.StatusCode = HttpStatusCode.OK;
+            handler.TransientFailuresRemaining = 1;
+            handler.ResponseBody =
+                "{\"success\":true,\"hostname\":\"identity-tests.example\",\"action\":\"signup\",\"cdata\":\"activitypub_signup\"}";
+            Assert.Equal(RegistrationCaptchaVerificationResult.Valid, await verifier.VerifyAsync(
+                RegistrationCaptchaProvider.Turnstile, responseToken, "203.0.113.7", CancellationToken.None));
+            string[] retriedBodies = handler.RequestBodies.TakeLast(2).ToArray();
+            Assert.Equal(2, retriedBodies.Length);
+            Assert.True(TryReadFormField(retriedBodies[0], "idempotency_key", out string? firstRetryId));
+            Assert.True(TryReadFormField(retriedBodies[1], "idempotency_key", out string? secondRetryId));
+            Assert.Equal(firstRetryId, secondRetryId);
+            Assert.DoesNotContain(secret, string.Join('\n', logger.Messages), StringComparison.Ordinal);
+            Assert.DoesNotContain(responseToken, string.Join('\n', logger.Messages), StringComparison.Ordinal);
+        }
+        finally
+        {
+            File.Delete(secretPath);
+        }
+    }
+
+    [Fact]
+    public async Task TurnstileRejectsOversizedTokenWithoutCallingProviderAndTimesOutClosed()
+    {
+        string secretPath = Path.Combine(Path.GetTempPath(), $"turnstile-{Guid.NewGuid():N}.secret");
+        await File.WriteAllTextAsync(secretPath, "test-secret");
+        try
+        {
+            var handler = new CaptchaHandler(HttpStatusCode.OK, "{\"success\":true}");
+            var options = new RegistrationProtectionOptions
+            {
+                CaptchaProvider = RegistrationCaptchaProvider.Turnstile,
+                CaptchaSiteKey = "site-key",
+                CaptchaSecretFile = secretPath,
+                CaptchaExpectedHostname = "identity-tests.example",
+                CaptchaVerificationTimeout = TimeSpan.FromMilliseconds(10)
+            };
+            var verifier = new RegistrationCaptchaVerifier(
+                new HttpClient(handler),
+                options,
+                new CapturingLogger<RegistrationCaptchaVerifier>());
+
+            Assert.Equal(RegistrationCaptchaVerificationResult.Invalid, await verifier.VerifyAsync(
+                RegistrationCaptchaProvider.Turnstile, new string('x', 2_049), null, CancellationToken.None));
+            Assert.Null(handler.RequestUri);
+
+            handler.Delay = TimeSpan.FromSeconds(5);
+            Assert.Equal(RegistrationCaptchaVerificationResult.Unavailable, await verifier.VerifyAsync(
+                RegistrationCaptchaProvider.Turnstile, "bounded-token", null, CancellationToken.None));
+        }
+        finally
+        {
+            File.Delete(secretPath);
+        }
+    }
+
+    private static bool TryReadFormField(string body, string name, out string? value)
+    {
+        foreach (string field in body.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            string[] parts = field.Split('=', 2);
+            if (parts.Length == 2 && string.Equals(Uri.UnescapeDataString(parts[0]), name, StringComparison.Ordinal))
+            {
+                value = Uri.UnescapeDataString(parts[1].Replace('+', ' '));
+                return true;
+            }
+        }
+
+        value = null;
+        return false;
     }
 
     [Fact]
@@ -822,15 +954,35 @@ public sealed class LocalIdentityIntegrationTests(PostgreSqlFixture fixture)
 
         public string RequestBody { get; private set; } = string.Empty;
 
+        public List<string> RequestBodies { get; } = [];
+
+        public TimeSpan Delay { get; set; }
+
+        public int TransientFailuresRemaining { get; set; }
+
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
+            if (Delay > TimeSpan.Zero)
+            {
+                await Task.Delay(Delay, cancellationToken);
+            }
+
             RequestUri = request.RequestUri;
             RequestBody = request.Content is null
                 ? string.Empty
                 : await request.Content.ReadAsStringAsync(cancellationToken);
-            return new HttpResponseMessage(StatusCode)
+            RequestBodies.Add(RequestBody);
+            HttpStatusCode effectiveStatus = TransientFailuresRemaining > 0
+                ? HttpStatusCode.ServiceUnavailable
+                : StatusCode;
+            if (TransientFailuresRemaining > 0)
+            {
+                TransientFailuresRemaining--;
+            }
+
+            return new HttpResponseMessage(effectiveStatus)
             {
                 Content = new StringContent(ResponseBody)
                 {

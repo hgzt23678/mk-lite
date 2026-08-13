@@ -44,11 +44,14 @@
 
 @code {
     private readonly CancellationTokenSource lifetime = new();
+    private readonly Dictionary<CalendarItemKey, DateSeparatedCalendarPart> browserCalendarParts = [];
+    private readonly HashSet<CalendarItemKey> requestedCalendarKeys = [];
     private ElementReference root;
     private IJSObjectReference? attachment;
-    private DateSeparatedCalendarPart[]? browserCalendarParts;
-    private string observedCalendarSignature = string.Empty;
-    private bool calendarResolved;
+    private CalendarItemKey[] calendarKeys = [];
+    private CalendarItemKey[] pendingCalendarKeys = [];
+    private long calendarGeneration;
+    private bool calendarRequestPending;
     private bool? animation;
     private bool disposed;
 
@@ -114,15 +117,30 @@
         ArgumentNullException.ThrowIfNull(ShouldInsertAdvertisement);
         ArgumentNullException.ThrowIfNull(ChildContent);
 
-        string signature = string.Join(
-            '\u001f',
-            Items.Select(item => $"{GetId(item)}\u001e{GetCreatedAt(item).ToUnixTimeMilliseconds()}"));
-        if (!string.Equals(observedCalendarSignature, signature, StringComparison.Ordinal))
+        var nextKeys = new CalendarItemKey[Items.Count];
+        for (int index = 0; index < Items.Count; index++)
         {
-            observedCalendarSignature = signature;
-            browserCalendarParts = null;
-            calendarResolved = false;
+            TItem item = Items[index];
+            nextKeys[index] = new CalendarItemKey(
+                GetId(item),
+                GetCreatedAt(item).ToUnixTimeMilliseconds());
         }
+
+        HashSet<CalendarItemKey> activeKeys = [.. nextKeys];
+        foreach (CalendarItemKey staleKey in browserCalendarParts.Keys
+                     .Where(key => !activeKeys.Contains(key))
+                     .ToArray())
+        {
+            browserCalendarParts.Remove(staleKey);
+        }
+        requestedCalendarKeys.RemoveWhere(key => !activeKeys.Contains(key));
+        calendarKeys = nextKeys;
+        pendingCalendarKeys = nextKeys
+            .Distinct()
+            .Where(key => !browserCalendarParts.ContainsKey(key) && !requestedCalendarKeys.Contains(key))
+            .ToArray();
+        calendarRequestPending = pendingCalendarKeys.Length > 0;
+        calendarGeneration = checked(calendarGeneration + 1);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -138,18 +156,28 @@
             return;
         }
 
-        if (!calendarResolved)
+        if (calendarRequestPending)
         {
-            string requestedSignature = observedCalendarSignature;
+            long requestedGeneration = calendarGeneration;
+            CalendarItemKey[] requestedKeys = pendingCalendarKeys;
+            requestedCalendarKeys.UnionWith(requestedKeys);
+            bool applied = false;
             try
             {
                 DateSeparatedCalendarPart[] resolved = await Browser.GetCalendarPartsAsync(
-                    Items.Select(item => GetCreatedAt(item).ToUnixTimeMilliseconds()).ToArray(),
+                    requestedKeys.Select(key => key.UnixTimeMilliseconds).ToArray(),
                     lifetime.Token);
-                if (resolved.Length == Items.Count &&
-                    string.Equals(requestedSignature, observedCalendarSignature, StringComparison.Ordinal))
+                if (resolved.Length == requestedKeys.Length)
                 {
-                    browserCalendarParts = resolved;
+                    HashSet<CalendarItemKey> currentKeys = [.. calendarKeys];
+                    for (int index = 0; index < requestedKeys.Length; index++)
+                    {
+                        if (currentKeys.Contains(requestedKeys[index]))
+                        {
+                            browserCalendarParts[requestedKeys[index]] = resolved[index];
+                            applied = true;
+                        }
+                    }
                 }
             }
             catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
@@ -160,8 +188,15 @@
             {
             }
 
-            calendarResolved = true;
-            await InvokeAsync(StateHasChanged);
+            if (requestedGeneration == calendarGeneration)
+            {
+                pendingCalendarKeys = [];
+                calendarRequestPending = false;
+            }
+            if (applied)
+            {
+                await InvokeAsync(StateHasChanged);
+            }
             return;
         }
 
@@ -218,9 +253,10 @@
 
     private DateSeparatedCalendarPart CalendarPartAt(int index)
     {
-        if (browserCalendarParts is { } values && values.Length == Items.Count)
+        if (calendarKeys.Length == Items.Count &&
+            browserCalendarParts.TryGetValue(calendarKeys[index], out DateSeparatedCalendarPart? value))
         {
-            return values[index];
+            return value!;
         }
 
         DateTimeOffset local = GetCreatedAt(Items[index]).ToLocalTime();
@@ -243,6 +279,8 @@
     private string SeparatorKey(TItem item) => GetId(item) + ":separator";
 
     private string AdvertisementKey(TItem item) => GetId(item) + ":ad";
+
+    private readonly record struct CalendarItemKey(string Id, long UnixTimeMilliseconds);
 
     public async ValueTask DisposeAsync()
     {

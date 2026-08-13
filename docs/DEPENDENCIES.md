@@ -4,17 +4,19 @@ All NuGet versions are centralized in `Directory.Packages.props`; every project 
 
 | Dependency family | Version | Purpose | License | Maintenance / replacement boundary |
 |---|---:|---|---|---|
-| ASP.NET Core / EF Core | 10.0.10 | API, auth, Data Protection, persistence | MIT | Microsoft-supported .NET 10 LTS; isolated behind application repositories and auth configuration |
+| ASP.NET Core / EF Core | 10.0.10 / 10.0.11 | API, auth, Data Protection, persistence | MIT | Microsoft-supported .NET 10 LTS; isolated behind application repositories and auth configuration |
 | Npgsql EF provider | 10.0.3 | PostgreSQL provider | PostgreSQL | Active Npgsql project; SQL-specific queue operations are isolated in Persistence |
+| StackExchange.Redis | 3.1.3 | delivery/stream wake-up、timeline candidate ID、notification count acceleration | MIT | `IFederationQueueSignal`と`IClientProjectionCache`の背後へ隔離。Redisはoptionalかつdisposableで、PostgreSQLが全durable stateの正本 |
 | OpenIddict | 7.6.0 | Mastodon OAuth 2.0 authorization server、reference token、PKCE、revocation | Apache-2.0 | ASP.NET Core/EF adapter内へ隔離。Authorization Code、client credentials、rolling refresh tokenをPostgreSQLへ永続化し、置換時はOAuth endpointとstore interfaceを維持する |
 | MailKit / MimeKit | 4.17.0 | password reset・email確認のSMTP送信とmultipart message生成 | MIT | `IPasswordResetEmailSender`と`IEmailConfirmationSender`の背後へ隔離。ProductionはSTARTTLSまたはimplicit TLSを必須とし、SMTP passwordはsecret fileから読む。別providerへ置換してもtoken生成・永続化には影響しない |
-| Microsoft.Extensions.Http.Resilience | 10.8.0 | Vault HTTPの短時間resilience | MIT | federation配送retryはDB状態機械が所有し、process-local二重retryをしない |
+| Microsoft.Extensions.Http.Resilience | 10.9.0 | Vault HTTPの短時間resilience | MIT | federation配送retryはDB状態機械が所有し、process-local二重retryをしない |
 | NSign | 1.2.4 | RFC 9421 message-signature parsing/signing | MIT | Only the signature adapter depends on it; legacy Cavage and key primitives remain local |
-| HtmlSanitizer | 9.1.974 | allow-list HTML sanitization | MIT | Wrapped by `IIncomingHtmlSanitizer`; replaceable without domain changes |
-| AWSSDK.S3 | 4.0.101.6 | S3-compatible object storage | Apache-2.0 | Hidden behind `IMediaObjectStore`; another S3 client can replace it |
+| HtmlSanitizer | 9.2.995 | allow-list HTML sanitization | MIT | Wrapped by `IIncomingHtmlSanitizer`; replaceable without domain changes |
+| AWSSDK.S3 | 4.0.102.1 | S3-compatible and Cloudflare R2 object storage | Apache-2.0 | Hidden behind `IMediaObjectStore`; provider-specific endpoint and upload settings remain isolated in Media |
 | OpenTelemetry | 1.17.0 | OTLP traces and metrics | Apache-2.0 | Standard OTLP boundary; exporter can be replaced by configuration |
 | xUnit / test SDK / coverlet | 2.9.3 / 18.8.1 / 10.0.1 | automated tests and coverage collection | Apache-2.0 / MIT | Test-only |
 | Testcontainers PostgreSQL | 4.13.0 | real PostgreSQL integration tests | MIT | Test-only; Docker CLI fixtures are a viable replacement |
+| Testcontainers Redis | 4.13.0 | Redis Pub/Sub、cache、fallback integration tests | MIT | Test-only; external disposable Redis can replace it |
 | FsCheck.Xunit | 3.3.4 | domain/protocol invariant property tests | BSD-3-Clause | Test-only; generators are confined to `ActivityPub.Property.Tests` |
 | SharpFuzz / CommandLine | 2.3.0 | AFL++ coverage-guided fuzz harness and assembly instrumentation | MIT | Tool-only; never loaded by production projects and can be replaced by libFuzzer/Atheris-style harnesses |
 | Vue | 3.5.40 | Misskey v12 client runtime | MIT | Frontend-only; domain and federation projects do not reference Vue or Misskey DTOs |
@@ -30,6 +32,6 @@ All NuGet versions are centralized in `Directory.Packages.props`; every project 
 
 The NuGet and npm allow-lists are explicit. `eng/check-licenses.sh` and `eng/check-frontend-licenses.mjs` fail closed for a missing, unknown, or newly introduced license. `escape-regexp@0.0.1` and `misskey-js@0.0.14` omit the npm lock metadata field; the gate accepts only those exact versions after inspecting the MIT declaration shipped in each package archive. An upgrade does not inherit that exception.
 
-The repository is AGPL-3.0-only unless a local license or third-party notice states otherwise. The complete AGPLv3 text and attribution are stored in the root `LICENSE` and `NOTICE.md`. Each Misskey-derived frontend source tree also includes its own `LICENSE` and `NOTICE.md`, exact upstream commit, and corresponding-source requirement. Browser-distributed third-party artifacts include their license text under `frontend/ActivityPub.Misskey.Blazor/wwwroot/vendor`, and the deterministic generators verify those copies. License acceptance is not a substitute for legal review before redistribution.
+The repository is AGPL-3.0-only unless a local license or third-party notice states otherwise. The complete AGPLv3 text and attribution are stored in the root `LICENSE` and `NOTICE.md`; the direct dependency inventory and included standard license texts are indexed by `THIRD_PARTY_NOTICES.md`. Each Misskey-derived frontend source tree also includes its own `LICENSE` and `NOTICE.md`, exact upstream commit, and corresponding-source requirement. Browser-distributed third-party artifacts include their license text under `frontend/ActivityPub.Misskey.Blazor/wwwroot/vendor`, and the deterministic generators verify those copies. License acceptance is not a substitute for legal review before redistribution.
 
 Container base images, including Node 22.23.1 used only by the frontend build stage, are pinned by manifest digest. Ubuntu packages needed for media processing and the container health probe are version-pinned. Updating a digest, OS package, NuGet/npm lock file, or CI action SHA requires the same build, test, license, SBOM, and vulnerability gates.

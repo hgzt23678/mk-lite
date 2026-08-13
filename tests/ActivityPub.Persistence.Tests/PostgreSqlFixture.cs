@@ -20,6 +20,7 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         .WithDatabase("activitypub_tests")
         .WithUsername("activitypub")
         .WithPassword("test-only-password")
+        .WithTmpfsMount("/var/lib/postgresql/data")
         .Build();
 
     public ServiceProvider Services { get; private set; } = null!;

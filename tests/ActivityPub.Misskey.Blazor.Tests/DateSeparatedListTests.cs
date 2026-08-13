@@ -120,7 +120,7 @@ public sealed class DateSeparatedListTests : BunitContext
     }
 
     [Fact]
-    public async Task ReordersItemsWithoutWrappersAndDisposesMotionAttachment()
+    public async Task ReordersWithoutRecalculatingDatesAndRequestsOnlyNewItems()
     {
         DateListItem[] items =
         [
@@ -128,13 +128,33 @@ public sealed class DateSeparatedListTests : BunitContext
             new("b", DateTimeOffset.Parse("2026-04-02T00:00:00Z", CultureInfo.InvariantCulture))
         ];
         IRenderedComponent<MkDateSeparatedList<DateListItem>> component = RenderList(items);
-        component.WaitForAssertion(() => Assert.True(browser.Attached));
+        component.WaitForAssertion(() =>
+        {
+            Assert.True(browser.Attached);
+            Assert.Single(browser.CalendarRequests);
+            Assert.Equal(2, browser.CalendarRequests[0].Count);
+        });
 
         DateListItem[] reordered = [items[1], items[0]];
         component.Render(parameters => parameters.Add(value => value.Items, reordered));
-        component.WaitForAssertion(() => Assert.Equal(
-            ["b", "a"],
-            component.FindAll("[data-date-item]").Select(element => element.GetAttribute("data-date-item"))));
+        component.WaitForAssertion(() =>
+        {
+            Assert.Equal(
+                ["b", "a"],
+                component.FindAll("[data-date-item]").Select(element => element.GetAttribute("data-date-item")));
+            Assert.Single(browser.CalendarRequests);
+        });
+
+        var prepended = new DateListItem(
+            "live",
+            DateTimeOffset.Parse("2026-04-04T00:00:00Z", CultureInfo.InvariantCulture));
+        DateListItem[] extended = [prepended, .. reordered];
+        component.Render(parameters => parameters.Add(value => value.Items, extended));
+        component.WaitForAssertion(() =>
+        {
+            Assert.Equal(2, browser.CalendarRequests.Count);
+            Assert.Equal([prepended.CreatedAt.ToUnixTimeMilliseconds()], browser.CalendarRequests[1]);
+        });
 
         await DisposeComponentsAsync();
         Assert.True(browser.Reference.Disposed);

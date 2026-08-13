@@ -4202,6 +4202,33 @@ hr {
   min-width: 250px;
 }
 
+/* upstream: pages/welcome.setup.vue#style-1 */
+.mk-setup {
+  border-radius: var(--radius);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  max-width: 500px;
+  margin: 32px auto;
+}
+.mk-setup > h1 {
+  margin: 0;
+  font-size: 1.5em;
+  text-align: center;
+  padding: 32px;
+  background: var(--accent);
+  color: #fff;
+}
+.mk-setup > div {
+  padding: 32px;
+  background: var(--panel);
+}
+.mk-setup > div > p {
+  margin-top: 0;
+}
+.mk-setup > div > .bottom > * {
+  margin: 0 auto;
+}
+
 /* upstream: pages/welcome.entrance.a.vue#style-1 */
 .rsqzvsbo > .top {
   display: flex;

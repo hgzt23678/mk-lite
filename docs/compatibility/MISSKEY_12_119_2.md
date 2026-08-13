@@ -4,14 +4,14 @@
 
 Upstream commit: `a5a74f4434b179cdb1f97af98bf294c8b18de0e2`
 
-Inventory: 321 routes; implemented 23, failed 0, blocked 298.
+Inventory: 321 routes; implemented 26, failed 0, blocked 294.
 
 `implemented` は契約と永続副作用を自動試験で確認した項目だけを指す。routeだけが存在する項目はblockedである。 `client-verified` と `differential-verified` は現時点で0件であり、互換を宣言しない。
 
 | Method | Path | Authentication | 判定 | 理由 |
 | --- | --- | --- | --- | --- |
 | POST | `/api/admin/abuse-user-reports` | Misskey token + moderator | blocked | No adapter route exists. |
-| POST | `/api/admin/accounts/create` | none | blocked | No adapter route exists. |
+| POST | `/api/admin/accounts/create` | none | implemented |  |
 | POST | `/api/admin/accounts/delete` | Misskey token + moderator | blocked | No adapter route exists. |
 | POST | `/api/admin/ad/create` | Misskey token + moderator | blocked | No adapter route exists. |
 | POST | `/api/admin/ad/delete` | Misskey token + moderator | blocked | No adapter route exists. |
@@ -52,10 +52,10 @@ Inventory: 321 routes; implemented 23, failed 0, blocked 298.
 | POST | `/api/admin/moderators/add` | Misskey token + administrator | blocked | No adapter route exists. |
 | POST | `/api/admin/moderators/remove` | Misskey token + administrator | blocked | No adapter route exists. |
 | POST | `/api/admin/promo/create` | Misskey token + moderator | blocked | No adapter route exists. |
-| POST | `/api/admin/queue/clear` | Misskey token + moderator | blocked | No adapter route exists. |
-| POST | `/api/admin/queue/deliver-delayed` | Misskey token + moderator | blocked | No adapter route exists. |
-| POST | `/api/admin/queue/inbox-delayed` | Misskey token + moderator | blocked | No adapter route exists. |
-| POST | `/api/admin/queue/stats` | Misskey token + moderator | blocked | No adapter route exists. |
+| POST | `/api/admin/queue/clear` | Misskey token + moderator | excluded | Destructive Bull queue clearing is incompatible with the PostgreSQL audit and recovery contract; use pause, domain cancel, and per-dead-letter replay. |
+| POST | `/api/admin/queue/deliver-delayed` | Misskey token + moderator | implemented |  |
+| POST | `/api/admin/queue/inbox-delayed` | Misskey token + moderator | implemented |  |
+| POST | `/api/admin/queue/stats` | Misskey token + moderator | blocked | The fixed Dolphin UI deliver/inbox fields are PostgreSQL-backed and tested. The absent db and objectStorage queues are not represented by fabricated zero values, so the full 12.119.2 response remains blocked. |
 | POST | `/api/admin/relays/add` | Misskey token + moderator | blocked | Route exists, but complete contract and persistence-side-effect evidence is missing. |
 | POST | `/api/admin/relays/list` | Misskey token + moderator | blocked | Route exists, but complete contract and persistence-side-effect evidence is missing. |
 | POST | `/api/admin/relays/remove` | Misskey token + moderator | blocked | Route exists, but complete contract and persistence-side-effect evidence is missing. |

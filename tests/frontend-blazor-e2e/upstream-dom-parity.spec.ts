@@ -289,11 +289,15 @@ test('authenticated root preserves the Misskey timeline component hierarchy and 
   await expect(shell).toHaveCount(1);
   await expect(shell.locator(':scope > .mvcprjjd.sidebar')).toHaveCount(1);
   await expect(shell.locator(':scope > .contents')).toHaveCount(1);
-  await expect(shell.locator(':scope > .contents > div:first-child > ._statusbars_1bps6_1')).toHaveCount(1);
+  const universalHeader = shell.locator(':scope > .contents > div:first-child');
+  await expect(universalHeader.locator(':scope > ._statusbars_1bps6_1')).toHaveCount(1);
+  await expect(universalHeader).toHaveText('');
+  await expect(universalHeader).toHaveCSS('height', '0px');
   await expect(shell.locator(':scope > .widgets > .efzpzdvf')).toHaveCount(1);
 
   const timelinePage = shell.locator('.contents main .cmuxhskf');
   await expect(timelinePage).toHaveCount(1);
+  await expect(shell.locator(':scope > .contents main .fdidabkb')).toHaveCount(1);
   await expect(timelinePage.locator('xpath=ancestor::div[contains(@class, "_content_b6w6v_6")]')).toHaveCount(1);
   await expect(timelinePage.locator(':scope > .tl._block > .tl > .giivymft.noGap')).toHaveCount(1);
   await expect(timelinePage.locator('.sqadhkmv.noGap.notes > .tkcbzcuz.qtqtichx')).toHaveCount(1);

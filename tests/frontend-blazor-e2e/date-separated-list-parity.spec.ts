@@ -26,9 +26,29 @@ test('MkDateSeparatedList preserves date, advertisement and list motion behavior
   await expect(root.locator('[data-date-item="live"]')).toHaveCount(1);
   await expect(root.locator('[data-date-item="live"]')).toHaveClass(/list-enter-active/);
 
+  await page.evaluate(() => {
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+    if (!descriptor?.get) throw new Error('offsetHeight getter is unavailable');
+    const nativeGetter = descriptor.get;
+    const counts = { root: 0, child: 0 };
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+      configurable: true,
+      get() {
+        if (this.matches('.sqadhkmv.contract-list')) counts.root += 1;
+        else if (this.matches('.sqadhkmv.contract-list > *')) counts.child += 1;
+        return nativeGetter.call(this);
+      },
+    });
+    (window as Window & { __dateListLayoutReads?: typeof counts }).__dateListLayoutReads = counts;
+  });
+
   await page.locator('[data-contract="reverse"]').click();
   await expect(root.locator('[data-date-item]').first()).toHaveAttribute('data-date-item', 'c');
   await expect.poll(() => root.locator('.list-move').count()).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() =>
+    (window as Window & { __dateListLayoutReads?: { root: number } }).__dateListLayoutReads?.root)).toBe(1);
+  expect(await page.evaluate(() =>
+    (window as Window & { __dateListLayoutReads?: { child: number } }).__dateListLayoutReads?.child)).toBe(0);
   await expect(root.locator('.list-move, .list-enter-active')).toHaveCount(0, { timeout: 2_000 });
 
   expect(browserFailures).toEqual([]);

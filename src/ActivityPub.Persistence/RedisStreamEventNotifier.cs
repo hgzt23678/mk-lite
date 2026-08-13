@@ -76,16 +76,19 @@ public sealed class RedisStreamEventNotifier(
     private static string NormalizeConfiguration(string connectionString)
     {
         string normalized = connectionString;
+        bool useTls = false;
         if (normalized.StartsWith("rediss://", StringComparison.OrdinalIgnoreCase))
         {
             normalized = normalized["rediss://".Length..];
+            useTls = true;
         }
         else if (normalized.StartsWith("redis://", StringComparison.OrdinalIgnoreCase))
         {
             normalized = normalized["redis://".Length..];
         }
 
-        return normalized + ",abortConnect=false,connectTimeout=3000,syncTimeout=3000,asyncTimeout=3000";
+        return normalized + (useTls ? ",ssl=true" : string.Empty) +
+            ",abortConnect=false,connectTimeout=3000,syncTimeout=3000,asyncTimeout=3000";
     }
 
     private async Task<ISubscriber> GetSubscriberAsync(CancellationToken cancellationToken)

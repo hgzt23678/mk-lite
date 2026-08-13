@@ -252,6 +252,12 @@ public sealed class InteropDisposalTests : BunitContext
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public ValueTask<IJSObjectReference> AttachInitialSetupAsync(
+            ElementReference form,
+            DotNetObjectReference<WelcomeSetup> receiver,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 

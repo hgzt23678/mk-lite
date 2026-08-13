@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('MkNote preserves the pinned v12 hierarchy, responsive classes, hotkeys, and real actions', async ({ page }) => {
+test('MkNote preserves the pinned v12 hierarchy, responsive layout, hotkeys, and real actions', async ({ page }) => {
   const failures: string[] = [];
   page.on('console', message => {
     if (message.type() === 'error') failures.push(`console:${message.text()}`);
@@ -32,9 +32,24 @@ test('MkNote preserves the pinned v12 hierarchy, responsive classes, hotkeys, an
 
   const narrowRenote = page.locator('[data-contract="renote-host"] > .tkcbzcuz');
   await expect(narrowRenote).toHaveClass(/renote/);
-  await expect(narrowRenote).toHaveClass(/max-width_450px/);
+  await expect(narrowRenote).not.toHaveClass(/max-width_/);
+  expect(await page.locator('[data-contract="renote-host"]').evaluate(element =>
+    getComputedStyle(element).containerType)).toBe('inline-size');
+  expect(await narrowRenote.evaluate(element => getComputedStyle(element).fontSize)).toBe('12.6px');
+  expect(await narrowRenote.locator(':scope > .article').evaluate(element =>
+    getComputedStyle(element).padding)).toBe('14px 16px 9px');
   await expect(narrowRenote.locator(':scope > .renote > .avatar.eiwwqkts')).toHaveCount(1);
   await expect(narrowRenote.locator(':scope > .renote > .info > .time')).toHaveCount(1);
+
+  const narrowHost = page.locator('[data-contract="renote-host"]');
+  await narrowHost.evaluate(element => { (element as HTMLElement).style.width = '340px'; });
+  expect(await narrowRenote.locator(':scope > .article > .main > .footer > .button').first().evaluate(element =>
+    getComputedStyle(element).marginRight)).toBe('18px');
+  await narrowHost.evaluate(element => { (element as HTMLElement).style.width = '290px'; });
+  expect(await narrowRenote.locator(':scope > .article > .avatar').evaluate(element =>
+    getComputedStyle(element).width)).toBe('44px');
+  expect(await narrowRenote.locator(':scope > .article > .main > .footer > .button').first().evaluate(element =>
+    getComputedStyle(element).marginRight)).toBe('12px');
 
   await root.focus();
   await page.keyboard.press('r');

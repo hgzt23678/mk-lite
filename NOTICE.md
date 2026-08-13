@@ -33,6 +33,11 @@ Third-party dependencies and bundled assets retain their own copyright and
 license terms.
 License texts for browser-distributed dependencies are stored beside the
 corresponding files under `frontend/ActivityPub.Misskey.Blazor/wwwroot/vendor`.
+Twemoji graphics are stored under
+`frontend/ActivityPub.Misskey.Blazor/wwwroot/twemoji` with their attribution and
+license notice.
+The complete direct dependency inventory is recorded in
+`THIRD_PARTY_NOTICES.md`.
 The locked NuGet and npm dependency inventories are checked by
 `eng/check-licenses.sh` and `eng/check-frontend-licenses.mjs`.
 
