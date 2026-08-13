@@ -31,21 +31,21 @@
       },
       "AngleSharp": {
         "type": "Transitive",
-        "resolved": "1.6.0",
-        "contentHash": "kVnhnZlM4Yww2KWqW3uSL8isvhYsrTTBMSPAgoF8ZhMrLSoay6783AP6dQxAj1J9gvWKi3OIM4ZezdE2Y4ufCQ=="
+        "resolved": "1.7.1",
+        "contentHash": "QBblGpRB3SYD66Mls7fHyl1mWkP93n7ErWDWHc1vd9sPHhdlTkmUoY3CjgfjcWNxGF9m7xjNyztRfErXqoBKOA=="
       },
       "AngleSharp.Css": {
         "type": "Transitive",
-        "resolved": "1.0.0",
-        "contentHash": "yMpYcNkI/ZHTt+qZMczhHEAHZV0AZf75nqJ5LqERFXvJGOFLJjwr0eqaYXqYlt9JPojOd+OkZLlGbnsmKjmh+g==",
+        "resolved": "1.0.1",
+        "contentHash": "6S13xNHH+SUGPZd6EO1MhkuDbpEnFroUM6A8DZpLJHQnLRTvtBJb3Ydu65s618E4gWF9FSWmM5jhKk4RIfwT2A==",
         "dependencies": {
           "AngleSharp": "[1.5.0, 2.0.0)"
         }
       },
       "AWSSDK.Core": {
         "type": "Transitive",
-        "resolved": "4.0.100.9",
-        "contentHash": "OPYy41jZjXwxxcYRotaq24HDrwUnVtBB/mvg1IwB9D1ICXAtHqMa1sp2hpmlVJCZwjlcrPcTCJIejInvV1vp5g=="
+        "resolved": "4.0.101",
+        "contentHash": "7Q0z0fLpy+w6h4G5z/qZ6PYGzZ0DgYjYkVdGMnhtjkgQaKX+Sjm0YxfFxFILRewxC4o6wwnrbvwaSj41LgRRfg=="
       },
       "Microsoft.CodeCoverage": {
         "type": "Transitive",
@@ -397,7 +397,7 @@
         "dependencies": {
           "ActivityPub.Application": "[1.0.0, )",
           "ActivityPub.Domain": "[1.0.0, )",
-          "HtmlSanitizer": "[9.1.974, )",
+          "HtmlSanitizer": "[9.2.995, )",
           "Microsoft.Extensions.Http.Resilience": "[10.8.0, )",
           "NSign.Abstractions": "[1.2.4, )",
           "NSign.AspNetCore": "[1.2.4, )",
@@ -408,7 +408,7 @@
       "activitypub.media": {
         "type": "Project",
         "dependencies": {
-          "AWSSDK.S3": "[4.0.101.6, )",
+          "AWSSDK.S3": "[4.0.102.1, )",
           "ActivityPub.Application": "[1.0.0, )",
           "ActivityPub.Domain": "[1.0.0, )",
           "ActivityPub.Federation": "[1.0.0, )"
@@ -416,21 +416,21 @@
       },
       "AWSSDK.S3": {
         "type": "CentralTransitive",
-        "requested": "[4.0.101.6, )",
-        "resolved": "4.0.101.6",
-        "contentHash": "LsVXGc3lyJuUJe+EbGubkFeR0cVmtmj4YdMChqsqSIsjZtCMzPg2BXR7cJqcrIBGoHab3q3RS6K8T9QD2tbhhQ==",
+        "requested": "[4.0.102.1, )",
+        "resolved": "4.0.102.1",
+        "contentHash": "zGP3FW4D0wfbmYxoOWgNoPcwoA8E+kWH6KezOBPiLpAOi3l4cygFF15jiWdma6R7D+M9qu3DzdpWq/VlyIJX+Q==",
         "dependencies": {
-          "AWSSDK.Core": "[4.0.100.9, 5.0.0)"
+          "AWSSDK.Core": "[4.0.101, 5.0.0)"
         }
       },
       "HtmlSanitizer": {
         "type": "CentralTransitive",
-        "requested": "[9.1.974, )",
-        "resolved": "9.1.974",
-        "contentHash": "aNhlO/5IatTdLCHcaNDhp2FPvf73+NxmhaUJ+bhdoA49aJ9qqLdPHkZ/1oRGk/jj2uUlftuc0ToLx84tb6Hjvw==",
+        "requested": "[9.2.995, )",
+        "resolved": "9.2.995",
+        "contentHash": "Yws4FratoTx4FDlvOjQTfuE49ATTVwAxNosv2CE2XqnOcmPuWWOWbLwEYP5w9uqvrGRyOgQloisKVokrgxKaXg==",
         "dependencies": {
-          "AngleSharp": "1.6.0",
-          "AngleSharp.Css": "1.0.0"
+          "AngleSharp": "1.7.1",
+          "AngleSharp.Css": "1.0.1"
         }
       },
       "Microsoft.Extensions.Http.Resilience": {
