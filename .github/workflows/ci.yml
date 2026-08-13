@@ -101,10 +101,13 @@ jobs:
       - name: License policy
         run: bash eng/check-licenses.sh | tee dependency-licenses.tsv
       - name: Generate migration review script
-        run: >-
-          dotnet ef migrations script --no-build --configuration Release
-          --project src/ActivityPub.Persistence --startup-project src/ActivityPub.Persistence
-          --output migrations.sql
+        run: |
+          dotnet ef migrations script --no-build --configuration Release \
+            --project src/ActivityPub.Persistence --startup-project src/ActivityPub.Persistence \
+            --context FederationDbContext --output migrations-federation.sql
+          dotnet ef migrations script --no-build --configuration Release \
+            --project src/ActivityPub.Persistence --startup-project src/ActivityPub.Persistence \
+            --context LocalIdentityDbContext --output migrations-identity.sql
       - name: Upload test and migration evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -114,7 +117,8 @@ jobs:
             **/TestResults/*.trx
             tests/frontend-blazor-e2e/artifacts/
             dependency-licenses.tsv
-            migrations.sql
+            migrations-federation.sql
+            migrations-identity.sql
 
   container:
     runs-on: ubuntu-24.04

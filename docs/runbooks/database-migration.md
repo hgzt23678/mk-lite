@@ -6,9 +6,9 @@ Local Identity用migration historyは`identity.__ef_migrations_history`へ分離
 
 ## Apply
 
-1. `dotnet ef migrations script`で順序付きSQLを生成し、lock、rewrite、推定時間、rollbackをreviewする。
+1. `FederationDbContext`と`LocalIdentityDbContext`を明示して`dotnet ef migrations script`をそれぞれ実行し、両方の順序付きSQLについてlock、rewrite、推定時間、rollbackをreviewする。
 2. backup/PITR、DB free space、long transaction、replication lagを確認する。
-3. CIの`migrations.sql`はreview用の順序付きscriptであり、idempotent再実行用ではない。`CREATE INDEX CONCURRENTLY`を条件付き`DO` blockへ包むとPostgreSQLで実行不能になるため、本番適用はmigration historyを確認する専用`migrate` commandを一度だけ実行する。
+3. CIの`migrations-federation.sql`と`migrations-identity.sql`はreview用の順序付きscriptであり、idempotent再実行用ではない。`CREATE INDEX CONCURRENTLY`を条件付き`DO` blockへ包むとPostgreSQLで実行不能になるため、本番適用はmigration historyを確認する専用`migrate` commandを一度だけ実行する。
 4. 一回限りのmigration jobとして`activitypub-server migrate`を実行する。Web起動時に適用しない。
 5. `/health/startup`と`/health/ready`、schema compatibility row、migration historyを確認する。
 

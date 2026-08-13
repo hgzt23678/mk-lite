@@ -26,7 +26,11 @@ dotnet test ActivityPubServer.slnx --configuration Release --no-build
 dotnet list ActivityPubServer.slnx package --vulnerable --include-transitive --no-restore
 bash eng/check-licenses.sh
 dotnet ef migrations script --no-build --configuration Release \
-  --project src/ActivityPub.Persistence --startup-project src/ActivityPub.Persistence
+  --project src/ActivityPub.Persistence --startup-project src/ActivityPub.Persistence \
+  --context FederationDbContext --output migrations-federation.sql
+dotnet ef migrations script --no-build --configuration Release \
+  --project src/ActivityPub.Persistence --startup-project src/ActivityPub.Persistence \
+  --context LocalIdentityDbContext --output migrations-identity.sql
 docker build --tag activitypub-server:verify .
 docker compose config --quiet
 ```
