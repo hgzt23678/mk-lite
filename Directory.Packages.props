@@ -40,7 +40,7 @@
     <PackageVersion Include="OpenIddict.Server.AspNetCore" Version="7.6.0" />
     <PackageVersion Include="OpenIddict.Validation.AspNetCore" Version="7.6.0" />
     <PackageVersion Include="OpenIddict.Validation.ServerIntegration" Version="7.6.0" />
-    <PackageVersion Include="StackExchange.Redis" Version="3.1.3" />
+    <PackageVersion Include="StackExchange.Redis" Version="3.1.13" />
     <PackageVersion Include="SharpFuzz" Version="2.3.0" />
     <!-- Testcontainers 4.13.0 permits SSH.NET 2025.1.0; pin the first release that fixes
          GHSA-q939-rpr3-3284 instead of suppressing the NU1903 security gate. -->
