@@ -45,7 +45,7 @@
     <!-- Testcontainers 4.13.0 permits SSH.NET 2025.1.0; pin the first release that fixes
          GHSA-q939-rpr3-3284 instead of suppressing the NU1903 security gate. -->
     <PackageVersion Include="SSH.NET" Version="2026.0.0" />
-    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.14.0" />
     <PackageVersion Include="Testcontainers.Redis" Version="4.13.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
